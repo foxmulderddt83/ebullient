@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="Content-Security-Policy" content="default-src * 'self' 'unsafe-inline' 'unsafe-eval' data: blob:; img-src * 'self' data: blob:; connect-src 'self' https://*.supabase.co https://*.supabase.in https://*.supabase.net https://*.vercel-scripts.com https://ipapi.co https://maps.googleapis.com https://*.fly.dev https://oneday-whatsapp-bot.fly.dev https://api.brevo.com; script-src * 'self' 'unsafe-inline' 'unsafe-eval' data: blob:; style-src * 'self' 'unsafe-inline' data: blob:;">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- TODO: Set the document title to the name of your application -->
+    <title id="site-title">OneDayPilot</title>
+    <link id="favicon" rel="icon" type="image/jpeg" href="/logooneday.jpeg" />
+    <link id="apple-touch-icon" rel="apple-touch-icon" href="/logooneday.jpeg" />
+    <meta id="og-title" property="og:title" content="OneDayPilot" />
+    <meta id="og-image" property="og:image" content="/logooneday.jpeg" />
+    <meta id="twitter-image" name="twitter:image" content="/logooneday.jpeg" />
+  </head>
+
+  <body>
+    <div id="root"></div>
+    <script>
+      // Polyfill for global which is needed by some older libraries (like quill-image-resize-module-react)
+      window.global = window;
+    </script>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

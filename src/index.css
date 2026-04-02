@@ -1,0 +1,249 @@
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&family=Montserrat:wght@400;500;600;700;800&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* OneDayPilot Aviation Theme - Design System */
+
+@layer base {
+  :root {
+    /* Core Colors - Aviation Theme */
+    --background: 0 0% 100%;
+    --foreground: 220 20% 15%;
+
+    /* Event Theme Colors */
+    --event-pink: 333 100% 60%; /* #FF3399 */
+    --event-purple: 271 76% 58%; /* #9D4EDD */
+    --gradient-event: linear-gradient(135deg, #FF3399 0%, #9D4EDD 100%);
+    --event-pink-soft: 333 100% 97%; /* #FFF0F6 */
+
+    --card: 0 0% 100%;
+    --card-foreground: 220 20% 15%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 220 20% 15%;
+
+    /* Primary - Crimson Red (Brand Color) */
+    --primary: 4 84% 50%;
+    --primary-foreground: 0 0% 100%;
+
+    /* Secondary - Dark slate for contrast */
+    --secondary: 220 15% 20%;
+    --secondary-foreground: 0 0% 100%;
+
+    /* Muted - Light gray backgrounds */
+    --muted: 220 14% 96%;
+    --muted-foreground: 220 10% 45%;
+
+    /* Accent - Warm gold for highlights */
+    --accent: 38 92% 50%;
+    --accent-foreground: 220 20% 15%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 220 13% 91%;
+    --input: 220 13% 91%;
+    --ring: 4 84% 50%;
+
+    --radius: 0.5rem;
+
+    /* Custom Aviation Theme Colors */
+    --aviation-dark: 220 20% 12%;
+    --aviation-darker: 220 25% 8%;
+    --hero-overlay: 220 20% 10%;
+    --hero-overlay-opacity: 0.55;
+    
+    /* Gradients */
+    --gradient-primary: linear-gradient(135deg, hsl(4 84% 50%) 0%, hsl(4 90% 40%) 100%);
+    --gradient-dark: linear-gradient(180deg, hsl(220 20% 12%) 0%, hsl(220 25% 8%) 100%);
+    --gradient-hero-overlay: linear-gradient(to bottom, hsla(220, 20%, 10%, 0.4) 0%, hsla(220, 20%, 10%, 0.7) 100%);
+    --gradient-silver: linear-gradient(135deg, #f8f9fa 0%, #e5e7eb 50%, #d1d5db 100%);
+    
+    /* Shadows */
+    --shadow-soft: 0 4px 20px -4px hsla(220, 20%, 15%, 0.1);
+    --shadow-medium: 0 8px 30px -8px hsla(220, 20%, 15%, 0.15);
+    --shadow-card: 0 10px 40px -10px hsla(220, 20%, 15%, 0.12);
+    --shadow-button: 0 4px 14px -2px hsla(4, 84%, 50%, 0.4);
+    --shadow-button-hover: 0 6px 20px -2px hsla(4, 84%, 50%, 0.5);
+
+    /* Sidebar */
+    --sidebar-background: 0 0% 98%;
+    --sidebar-foreground: 240 5.3% 26.1%;
+    --sidebar-primary: 240 5.9% 10%;
+    --sidebar-primary-foreground: 0 0% 98%;
+    --sidebar-accent: 240 4.8% 95.9%;
+    --sidebar-accent-foreground: 240 5.9% 10%;
+    --sidebar-border: 220 13% 91%;
+    --sidebar-ring: 4 84% 50%;
+  }
+
+  .dark {
+    --background: 220 25% 8%;
+    --foreground: 0 0% 98%;
+
+    --card: 220 20% 12%;
+    --card-foreground: 0 0% 98%;
+
+    --popover: 220 20% 12%;
+    --popover-foreground: 0 0% 98%;
+
+    --primary: 4 84% 55%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 220 15% 25%;
+    --secondary-foreground: 0 0% 98%;
+
+    --muted: 220 15% 18%;
+    --muted-foreground: 220 10% 60%;
+
+    --accent: 38 92% 50%;
+    --accent-foreground: 220 20% 15%;
+
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 98%;
+
+    --border: 220 15% 18%;
+    --input: 220 15% 18%;
+    --ring: 4 84% 55%;
+    
+    --sidebar-background: 240 5.9% 10%;
+    --sidebar-foreground: 240 4.8% 95.9%;
+    --sidebar-primary: 224.3 76.3% 48%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 240 3.7% 15.9%;
+    --sidebar-accent-foreground: 240 4.8% 95.9%;
+    --sidebar-border: 240 3.7% 15.9%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+@layer components {
+  .hero-gradient {
+    background: linear-gradient(180deg, rgba(0,0,0,0.6) 0%, rgba(0,0,0,0.3) 50%, rgba(0,0,0,0.6) 100%);
+  }
+
+  .text-shadow {
+    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+  }
+
+  .glass-card {
+    @apply bg-white/10 backdrop-blur-md border border-white/20 shadow-xl;
+  }
+
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+}
+
+/* Custom Overrides */
+/* Dark gradient background for Booking Wizard SECTION (outermost) */
+#booking {
+  /* Dynamic background applied via style prop in BookingWizard.tsx */
+}
+
+/* Dark gradient background for Booking Wizard container (inner) */
+#booking .max-w-6xl.bg-white\/50 {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+}
+
+/* Override text colors in the main container for readability on dark bg */
+#booking .max-w-6xl.bg-white\/50 .text-slate-900 {
+  color: #f8fafc !important;
+}
+#booking .max-w-6xl.bg-white\/50 .text-muted-foreground {
+  color: #cbd5e1 !important;
+}
+
+/* Override Flight Package Cards to be DARK with GRADIENT */
+#booking .group.bg-background,
+#booking .group.bg-background\/60 {
+  background: linear-gradient(to bottom, #1e293b, #020617) !important; /* Dark to Darker Gradient */
+  border-color: #334155 !important;
+}
+
+/* Ensure text inside cards is readable (light on dark) */
+#booking .group h3,
+#booking .group .text-lg,
+#booking .group .text-2xl,
+#booking .group .text-base {
+  color: #f8fafc !important; /* Slate 50 */
+}
+
+#booking .group .text-muted-foreground {
+  color: #94a3b8 !important; /* Slate 400 */
+}
+
+/* Ensure the semi-transparent overlay inside cards is dark */
+#booking .group .bg-background\/20 {
+  background-color: transparent !important;
+  backdrop-filter: none !important;
+}
+
+/* Remove horizontal borderline in Flight Package cards */
+#booking .group .border-b {
+  border-bottom: none !important;
+}
+
+/* Restore text colors for other white backgrounds inside the container (if any remain) */
+#booking .max-w-6xl.bg-white\/50 .bg-white .text-slate-900,
+#booking .max-w-6xl.bg-white\/50 .bg-slate-50 .text-slate-900,
+#booking .max-w-6xl.bg-white\/50 .bg-card .text-slate-900 {
+  color: #0f172a !important; /* Restore dark text for white cards */
+}
+
+/* Quill Custom Table Styles (mimicking MonthlyPaymentTemplate) */
+.ql-editor table {
+  display: table !important;
+  width: 100% !important;
+  border-collapse: collapse !important;
+  border: 1px solid #000 !important;
+  margin-bottom: 1rem;
+}
+
+.ql-editor thead {
+  display: table-header-group !important;
+}
+
+.ql-editor tbody {
+  display: table-row-group !important;
+}
+
+.ql-editor tr {
+  display: table-row !important;
+}
+
+.ql-editor th {
+  display: table-cell !important;
+  border: 1px solid #000 !important;
+  padding: 8px !important; /* py-2 px-2 = 0.5rem = 8px */
+  text-align: center !important;
+  background-color: #f3f4f6 !important; /* bg-gray-100 */
+  font-weight: bold !important;
+  vertical-align: middle !important;
+}
+
+.ql-editor td {
+  display: table-cell !important;
+  border: 1px solid #000 !important;
+  padding: 8px !important;
+  text-align: center !important;
+  vertical-align: middle !important;
+}

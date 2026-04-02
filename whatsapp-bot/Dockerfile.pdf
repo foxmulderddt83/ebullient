@@ -1,0 +1,39 @@
+FROM python:3.11-slim-bookworm
+
+# Install Node.js and WeasyPrint dependencies
+RUN apt-get update && apt-get install -y \
+    curl \
+    build-essential \
+    libjpeg-dev \
+    zlib1g-dev \
+    libpango-1.0-0 \
+    libharfbuzz0b \
+    libpangoft2-1.0-0 \
+    libffi-dev \
+    libgdk-pixbuf-2.0-0 \
+    shared-mime-info \
+    fontconfig \
+    && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
+    && apt-get install -y nodejs \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Install Python dependencies
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Install Node dependencies
+COPY package*.json ./
+RUN npm install
+
+COPY . .
+
+# Ensure output directory exists and script is executable
+RUN mkdir -p temp_outputs auth_info_baileys && chmod +x start.sh
+
+# Expose the port fly.toml expects
+EXPOSE 8080
+
+# Start both services using the start script
+CMD ["./start.sh"]

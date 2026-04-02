@@ -1,0 +1,1 @@
+web: gunicorn api_with_supabase:app --bind 0.0.0.0:8080

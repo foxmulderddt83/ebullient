@@ -1,0 +1,11 @@
+[functions.check-whatsapp-status]
+verify_jwt = false
+
+[functions.send-booking-notification]
+verify_jwt = false
+
+[functions.chip-payment-initiate]
+verify_jwt = false
+
+[functions.chip-webhook]
+verify_jwt = false
