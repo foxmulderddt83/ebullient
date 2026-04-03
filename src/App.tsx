@@ -31,9 +31,7 @@ const AnalyticsTracker = () => {
   return null;
 };
 
-const App = () => {
-  console.log("[v0] App component rendering, current URL:", window.location.pathname);
-  return (
+const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
       <Toaster />
@@ -89,7 +87,6 @@ const App = () => {
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>
-  );
-};
+);
 
 export default App;
