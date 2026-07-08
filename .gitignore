@@ -26,3 +26,27 @@ dist-ssr
 .vercel
 .env
 .env*.local
+.env.production.local
+.env.*.local
+
+# Sensitive files
+*.key
+*.pem
+*.p12
+*.pfx
+*.jks
+credentials.json
+secrets.json
+*.secret
+.aws/credentials
+.aws/config
+
+# IDE secrets
+.vscode/settings.json
+.idea/dictionaries
+.idea/workspace.xml
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
