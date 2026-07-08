@@ -15,6 +15,26 @@ import { applyWatermark } from "@/components/BookingWizard";
 import { compressFile } from "@/utils/fileCompression";
 import { useToast } from "@/hooks/use-toast";
 import { generateBookingReference } from "@/lib/utils";
+import { trackEvent } from "@/lib/analytics";
+
+const formatFlightTime = (time: string | null | undefined) => {
+  if (!time) return "TBD";
+  if (time.toLowerCase().includes('am') || time.toLowerCase().includes('pm')) {
+    return time.toUpperCase();
+  }
+  try {
+    if (!time.includes(':')) return time.toUpperCase();
+    const parts = time.split(':');
+    const h = parseInt(parts[0], 10);
+    const m = parts[1] || '00';
+    if (isNaN(h)) return time.toUpperCase();
+    const ampm = h >= 12 ? 'PM' : 'AM';
+    const h12 = h % 12 || 12;
+    return `${h12}:${m.padStart(2, '0')} ${ampm}`;
+  } catch (error) {
+    return time.toUpperCase();
+  }
+};
 
 export default function Checkout() {
   const { items, total, clearCart, removeItem, addItem } = useCart();
@@ -35,6 +55,43 @@ export default function Checkout() {
   const [autoStart, setAutoStart] = useState<boolean>(location.state?.autoStart || false);
   const [regData, setRegData] = useState<any>(null);
   const [isInitialLoading, setIsInitialLoading] = useState(location.state?.autoStart || false);
+  const [isMobileView, setIsMobileView] = useState(false);
+  const [showProgressOverlay, setShowProgressOverlay] = useState(false);
+  const [progressCount, setProgressCount] = useState(0);
+  const [checkoutStep, setCheckoutStep] = useState<1 | 2 | 3>(1); // 1: Info, 2: Date/Time, 3: Payment
+  const [contactInfo, setContactInfo] = useState({ name: '', email: '', phone: '' });
+  const [specialRequests, setSpecialRequests] = useState<string>('');
+
+  useEffect(() => {
+    trackEvent({
+      action_type: 'view',
+      entity_type: 'page',
+      entity_id: '/checkout',
+      entity_name: 'Checkout Page',
+      source: 'Checkout'
+    });
+  }, []);
+
+  useEffect(() => {
+    let timer: NodeJS.Timeout;
+    if (showProgressOverlay) {
+      timer = setInterval(() => {
+        setProgressCount(prev => prev + 1);
+      }, 1000);
+    } else {
+      setProgressCount(0);
+    }
+    return () => {
+      if (timer) clearInterval(timer);
+    };
+  }, [showProgressOverlay]);
+
+  useEffect(() => {
+    const updateMobileView = () => setIsMobileView(window.innerWidth < 768);
+    updateMobileView();
+    window.addEventListener("resize", updateMobileView);
+    return () => window.removeEventListener("resize", updateMobileView);
+  }, []);
 
   const isRegistration = !!registrationId;
 
@@ -61,41 +118,8 @@ export default function Checkout() {
   const today = new Date().toISOString().split('T')[0];
 
   const checkWhatsAppStatus = async () => {
-    if (!supabase) return true;
-    try {
-      // 1. Try Edge Function first (best way to handle CORS/RLS)
-      try {
-        const { data, error } = await supabase.functions.invoke('check-whatsapp-status');
-        if (!error && data?.connected) return true;
-      } catch (efError) {
-        console.warn('Edge Function check failed, trying database/API fallback:', efError);
-      }
-
-      // 2. Check from DB status (updated by bot periodically)
-      const { data } = await supabase.from('site_settings').select('value').eq('key', 'whatsapp_bot_status').maybeSingle();
-      if (data && data.value === 'connected') return true;
-
-      // 3. Fallback: Direct API check
-      const { data: apiUrlData } = await supabase
-        .from('site_settings')
-        .select('value')
-        .eq('key', 'whatsapp_api_url')
-        .maybeSingle();
-
-      const API_URL = apiUrlData?.value || import.meta.env.VITE_WHATSAPP_API_URL;
-      
-      if (API_URL) {
-        const res = await fetch(`${API_URL}/api/status`).catch(() => null);
-        if (res && res.ok) {
-          const json = await res.json();
-          return Boolean(json.connected);
-        }
-      }
-      return false;
-    } catch (e) {
-      console.error('WhatsApp status check error:', e);
-      return false;
-    }
+    // ALWAYS return true to prevent blocking the user
+    return true;
   };
 
   const normalizeWhatsAppNumber = (value: string) => {
@@ -197,6 +221,11 @@ export default function Checkout() {
 
     try {
       setIsProcessing(true);
+      setShowProgressOverlay(true);
+      
+      // Auto scroll to top to ensure the processing overlay is focused
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+
       console.log("Initiating payment for registration from Checkout:", regId, "Event ID:", eventId, "Type:", paymentType);
       
       const requestBody = {
@@ -237,6 +266,10 @@ export default function Checkout() {
       }
 
       if (data?.checkout_url) {
+        // Trigger WhatsApp bot for registration
+        if (regData?.booking_id) {
+          notificationService.triggerFlyioAutoNotification(regData.booking_id).catch(e => console.error("Fly.io trigger failed:", e));
+        }
         window.location.href = data.checkout_url;
       } else {
         throw new Error("No checkout URL returned from payment gateway.");
@@ -249,13 +282,26 @@ export default function Checkout() {
         variant: "destructive"
       });
       setIsProcessing(false);
+      setShowProgressOverlay(false);
     }
   };
 
-  const timeSlots = [
-    "09:00 AM", "10:00 AM", "11:00 AM", "12:00 PM",
-    "01:00 PM", "02:00 PM", "03:00 PM", "04:00 PM", "05:00 PM", "06:00 PM"
-  ];
+  const timeSlots = (() => {
+    const slots: string[] = [];
+    const startMinutes = 9 * 60;
+    const endMinutes = 18 * 60;
+    const intervalMinutes = 30;
+
+    for (let minutes = startMinutes; minutes <= endMinutes; minutes += intervalMinutes) {
+      const hours24 = Math.floor(minutes / 60);
+      const mins = minutes % 60;
+      const ampm = hours24 >= 12 ? "PM" : "AM";
+      const hours12 = hours24 % 12 || 12;
+      slots.push(`${hours12.toString().padStart(2, "0")}:${mins.toString().padStart(2, "0")} ${ampm}`);
+    }
+
+    return slots;
+  })();
 
   const isTimeInPast = (timeStr: string) => {
     if (selectedDate !== today) return false;
@@ -276,14 +322,16 @@ export default function Checkout() {
   useEffect(() => {
     if (selectedDate) {
       const fetchBlockedTimes = async () => {
+        // Query all bookings for this date, regardless of status, to prevent overlaps
         const { data, error } = await supabase
           .from('bookings')
           .select('flight_time')
-          .eq('flight_date', selectedDate)
-          .or('payment_status.eq.paid,status.eq.confirmed');
-        
-        if (data && !error) {
-          const times = data.map(b => b.flight_time).filter(Boolean) as string[];
+          .eq('flight_date', selectedDate);
+
+        if (!error && data) {
+          const times = data
+            .map((row) => formatFlightTime(row.flight_time))
+            .filter(Boolean) as string[];
           setBlockedTimes(times);
         }
       };
@@ -329,44 +377,50 @@ export default function Checkout() {
       return;
     }
 
-    const formData = new FormData(e.target as HTMLFormElement);
-    const rawPhone = (formData.get("phone") as string) || "";
-    const normalizedPhone = normalizeWhatsAppNumber(rawPhone);
-    if (!normalizedPhone.isValid) {
-      toast({
-        title: "Invalid WhatsApp Number",
-        description: normalizedPhone.message,
-        variant: "destructive"
-      });
-      return;
-    }
-
     setIsProcessing(true);
+    setShowProgressOverlay(true);
+
+    trackEvent({
+      action_type: 'click',
+      entity_type: 'page',
+      entity_id: 'checkout_place_order',
+      entity_name: `Place Order: ${paymentMethod}`,
+      details: { payment_method: paymentMethod, total: total },
+      source: 'Checkout'
+    });
+    
+    // Auto scroll to top to ensure the processing overlay is focused and visible
+    window.scrollTo({ top: 0, behavior: 'smooth' });
 
     try {
-      // Ensure WhatsApp is connected before allowing booking
-      const isConnected = await checkWhatsAppStatus();
-      if (!isConnected) {
-        setIsProcessing(false);
-        alert("WhatsApp bot disconnected. Please contact support to proceed with your booking.");
-        return;
-      }
+      // Background check for WhatsApp status (non-blocking)
+      checkWhatsAppStatus().then(isConnected => {
+        if (!isConnected) {
+          console.warn("WhatsApp bot might be disconnected, but proceeding with booking.");
+        }
+      });
 
-      const name = formData.get("name") as string;
-      const email = formData.get("email") as string;
+      const name = contactInfo.name;
+      const email = contactInfo.email;
+      const rawPhone = contactInfo.phone;
+      const normalizedPhone = normalizeWhatsAppNumber(rawPhone);
+      if (!normalizedPhone.isValid) {
+        throw new Error(normalizedPhone.message);
+      }
       const phone = normalizedPhone.phone;
-      const flightDate = formData.get("date") as string;
+      const flightDate = selectedDate;
 
       // Check if slot is still available
-      const { data: existingBooking } = await supabase
-        .from('bookings')
-        .select('booking_id')
-        .eq('flight_date', flightDate)
-        .eq('flight_time', selectedTime)
-        .or('payment_status.eq.paid,status.eq.confirmed')
-        .maybeSingle();
+      const { data: isTaken, error: isTakenError } = await supabase.rpc('is_timeslot_taken', {
+        p_flight_date: flightDate,
+        p_flight_time: selectedTime
+      });
 
-      if (existingBooking) {
+      if (isTakenError) {
+        throw new Error(`Failed to validate timeslot: ${isTakenError.message}`);
+      }
+
+      if (isTaken) {
         throw new Error("This time slot has already been booked. Please select another time.");
       }
 
@@ -374,9 +428,9 @@ export default function Checkout() {
       let customerId;
       
       try {
-        const { data, error } = await supabase.rpc('get_or_create_customer', {
-          p_email: email,
+        const { data, error } = await supabase.rpc('find_or_create_customer', {
           p_name: name,
+          p_email: email,
           p_phone: phone
         });
 
@@ -384,39 +438,21 @@ export default function Checkout() {
         customerId = data;
       } catch (err: any) {
         console.error('Customer RPC error:', err);
-        // Fallback for older schema versions or if RPC fails
-        // Try to find existing customer
-        let existingCustomer = null;
-        if (email) {
-          const { data } = await supabase
-            .from('customers')
-            .select('id')
-            .eq('email', email)
-            .maybeSingle(); // Use maybeSingle to avoid error if not found
-          existingCustomer = data;
-        }
-
-        if (existingCustomer) {
-          customerId = existingCustomer.id;
-        } else {
-          const { data: newCustomer, error: createError } = await supabase
-            .from('customers')
-            .insert({ name, email, phone })
-            .select()
-            .single();
-          
-          if (createError) throw new Error(`Customer creation failed: ${createError.message}`);
-          customerId = newCustomer.id;
-        }
+        throw new Error(`Customer lookup failed: ${err?.message || String(err)}`);
       }
 
       // 2. Create Booking
       const bookingRef = await generateBookingReference(flightDate || undefined);
-      const specialNotes = formData.get("notes") as string;
+      const specialNotes = (e.target as any).notes?.value || "";
       
-      const { data: booking, error: bookingError } = await supabase
+      if (!globalThis.crypto?.randomUUID) {
+        throw new Error("Your browser does not support secure ID generation. Please update your browser.");
+      }
+      const bookingId = globalThis.crypto.randomUUID();
+      const { error: bookingError } = await supabase
         .from('bookings')
         .insert({
+          booking_id: bookingId,
           customer_id: customerId,
           booking_reference: bookingRef,
           total_amount: total,
@@ -425,22 +461,18 @@ export default function Checkout() {
           payment_method: paymentMethod,
           flight_date: flightDate,
           flight_time: selectedTime,
-          notes: specialNotes,
+          notes: specialRequests,
           payment_type: paymentType,
           deposit_amount: paymentType === 'deposit' ? depositAmount : total,
           outstanding_balance: paymentType === 'full' ? 0 : (total - depositAmount),
           status: (paymentType === 'deposit' || paymentMethod === 'qr_pay') ? 'pending_verification' : 'pending'
-        })
-        .select()
-        .single();
+        });
 
       if (bookingError) throw new Error(`Booking creation failed: ${bookingError.message}`);
 
       // 3. Create Booking Items
-      // We assume item.id corresponds to package_id. 
-      // If your cart has mixed items (packages/addons), you need to differentiate.
       const bookingItems = items.map(item => ({
-        booking_id: booking.booking_id,
+        booking_id: bookingId,
         package_id: item.id, 
         quantity: item.quantity,
         unit_price: item.price,
@@ -453,6 +485,9 @@ export default function Checkout() {
 
       if (itemsError) throw new Error(`Adding items failed: ${itemsError.message}`);
 
+      // Send admin notification in background
+      notificationService.sendAdminNewBookingNotification(bookingId).catch(e => console.error("Admin notification error:", e));
+
       // 4. Process Payment based on Method
       if (paymentMethod === 'qr_pay') {
         if (paymentProof.length > 0) {
@@ -463,7 +498,6 @@ export default function Checkout() {
               const file = paymentProof[i];
               let processedFile = file;
 
-              // Only apply watermark and compress if it's an image
               if (file.type.startsWith('image/')) {
                 try {
                   const { file: watermarkedFile } = await applyWatermark(file);
@@ -473,16 +507,15 @@ export default function Checkout() {
                   processedFile = await compressFile(file);
                 }
               } else {
-                // For non-images (like PDFs), just check size via compressFile
                 processedFile = await compressFile(file);
               }
 
               const fileExt = processedFile.name.split('.').pop();
-              const fileName = `payment-proofs/${booking.booking_id}_${i}.${fileExt}`;
+              const fileName = `payment-proofs/${bookingId}_${i}.${fileExt}`;
               
               const { error: uploadError } = await supabase.storage
                 .from('media')
-                .upload(fileName, processedFile);
+                .upload(fileName, processedFile, { upsert: true, cacheControl: '31536000' });
               
               if (uploadError) throw new Error(`Proof upload failed for file ${i + 1}: ${uploadError.message}`);
 
@@ -493,55 +526,43 @@ export default function Checkout() {
               uploadedUrls.push(publicUrl);
             }
 
-            // Update booking with payment proof URLs
-            const { error: updateError } = await supabase
-              .from('bookings')
-              .update({ 
-                payment_proof_url: uploadedUrls[0] || '',
-                payment_proof_urls: uploadedUrls,
-                payment_status: 'pending_verification',
-                status: 'pending_verification'
-              })
-              .eq('booking_id', booking.booking_id);
+            const { error: updateError } = await supabase.rpc('submit_payment_proof', {
+              p_booking_id: bookingId,
+              p_proof_url: uploadedUrls[0] || ''
+            });
               
             if (updateError) {
-              console.error("Failed to update booking with proof URLs:", updateError);
-              throw new Error(`Failed to update booking status: ${updateError.message}`);
+              console.error("Failed to submit payment proof:", updateError);
+              throw new Error(`Failed to submit payment proof: ${updateError.message}`);
             }
           } catch (error: any) {
              console.error("Payment proof processing error:", error);
-             toast({
-               title: "Upload Failed",
-               description: `Failed to upload payment proof: ${error.message}`,
-               variant: "destructive"
-             });
              throw error; 
           }
         }
 
         try {
-          await notificationService.sendPendingApprovalNotifications(booking.booking_id);
+          await notificationService.sendPendingApprovalNotifications(bookingId);
+          notificationService.triggerFlyioAutoNotification(bookingId).catch(e => console.error("Fly.io trigger failed:", e));
         } catch (e) {
           console.error("Failed to send frontend notifications:", e);
         }
 
+        setShowProgressOverlay(false);
         alert("Booking submitted successfully! Please check your WhatsApp for details.");
         clearCart();
         navigate('/');
         return;
       }
 
-      // 5. Initiate Payment via Edge Function (Online Banking)
       const { data: paymentData, error: paymentError } = await supabase.functions.invoke('chip-payment-initiate', {
         body: { 
-          booking_id: booking.booking_id,
+          booking_id: bookingId,
           payment_type: paymentType
         }
       });
 
       if (paymentError) {
-        console.error("Payment edge function error detail:", paymentError);
-        // FunctionsHttpError often has the body available via .context
         if (paymentError.context && typeof paymentError.context.json === 'function') {
           try {
             const body = await paymentError.context.json();
@@ -558,6 +579,7 @@ export default function Checkout() {
       }
 
       if (paymentData?.checkout_url) {
+        clearCart();
         window.location.href = paymentData.checkout_url;
       } else {
         throw new Error("No checkout URL returned from payment gateway.");
@@ -565,12 +587,19 @@ export default function Checkout() {
 
     } catch (error: any) {
       console.error('Payment processing error:', error);
+      let errorMessage = error.message || "An error occurred during payment processing.";
+      
+      if (errorMessage.includes('duplicate key value violates unique constraint') && errorMessage.includes('booking_reference')) {
+        errorMessage = "A booking conflict occurred (duplicate reference for this date). Please try again.";
+      }
+
       toast({
         title: "Payment Error",
-        description: error.message || "An error occurred during payment processing.",
+        description: errorMessage,
         variant: "destructive"
       });
       setIsProcessing(false);
+      setShowProgressOverlay(false);
     }
   };
 
@@ -597,26 +626,21 @@ export default function Checkout() {
   }
 
   const handleSetPrimary = (selectedItem: any) => {
-    // 1. Identify all items to remove (all other packages)
     const itemsToRemove = items.filter(item => {
       const isPackage = item.sort_order === 0 || (!item.parentPackageId && !item.category_id?.toLowerCase().includes('addon'));
       return isPackage && (item.id !== selectedItem.id || item.sort_order !== selectedItem.sort_order);
     });
 
-    // 2. Remove them
     itemsToRemove.forEach(item => {
       if (removeItem) {
         removeItem(item.id, item.sort_order);
       }
     });
 
-    // 3. If the selected item isn't sort_order 0, promote it
     if (selectedItem.sort_order !== 0) {
-      // Remove the non-0 version
       if (removeItem) {
         removeItem(selectedItem.id, selectedItem.sort_order);
       }
-      // Add as sort_order 0
       if (addItem) {
         const { quantity, ...itemData } = selectedItem;
         addItem({ ...itemData, sort_order: 0 });
@@ -629,296 +653,306 @@ export default function Checkout() {
     });
   };
 
+  const handleBack = () => {
+    if (checkoutStep > 1) {
+      setCheckoutStep((prev) => (prev - 1) as 1 | 2 | 3);
+      return;
+    }
+    if (isRegistration) {
+      navigate('/events');
+    } else {
+      localStorage.setItem('forceBookingStep', '2');
+      navigate('/');
+    }
+  };
+
   return (
     <div className="min-h-screen bg-slate-50/30 relative overflow-hidden">
-      <BackgroundParticles variant="light" />
+      {!isMobileView && <BackgroundParticles variant="light" />}
       <div className="container mx-auto px-4 py-8 md:py-12 max-w-5xl relative z-10">
-        <Button 
-          type="button"
-          variant="ghost" 
-          className="mb-6 md:mb-8 gap-2 text-muted-foreground hover:text-accent-foreground" 
-          onClick={() => navigate(isRegistration ? '/events' : '/')}
-        >
-          <ArrowLeft className="w-4 h-4" /> {isRegistration ? 'Back to Events' : 'Back to Customisation'}
-        </Button>
+        <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
+          <h1 className="text-4xl md:text-5xl font-black uppercase tracking-tighter text-white" style={{ fontFamily: "'Barlow Condensed', sans-serif" }}>
+            {isRegistration ? 'Registration' : 'Checkout'}
+          </h1>
+          <Button 
+            type="button"
+            variant="ghost" 
+            className="w-fit gap-2 text-white/70 hover:text-white hover:bg-white/10 text-sm font-bold uppercase tracking-wider" 
+            onClick={handleBack}
+          >
+            <ArrowLeft className="w-4 h-4" /> {isRegistration ? 'Back to Events' : 'Back to Passenger Info'}
+          </Button>
+        </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
           <div className="lg:col-span-7 space-y-6">
-            <h1 className="text-2xl md:text-3xl font-heading font-bold text-slate-900">
-              {isRegistration ? 'Complete Registration' : 'Checkout'}
-            </h1>
-            
+            <div className="flex items-center gap-2 mb-2 overflow-x-auto py-2 no-scrollbar">
+              {[
+                { step: 1, label: 'Contact' },
+                { step: 2, label: 'Schedule' },
+                { step: 3, label: 'Payment' }
+              ].map((s) => (
+                <div key={s.step} className="flex items-center gap-2 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCheckoutStep(s.step as 1 | 2 | 3);
+                    }}
+                    className="flex items-center gap-2 hover:opacity-80 transition-all focus:outline-none"
+                  >
+                    <div className={`flex items-center justify-center w-6 h-6 rounded-full text-[10px] font-bold ${checkoutStep === s.step ? 'bg-[#CD5C5C] text-white' : checkoutStep > s.step ? 'bg-green-500 text-white' : 'bg-slate-200 text-slate-500'}`}>
+                      {checkoutStep > s.step ? <CheckCircle2 className="w-3.5 h-3.5" /> : s.step}
+                    </div>
+                    <span className={`text-[10px] uppercase tracking-wider font-bold ${checkoutStep === s.step ? 'text-slate-900' : 'text-slate-400'}`}>{s.label}</span>
+                  </button>
+                  {s.step < 3 && <div className="w-4 h-[1px] bg-slate-200 mx-1" />}
+                </div>
+              ))}
+            </div>
+
             {hasMultiplePackages ? (
-              <Card className="border-red-500 bg-red-50 shadow-lg border-2 animate-in fade-in slide-in-from-top-4 duration-500">
+              <Card className="border-red-500 bg-red-50 shadow-lg border-2 animate-in fade-in slide-in-from-top-4">
                 <CardHeader className="bg-red-500 text-white border-b-0 pb-4">
                   <div className="flex items-center gap-3">
-                    <div className="bg-white/20 p-2 rounded-full">
-                      <AlertTriangle className="w-6 h-6" />
-                    </div>
+                    <AlertTriangle className="w-6 h-6" />
                     <CardTitle className="text-xl">Only One Package Allowed</CardTitle>
                   </div>
                 </CardHeader>
-                <CardContent className="pt-6 space-y-6">
-                  <div className="bg-white rounded-xl p-5 border border-red-200 shadow-sm space-y-3">
-                    <p className="text-slate-700 leading-relaxed font-medium">
-                      You have selected <strong className="text-red-600 underline">more than one package</strong>. Please choose the one you wish to proceed with. 
-                    </p>
-                    <p className="text-sm text-slate-500">
-                      The other packages and their specific add-ons will be removed from your cart.
-                    </p>
+                <CardContent className="pt-6 space-y-4">
+                  <p className="text-slate-700 font-medium">Please choose only one package to proceed.</p>
+                  <div className="grid gap-2">
+                    {allPackages.map((item) => (
+                      <Button
+                        key={`${item.id}-${item.sort_order}`}
+                        variant="outline"
+                        className="justify-between bg-white border-red-200 hover:bg-red-50"
+                        onClick={() => handleSetPrimary(item)}
+                      >
+                        <span className="font-bold">{item.name}</span>
+                        <ChevronRight className="w-4 h-4" />
+                      </Button>
+                    ))}
                   </div>
-
-                  <div className="space-y-3">
-                    <Label className="text-sm font-black uppercase tracking-wider text-slate-500">Choose your package:</Label>
-                    <div className="grid gap-3">
-                      {allPackages.map((item) => (
-                        <div 
-                          key={item.id} 
-                          className="group flex items-center justify-between bg-white hover:bg-slate-50 p-4 rounded-2xl border-2 border-slate-100 hover:border-primary/30 transition-all cursor-pointer shadow-sm hover:shadow-md"
-                          onClick={() => handleSetPrimary(item)}
-                        >
-                          <div className="flex items-center gap-4">
-                            <div className="w-12 h-12 bg-slate-100 rounded-xl flex items-center justify-center text-slate-400 group-hover:bg-primary/10 group-hover:text-primary transition-colors">
-                              <ShoppingBagIcon className="w-6 h-6" />
-                            </div>
-                            <div>
-                              <h3 className="font-bold text-slate-900 group-hover:text-primary transition-colors">{item.name}</h3>
-                              <p className="text-xs font-bold text-slate-500">RM {item.price.toFixed(2)}</p>
-                              {item.sort_order !== 0 && (
-                                <p className="text-[10px] text-red-500 font-bold uppercase mt-1 flex items-center gap-1">
-                                  <AlertTriangle className="w-3 h-3" /> Needs Sort Order 0
-                                </p>
-                              )}
-                            </div>
-                          </div>
-                          <Button 
-                            type="button"
-                            variant="outline"
-                            className="rounded-xl border-2 hover:bg-primary hover:text-white hover:border-primary font-bold px-6"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleSetPrimary(item);
-                            }}
-                          >
-                            Select & Reorder
-                          </Button>
-                        </div>
-                      ))}
+                </CardContent>
+              </Card>
+            ) : checkoutStep === 1 ? (
+              <Card className="border-accent/10 shadow-sm overflow-hidden rounded-2xl transition-all duration-500 animate-in fade-in slide-in-from-right-4">
+                <CardHeader className="bg-slate-900 text-white py-4">
+                  <CardTitle className="text-sm uppercase tracking-widest font-black">Contact Details</CardTitle>
+                </CardHeader>
+                <CardContent className="pt-6 space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="name" className="text-[10px] uppercase font-black tracking-widest text-slate-500">Full Name</Label>
+                      <Input 
+                        id="name" 
+                        value={contactInfo.name || ""}
+                        onChange={(e) => setContactInfo(prev => ({ ...prev, name: e.target.value }))}
+                        required 
+                        placeholder="John Doe" 
+                        className="h-12 bg-slate-50 border-slate-200 rounded-xl font-bold" 
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="email" className="text-[10px] uppercase font-black tracking-widest text-slate-500">Email</Label>
+                      <Input 
+                        id="email" 
+                        type="email" 
+                        value={contactInfo.email || ""}
+                        onChange={(e) => setContactInfo(prev => ({ ...prev, email: e.target.value }))}
+                        required 
+                        placeholder="john@example.com" 
+                        className="h-12 bg-slate-50 border-slate-200 rounded-xl font-bold" 
+                      />
                     </div>
                   </div>
-
-                  <div className="pt-4 flex justify-center">
+                  <div className="space-y-2">
+                    <Label htmlFor="phone" className="text-[10px] uppercase font-black tracking-widest text-slate-500">WhatsApp Number</Label>
+                    <Input 
+                      id="phone" 
+                      type="tel" 
+                      value={contactInfo.phone || ""}
+                      onChange={(e) => setContactInfo(prev => ({ ...prev, phone: e.target.value }))}
+                      required 
+                      placeholder="+60 12 345 6789" 
+                      className="h-12 bg-slate-50 border-slate-200 rounded-xl font-bold" 
+                    />
+                  </div>
+                  <div className="flex gap-3 pt-4">
                     <Button 
-                      type="button" 
-                      variant="ghost" 
-                      className="text-slate-400 hover:text-red-500 transition-colors gap-2"
-                      onClick={() => navigate('/')}
+                      type="button"
+                      variant="outline"
+                      onClick={handleBack}
+                      className="flex-1 h-12 rounded-xl border-slate-200 font-black uppercase tracking-[0.2em] text-[11px] hover:bg-slate-50 transition-all active:scale-[0.98]"
                     >
-                      <ArrowLeft className="w-4 h-4" /> Go Back to Shop
+                      Back
+                    </Button>
+                    <Button 
+                      disabled={!contactInfo.name || !contactInfo.email || !contactInfo.phone}
+                      onClick={() => setCheckoutStep(2)}
+                      className="flex-[2] h-12 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-black uppercase tracking-[0.2em] text-[11px] shadow-lg shadow-slate-200 transition-all active:scale-[0.98]"
+                    >
+                      Continue to Schedule <ChevronRight className="w-4 h-4 ml-2" />
                     </Button>
                   </div>
                 </CardContent>
               </Card>
-            ) : isRegistration ? (
-              <Card className="border-accent/10 shadow-sm overflow-hidden">
-                <CardHeader className="bg-muted/30 border-b">
-                  <CardTitle className="text-lg">Registration Summary</CardTitle>
+            ) : checkoutStep === 2 ? (
+              <Card className="border-accent/10 shadow-sm overflow-hidden rounded-2xl transition-all duration-500 animate-in fade-in slide-in-from-right-4">
+                <CardHeader className="bg-slate-900 text-white py-4">
+                  <CardTitle className="text-sm uppercase tracking-widest font-black">Select Flight Schedule</CardTitle>
                 </CardHeader>
-                <CardContent className="pt-6 space-y-4">
-                  {regData ? (
-                    <div className="space-y-4">
-                      <div className="grid grid-cols-2 gap-4 text-sm">
-                        <div>
-                          <p className="text-muted-foreground">Event</p>
-                          <p className="font-bold text-primary">{regData.event?.name}</p>
-                        </div>
-                        <div>
-                          <p className="text-muted-foreground">Attendee</p>
-                          <p className="font-bold">{regData.name}</p>
-                        </div>
-                        <div>
-                          <p className="text-muted-foreground">Email</p>
-                          <p className="font-medium">{regData.email}</p>
-                        </div>
-                        <div>
-                          <p className="text-muted-foreground">Phone</p>
-                          <p className="font-medium">{regData.phone}</p>
-                        </div>
-                      </div>
-                      
-                      <div className="pt-4 border-t">
-                        <Label className="text-base font-semibold mb-4 block">Payment Options</Label>
-                        <RadioGroup 
-                          value={paymentType} 
-                          onValueChange={(v) => setPaymentType(v as 'full' | 'deposit')} 
-                          className="space-y-3"
-                        >
-                          <div 
-                            className={`flex items-center space-x-3 border rounded-xl p-4 cursor-pointer transition-all ${paymentType === 'full' ? 'bg-primary/5 border-primary ring-1 ring-primary' : 'hover:bg-slate-50 border-slate-200'}`}
-                            onClick={() => setPaymentType('full')}
-                          >
-                            <RadioGroupItem value="full" id="pt-full" />
-                            <div className="flex-1">
-                              <div className="flex justify-between items-center">
-                                <Label htmlFor="pt-full" className="cursor-pointer font-bold">Full Payment</Label>
-                                <span className="font-bold">RM {regData.event?.payment_amount?.toFixed(2)}</span>
-                              </div>
-                              <p className="text-xs text-muted-foreground">Pay the full amount now to secure your spot.</p>
-                            </div>
-                          </div>
-
-                          {regData.event?.enable_deposit && (
-                            <div 
-                              className={`flex items-center space-x-3 border rounded-xl p-4 cursor-pointer transition-all ${paymentType === 'deposit' ? 'bg-primary/5 border-primary ring-1 ring-primary' : 'hover:bg-slate-50 border-slate-200'}`}
-                              onClick={() => setPaymentType('deposit')}
-                            >
-                              <RadioGroupItem value="deposit" id="pt-deposit" />
-                              <div className="flex-1">
-                                <div className="flex justify-between items-center">
-                                  <Label htmlFor="pt-deposit" className="cursor-pointer font-bold">Pay Deposit</Label>
-                                  <span className="font-bold">RM {regData.event?.deposit_amount?.toFixed(2)}</span>
+                <CardContent className="pt-6 space-y-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="space-y-2">
+                      <Label htmlFor="date" className="text-[10px] uppercase font-black tracking-widest text-slate-500">Preferred Flight Date</Label>
+                      <Input 
+                        id="date" 
+                        name="date" 
+                        type="date" 
+                        required 
+                        min={today}
+                        value={selectedDate || ""}
+                        className="h-12 bg-slate-50 border-slate-200 rounded-xl font-bold" 
+                        onChange={(e) => setSelectedDate(e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="time" className="text-[10px] uppercase font-black tracking-widest text-slate-500">Preferred Time</Label>
+                      <Select value={selectedTime} onValueChange={setSelectedTime} required disabled={!selectedDate}>
+                        <SelectTrigger className="h-12 bg-slate-50 border-slate-200 rounded-xl font-bold">
+                          <SelectValue placeholder={selectedDate ? "Select time" : "Choose date first"} />
+                        </SelectTrigger>
+                        <SelectContent className="max-h-[300px]">
+                          {timeSlots.map((time) => {
+                            const formattedTime = formatFlightTime(time);
+                            const isBlocked = blockedTimes.includes(formattedTime);
+                            const isInPast = isTimeInPast(time);
+                            const isDisabled = isBlocked || isInPast;
+                            
+                            return (
+                              <SelectItem 
+                                key={time} 
+                                value={time} 
+                                disabled={isDisabled}
+                                className={isDisabled ? "bg-slate-50 text-slate-400 cursor-not-allowed opacity-60" : "font-bold"}
+                              >
+                                <div className="flex items-center justify-between w-full gap-4">
+                                  <span>{formattedTime}</span>
+                                  {isBlocked && <span className="text-[9px] bg-slate-200 text-slate-500 px-1.5 py-0.5 rounded uppercase font-black">Reserved</span>}
+                                  {isInPast && <span className="text-[9px] bg-slate-100 text-slate-400 px-1.5 py-0.5 rounded uppercase font-black">Unavailable</span>}
                                 </div>
-                                <p className="text-xs text-muted-foreground">Pay a deposit now and the balance later.</p>
-                              </div>
-                            </div>
-                          )}
-                        </RadioGroup>
-                      </div>
+                              </SelectItem>
+                            );
+                          })}
+                        </SelectContent>
+                      </Select>
                     </div>
-                  ) : (
-                    <div className="flex items-center justify-center py-12">
-                      <Loader2 className="w-8 h-8 animate-spin text-primary" />
-                    </div>
-                  )}
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="notes" className="text-[10px] uppercase font-black tracking-widest text-slate-500">Special Requests (Optional)</Label>
+                    <Input 
+                      id="notes" 
+                      name="notes" 
+                      placeholder="Any dietary requirements or special occasions?" 
+                      className="h-12 bg-slate-50 border-slate-200 rounded-xl font-bold"
+                      value={specialRequests}
+                      onChange={(e) => setSpecialRequests(e.target.value)}
+                    />
+                  </div>
+
+                  <div className="flex gap-3 pt-4">
+                    <Button 
+                      variant="outline"
+                      onClick={() => setCheckoutStep(1)}
+                      className="flex-1 h-12 rounded-xl border-slate-200 font-black uppercase tracking-[0.2em] text-[11px] hover:bg-slate-50 transition-all active:scale-[0.98]"
+                    >
+                      Back
+                    </Button>
+                    <Button 
+                      disabled={!selectedDate || !selectedTime}
+                      onClick={() => setCheckoutStep(3)}
+                      className="flex-[2] h-12 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-black uppercase tracking-[0.2em] text-[11px] shadow-lg shadow-slate-200 transition-all active:scale-[0.98]"
+                    >
+                      Continue to Payment <ChevronRight className="w-4 h-4 ml-2" />
+                    </Button>
+                  </div>
                 </CardContent>
               </Card>
             ) : (
-              <Card className="border-accent/10 shadow-sm">
-                <CardHeader className="bg-muted/30 border-b">
-                  <CardTitle className="text-lg">Contact Details</CardTitle>
+              <Card className="border-accent/10 shadow-sm overflow-hidden rounded-2xl transition-all duration-500 animate-in fade-in slide-in-from-right-4">
+                <CardHeader className="bg-slate-900 text-white py-4">
+                  <CardTitle className="text-sm uppercase tracking-widest font-black">Payment Details</CardTitle>
                 </CardHeader>
                 <CardContent className="pt-6">
-                  <form id="checkout-form" onSubmit={handlePayment} className="space-y-4">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="name">Full Name</Label>
-                        <Input id="name" name="name" required placeholder="John Doe" className="bg-background" />
+                  <form id="checkout-form" onSubmit={handlePayment} className="space-y-6">
+                    <div className="space-y-4">
+                      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center p-4 bg-slate-50 rounded-xl border border-slate-100 gap-2">
+                        <div>
+                          <p className="text-[10px] uppercase font-black tracking-widest text-slate-400">Scheduled Flight</p>
+                          <p className="font-bold text-slate-900">{selectedDate} at {formatFlightTime(selectedTime)}</p>
+                        </div>
+                        <Button variant="link" size="sm" onClick={() => setCheckoutStep(2)} className="h-auto p-0 text-[#CD5C5C] font-bold text-xs uppercase tracking-wider">Change</Button>
                       </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="email">Email</Label>
-                        <Input id="email" name="email" type="email" required placeholder="john@example.com" className="bg-background" />
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="phone">Phone Number</Label>
-                        <Input id="phone" name="phone" type="tel" required placeholder="+60 12 345 6789" className="bg-background" />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="date">Preferred Flight Date</Label>
-                        <Input 
-                          id="date" 
-                          name="date" 
-                          type="date" 
-                          required 
-                          min={today}
-                          className="bg-background" 
-                          onChange={(e) => setSelectedDate(e.target.value)}
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="time">Preferred Time</Label>
-                        <Select value={selectedTime} onValueChange={setSelectedTime} required>
-                          <SelectTrigger className="bg-background">
-                            <SelectValue placeholder="Select time" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {timeSlots.map((time) => {
-                              const isBlocked = blockedTimes.includes(time);
-                              const isInPast = isTimeInPast(time);
-                              const isDisabled = isBlocked || isInPast;
-                              
-                              return (
-                                <SelectItem key={time} value={time} disabled={isDisabled}>
-                                  {time} {isBlocked ? '(Booked)' : isInPast ? '(Unavailable)' : ''}
-                                </SelectItem>
-                              );
-                            })}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="notes">Special Requests (Optional)</Label>
-                      <Input id="notes" name="notes" placeholder="Any dietary requirements or special occasions?" className="bg-background" />
-                    </div>
 
-                    <div className="space-y-2 pt-4 border-t">
-                      <Label className="text-base font-semibold">Payment Method</Label>
-                      <RadioGroup value={paymentMethod} onValueChange={(v) => setPaymentMethod(v as 'online_banking' | 'qr_pay')} className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className={`flex items-center space-x-3 border rounded-xl p-4 cursor-pointer transition-all ${paymentMethod === 'online_banking' ? 'bg-slate-50 border-slate-900 ring-1 ring-slate-900' : 'hover:bg-slate-50 border-slate-200'}`} onClick={() => setPaymentMethod('online_banking')}>
-                          <RadioGroupItem value="online_banking" id="pm-online" />
-                          <div className="grid gap-0.5">
-                            <Label htmlFor="pm-online" className="cursor-pointer font-medium">Online Banking</Label>
-                            <span className="text-xs text-muted-foreground">Secure FPX payment</span>
-                          </div>
-                        </div>
-                        <div 
-                          className={`flex items-center space-x-3 border rounded-xl p-4 cursor-pointer transition-all ${paymentMethod === 'qr_pay' ? 'bg-slate-50 border-slate-900 ring-1 ring-slate-900' : 'hover:bg-slate-50 border-slate-200'}`}
-                          onClick={() => setPaymentMethod('qr_pay')}
-                        >
-                          <RadioGroupItem value="qr_pay" id="pm-qr" />
-                          <div className="flex-1">
-                            <div className="flex justify-between items-center">
-                              <Label htmlFor="pm-qr" className="cursor-pointer font-bold flex items-center gap-2">
-                                <QrCode className="w-4 h-4" /> QR Pay / Manual
-                              </Label>
+                      <div className="space-y-4 pt-2">
+                        <Label className="text-[10px] uppercase font-black tracking-widest text-slate-500">Payment Method</Label>
+                        <RadioGroup value={paymentMethod} onValueChange={(v) => setPaymentMethod(v as 'online_banking' | 'qr_pay')} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div className={`flex items-center space-x-3 border-2 rounded-2xl p-4 cursor-pointer transition-all ${paymentMethod === 'online_banking' ? 'bg-slate-50 border-slate-900' : 'hover:bg-slate-50 border-slate-100'}`} onClick={() => setPaymentMethod('online_banking')}>
+                            <RadioGroupItem value="online_banking" id="pm-online" />
+                            <div className="grid gap-0.5">
+                              <Label htmlFor="pm-online" className="cursor-pointer font-black text-xs uppercase tracking-tight">Online Banking</Label>
+                              <span className="text-[10px] text-slate-400 font-bold uppercase tracking-tight">FPX / Bank Transfer</span>
                             </div>
-                            <p className="text-xs text-muted-foreground">DuitNow QR or Bank Transfer</p>
                           </div>
-                        </div>
-                      </RadioGroup>
+                          <div 
+                            className={`flex items-center space-x-3 border-2 rounded-2xl p-4 cursor-pointer transition-all ${paymentMethod === 'qr_pay' ? 'bg-slate-50 border-slate-900' : 'hover:bg-slate-50 border-slate-100'}`}
+                            onClick={() => setPaymentMethod('qr_pay')}
+                          >
+                            <RadioGroupItem value="qr_pay" id="pm-qr" />
+                            <div className="flex-1">
+                              <Label htmlFor="pm-qr" className="cursor-pointer font-black text-xs uppercase tracking-tight flex items-center gap-2">
+                                <QrCode className="w-3.5 h-3.5" /> QR Pay / Manual
+                              </Label>
+                              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-tight">Scan DuitNow QR</p>
+                            </div>
+                          </div>
+                        </RadioGroup>
+                      </div>
 
                       {paymentMethod === 'qr_pay' && (
-                        <div className="mt-6 space-y-6 animate-in fade-in zoom-in-95 duration-300">
-                          <div className="bg-slate-50 border-2 border-black rounded-2xl p-4 md:p-8 space-y-6">
+                        <div className={`mt-6 space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300`}>
+                          <div className="bg-slate-50 border-2 border-slate-900 rounded-2xl p-6 space-y-6">
                             <div className="text-center space-y-2">
-                              <h3 className="font-bold text-lg text-slate-900">Scan to Pay</h3>
-                              <p className="text-sm text-slate-700 font-medium max-w-xs mx-auto">Please scan the QR code below to complete the payment.</p>
+                              <h3 className="font-black text-sm uppercase tracking-widest text-slate-900">Scan to Pay</h3>
+                              <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">DuitNow QR Payment</p>
                             </div>
                             
                             {siteSettings.payment_qr_code_url && (
                               <div className="flex justify-center">
-                                <div className="bg-white p-4 rounded-2xl shadow-xl border-2 border-primary/5 max-w-[280px] w-full">
+                                <div className="bg-white p-6 rounded-2xl shadow-xl border border-slate-100 max-w-[500px] w-full">
                                   <img 
                                     src={siteSettings.payment_qr_code_url} 
                                     alt="Payment QR" 
                                     className="w-full aspect-square object-contain mx-auto"
                                   />
-                                  <div className="mt-4 pt-4 border-t border-slate-100 text-center">
-                                    <p className="text-[12px] uppercase tracking-[0.2em] font-black text-primary animate-pulse">Scan to Pay Now</p>
-                                  </div>
                                 </div>
                               </div>
                             )}
 
-                            <div className="bg-white rounded-xl border border-black divide-y divide-slate-100 overflow-hidden">
+                            <div className="bg-white rounded-xl border border-slate-100 divide-y divide-slate-100 overflow-hidden">
                               <div className="flex justify-between p-3 items-center">
-                                <span className="text-xs font-black text-slate-900 uppercase">Bank Name</span>
-                                <span className="text-sm font-bold">{siteSettings.payment_bank_name}</span>
+                                <span className="text-[9px] font-black text-slate-400 uppercase tracking-tighter">Bank</span>
+                                <span className="text-xs font-black uppercase tracking-tight">{siteSettings.payment_bank_name}</span>
                               </div>
                               <div className="flex justify-between p-3 items-center">
-                                <span className="text-xs font-black text-slate-900 uppercase">Account Name</span>
-                                <span className="text-sm font-bold">{siteSettings.payment_account_name}</span>
-                              </div>
-                              <div className="flex justify-between p-3 items-center">
-                                <span className="text-xs font-black text-slate-900 uppercase">Account Number</span>
-                                <span className="text-sm font-mono font-bold">{siteSettings.payment_account_number}</span>
+                                <span className="text-[9px] font-black text-slate-400 uppercase tracking-tighter">Account</span>
+                                <span className="text-xs font-black uppercase tracking-tight">{siteSettings.payment_account_number}</span>
                               </div>
                             </div>
 
                             <div className="space-y-4">
-                              <Label className="text-sm font-bold">Upload Payment Receipt</Label>
                               <div className="flex flex-col gap-3">
                                 <Input 
                                   id="payment-proof"
@@ -931,7 +965,7 @@ export default function Checkout() {
                                       const validFiles: File[] = [];
                                       for (const file of files) {
                                         const isImage = file.type.startsWith('image/');
-                                        const limit = isImage ? 1 * 1024 * 1024 : 5 * 1024 * 1024;
+                                        const limit = isImage ? 3 * 1024 * 1024 : 5 * 1024 * 1024;
                                         if (file.size > limit) {
                                           toast({
                                             title: "File too large",
@@ -950,40 +984,59 @@ export default function Checkout() {
                                 />
                                 <Label
                                   htmlFor="payment-proof"
-                                  className="inline-flex items-center justify-center rounded-xl border border-primary bg-primary px-6 py-3 text-sm font-black uppercase tracking-wider text-primary-foreground shadow-lg transition-all hover:brightness-110 cursor-pointer text-center"
+                                  className="inline-flex items-center justify-center rounded-xl bg-slate-900 px-6 py-3 text-[11px] font-black uppercase tracking-[0.2em] text-white shadow-lg transition-all hover:bg-slate-800 cursor-pointer text-center"
                                 >
-                                  Upload receipt
+                                  Upload Receipt
                                 </Label>
                                 
                                 <div className="flex flex-col gap-2">
                                   {paymentProof.map((file, idx) => (
-                                    <div key={idx} className="flex items-center justify-between gap-2 bg-white p-2 rounded-lg border border-slate-200">
-                                      <span className="text-xs font-bold text-slate-700 truncate">
-                                        {file.name}
-                                      </span>
+                                    <div key={idx} className="flex items-center justify-between gap-2 bg-white p-2 rounded-lg border border-slate-100">
+                                      <span className="text-[10px] font-bold text-slate-600 truncate">{file.name}</span>
                                       <Button 
                                         type="button"
                                         variant="ghost"
                                         size="sm"
                                         onClick={() => setPaymentProof(prev => prev.filter((_, i) => i !== idx))}
-                                        className="text-red-500 hover:text-red-700 h-8 w-8 p-0"
+                                        className="text-red-500 hover:text-red-700 h-6 w-6 p-0"
                                       >
-                                        <Trash2 className="w-4 h-4" />
+                                        <Trash2 className="w-3 h-3" />
                                       </Button>
                                     </div>
                                   ))}
-                                  {paymentProof.length === 0 && (
-                                    <span className="text-xs font-bold text-slate-500 italic text-center">
-                                      No file chosen
-                                    </span>
-                                  )}
                                 </div>
                               </div>
-                              <p className="text-[10px] text-slate-700 font-bold text-center">Multiple files accepted. (Max 1MB for images, 5MB for PDF)</p>
                             </div>
                           </div>
                         </div>
                       )}
+                    </div>
+
+                    <div className="flex gap-3 pt-4">
+                      <Button 
+                        type="button"
+                        variant="outline"
+                        onClick={() => setCheckoutStep(2)}
+                        className="flex-1 h-12 rounded-xl border-slate-200 font-black uppercase tracking-[0.2em] text-[11px] hover:bg-slate-50 transition-all active:scale-[0.98]"
+                      >
+                        Back
+                      </Button>
+                      <Button 
+                        type="submit"
+                        disabled={
+                          isProcessing || 
+                          !contactInfo.name || 
+                          !contactInfo.email || 
+                          !contactInfo.phone || 
+                          !selectedDate || 
+                          !selectedTime || 
+                          (paymentMethod === 'qr_pay' && paymentProof.length === 0)
+                        }
+                        className="flex-[2] h-12 rounded-xl bg-[#CD5C5C] hover:bg-[#B54A4A] text-white font-black uppercase tracking-[0.2em] text-[11px] shadow-lg shadow-[#CD5C5C]/20 transition-all active:scale-[0.98]"
+                      >
+                        {isProcessing ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <CreditCard className="w-4 h-4 mr-2" />}
+                        Place Order
+                      </Button>
                     </div>
                   </form>
                 </CardContent>
@@ -991,145 +1044,87 @@ export default function Checkout() {
             )}
           </div>
 
-          <div className="lg:col-span-5">
-            <h2 className="text-xl font-heading font-bold mb-6 lg:invisible">Order Summary</h2>
-            <Card className="sticky top-24 border-accent/20 shadow-md">
-              <CardHeader className="bg-slate-900 text-white rounded-t-xl">
-                <CardTitle className="text-lg">Order Summary</CardTitle>
+          <div className="lg:col-span-5 space-y-6">
+            <Card className="border-accent/10 shadow-sm overflow-hidden rounded-2xl">
+              <CardHeader className="bg-slate-50 py-4 border-b border-slate-100">
+                <CardTitle className="text-[11px] uppercase tracking-[0.2em] font-black text-slate-500 flex items-center gap-2">
+                  <ShoppingBagIcon className="w-4 h-4" /> Order Summary
+                </CardTitle>
               </CardHeader>
-              <CardContent className="pt-6">
+              <CardContent className="pt-6 space-y-6">
                 <div className="space-y-4">
-                  {isRegistration ? (
-                    regData ? (
-                      <div className="flex justify-between items-start pb-4 border-b">
-                        <div className="space-y-1">
-                          <h4 className="font-semibold text-slate-900 leading-tight">{regData.event?.name}</h4>
-                          <p className="text-xs text-muted-foreground bg-muted w-fit px-2 py-0.5 rounded">Registration</p>
-                        </div>
-                        <div className="text-right">
-                          <p className="font-bold text-slate-900">RM {regData.event?.payment_amount?.toFixed(2)}</p>
+                  {items.map((item, idx) => (
+                    <div key={idx} className="flex justify-between gap-4 group">
+                      <div className="space-y-1 flex-1">
+                        <p className="font-bold text-slate-900 leading-tight group-hover:text-primary transition-colors">{item.name}</p>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded font-black uppercase">QTY: {item.quantity}</span>
+                          {item.sort_order === 0 && <span className="text-[10px] bg-green-50 text-green-600 px-1.5 py-0.5 rounded font-black uppercase">Primary</span>}
                         </div>
                       </div>
-                    ) : (
-                      <div className="animate-pulse space-y-4">
-                        <div className="h-10 bg-muted rounded w-full"></div>
-                        <div className="h-10 bg-muted rounded w-full"></div>
-                      </div>
-                    )
-                  ) : (
-                    items.map((item) => (
-                      <div key={item.id} className="flex justify-between items-start pb-4 border-b last:border-0">
-                        <div className="space-y-1">
-                          <h4 className="font-semibold text-slate-900 leading-tight">{item.name}</h4>
-                          <p className="text-xs text-muted-foreground bg-muted w-fit px-2 py-0.5 rounded">Qty: {item.quantity}</p>
-                        </div>
-                        <div className="text-right">
-                          <p className="font-bold text-slate-900">RM {(item.price * item.quantity).toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
-                        </div>
-                      </div>
-                    ))
-                  )}
-                </div>
-
-                <div className="mt-8 space-y-4 pt-6 border-t-2 border-slate-100">
-                  <div className="flex justify-between items-center">
-                    <span className="text-muted-foreground font-medium">Subtotal</span>
-                    <span className="font-bold text-slate-900">RM {(isRegistration ? (regData?.event?.payment_amount || 0) : total).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
-                  </div>
-                  
-                  {depositAmount > 0 && (isRegistration ? regData?.event?.enable_deposit : total > depositAmount) && (
-                    <div className="pb-4 mb-4 border-b">
-                      <Label className="text-base font-semibold mb-3 block">Payment Option</Label>
-                      <RadioGroup value={paymentType} onValueChange={(v) => setPaymentType(v as 'full' | 'deposit')} className="space-y-3">
-                        <div 
-                          className={`flex items-center space-x-3 border rounded-xl p-3 cursor-pointer transition-all ${paymentType === 'full' ? 'bg-slate-50 border-slate-900 ring-1 ring-slate-900' : 'hover:bg-slate-50 border-slate-200'}`}
-                          onClick={() => setPaymentType('full')}
-                        >
-                          <RadioGroupItem value="full" id="full" />
-                          <div className="flex-1">
-                            <div className="flex justify-between items-center">
-                              <Label htmlFor="full" className="cursor-pointer font-bold">Full Payment</Label>
-                              <span className="font-bold">RM {(isRegistration ? (regData?.event?.payment_amount || 0) : total).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
-                            </div>
-                          </div>
-                        </div>
-                        <div 
-                          className={`flex items-center space-x-3 border rounded-xl p-3 cursor-pointer transition-all ${paymentType === 'deposit' ? 'bg-slate-50 border-slate-900 ring-1 ring-slate-900' : 'hover:bg-slate-50 border-slate-200'}`}
-                          onClick={() => setPaymentType('deposit')}
-                        >
-                          <RadioGroupItem value="deposit" id="deposit" />
-                          <div className="flex-1">
-                            <div className="flex justify-between items-center">
-                              <Label htmlFor="deposit" className="cursor-pointer font-bold">Pay Deposit</Label>
-                              <span className="font-bold">RM {depositAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
-                            </div>
-                          </div>
-                        </div>
-                      </RadioGroup>
+                      <p className="font-bold text-slate-900">RM {(item.price * item.quantity).toFixed(2)}</p>
                     </div>
-                  )}
-
-                  <div className="flex justify-between items-center text-xl pt-2">
-                    <span className="font-black text-slate-900 uppercase tracking-tighter">Total Payable</span>
-                    <span className="font-black text-primary">
-                      RM {(paymentType === 'deposit' ? depositAmount : (isRegistration ? (regData?.event?.payment_amount || 0) : total)).toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                    </span>
-                  </div>
-
-                  <Button 
-                    type="button"
-                    className="w-full h-14 text-lg font-bold shadow-xl shadow-primary/20 mt-4 rounded-xl active:scale-[0.98] transition-all" 
-                    size="lg"
-                    disabled={isProcessing || (isRegistration && !regData) || hasMultiplePackages}
-                    onClick={(e) => {
-                      if (hasMultiplePackages) {
-                        toast({
-                          title: "Action Required",
-                          description: "Please select one package to keep before proceeding.",
-                          variant: "destructive"
-                        });
-                        return;
-                      }
-                      if (isRegistration) {
-                        initiateRegistrationPayment(registrationId!);
-                      } else {
-                        document.getElementById('checkout-form')?.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));
-                      }
-                    }}
-                  >
-                    {isProcessing ? (
-                      <><Loader2 className="mr-2 h-5 w-5 animate-spin" /> Processing...</>
-                    ) : (
-                      isRegistration ? "Proceed to Payment" : "Place Order"
-                    )}
-                  </Button>
-
-                  {isRegistration && regData && !regData.event?.payment_required && (
-                    <Button 
-                      type="button"
-                      variant="ghost" 
-                      className="w-full text-muted-foreground hover:text-slate-900 font-medium"
-                      onClick={() => {
-                        toast({ 
-                          title: "Registration Successful! 🎉", 
-                          description: "Your registration has been saved. You can pay later if you wish.",
-                        });
-                        navigate("/events");
-                      }}
-                    >
-                      Skip payment for now
-                    </Button>
-                  )}
-
-                  <p className="text-center text-xs text-muted-foreground flex items-center justify-center gap-1.5 font-medium">
-                    <span className="w-1.5 h-1.5 bg-green-500 rounded-full"></span> Secure SSL Encrypted Payment
-                  </p>
+                  ))}
                 </div>
+
+                <div className="pt-6 border-t border-slate-100 space-y-3">
+                  <div className="flex justify-between text-slate-500 text-sm font-bold">
+                    <span>Subtotal</span>
+                    <span>RM {total.toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between items-center bg-slate-900 text-white p-4 rounded-xl shadow-lg shadow-slate-200">
+                    <span className="text-[10px] uppercase font-black tracking-widest">Total Payable</span>
+                    <span className="text-xl font-black">RM {total.toFixed(2)}</span>
+                  </div>
+                </div>
+
+                {paymentType === 'deposit' && (
+                  <div className="bg-amber-50 border-2 border-amber-200 rounded-xl p-4 space-y-2 animate-in fade-in zoom-in-95">
+                    <div className="flex justify-between items-center">
+                      <span className="text-[10px] font-black uppercase tracking-wider text-amber-700">Paying Now (Deposit)</span>
+                      <span className="font-black text-amber-900">RM {depositAmount.toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between items-center pt-2 border-t border-amber-200/50">
+                      <span className="text-[10px] font-black uppercase tracking-wider text-amber-600">Balance Due Later</span>
+                      <span className="font-bold text-amber-700">RM {(total - depositAmount).toFixed(2)}</span>
+                    </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
+
+            <div className="flex flex-col gap-4 text-center">
+              <div className="inline-flex items-center justify-center gap-2 text-[10px] font-black uppercase tracking-widest text-slate-400">
+                <CheckCircle2 className="w-3.5 h-3.5 text-green-500" /> Secure & Encrypted Checkout
+              </div>
+              <p className="text-[9px] text-slate-400 uppercase font-bold leading-relaxed tracking-tighter">
+                By placing this order, you agree to our <br/> Terms of Service and Cancellation Policy.
+              </p>
+            </div>
           </div>
         </div>
       </div>
+
+      {showProgressOverlay && (
+        <div className="fixed inset-0 bg-white/90 backdrop-blur-md z-[100] flex flex-col items-center justify-center animate-in fade-in duration-500">
+          <div className="relative mb-8">
+            <div className="w-24 h-24 border-4 border-slate-100 rounded-full"></div>
+            <div 
+              className="absolute inset-0 border-4 border-[#CD5C5C] rounded-full border-t-transparent animate-spin"
+              style={{ animationDuration: '1.5s' }}
+            ></div>
+            <div className="absolute inset-0 flex items-center justify-center">
+              <span className="text-xl font-black text-[#CD5C5C]">{progressCount}s</span>
+            </div>
+          </div>
+          <h3 className="text-xl font-black uppercase tracking-widest text-slate-900 mb-2" style={{ fontFamily: "'Barlow Condensed', sans-serif" }}>
+            Processing Your Order
+          </h3>
+          <p className="text-slate-400 text-[10px] uppercase font-black tracking-widest animate-pulse">
+            Connecting to secure gateway...
+          </p>
+        </div>
+      )}
     </div>
   );
 }

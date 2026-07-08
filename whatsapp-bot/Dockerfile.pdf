@@ -1,6 +1,7 @@
 FROM python:3.11-slim-bookworm
 
-# Install Node.js and WeasyPrint dependencies
+# Install Node.js, WeasyPrint deps, LibreOffice, and common fonts to prevent layout shifts
+# Adding poppler-utils for high-res rendering and img2pdf for image-based PDFs
 RUN apt-get update && apt-get install -y \
     curl \
     build-essential \
@@ -13,6 +14,13 @@ RUN apt-get update && apt-get install -y \
     libgdk-pixbuf-2.0-0 \
     shared-mime-info \
     fontconfig \
+    fonts-liberation \
+    fonts-dejavu-core \
+    fonts-freefont-ttf \
+    fonts-noto-core \
+    libreoffice-writer \
+    libreoffice-java-common \
+    poppler-utils \
     && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
     && apt-get install -y nodejs \
     && rm -rf /var/lib/apt/lists/*
@@ -22,6 +30,7 @@ WORKDIR /app
 # Install Python dependencies
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
+RUN playwright install --with-deps chromium
 
 # Install Node dependencies
 COPY package*.json ./

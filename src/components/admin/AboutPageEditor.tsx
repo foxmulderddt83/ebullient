@@ -35,7 +35,8 @@ const SortableSection = ({
   onUploadImage, 
   onUploadMultipleImages, 
   onDelete,
-  saving 
+  saving,
+  canEdit = true
 }: { 
   section: AboutSection, 
   onChange: (s: AboutSection) => void,
@@ -44,7 +45,8 @@ const SortableSection = ({
   onUploadImage: (id: string, file: File) => void,
   onUploadMultipleImages: (id: string, files: FileList) => void,
   onDelete: (id: string) => void,
-  saving: string | null
+  saving: string | null,
+  canEdit?: boolean
 }) => {
   const {
     attributes,
@@ -52,7 +54,10 @@ const SortableSection = ({
     setNodeRef,
     transform,
     transition,
-  } = useSortable({ id: section.id });
+  } = useSortable({ 
+    id: section.id,
+    disabled: !canEdit
+  });
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -63,35 +68,39 @@ const SortableSection = ({
     <div ref={setNodeRef} style={style} className="mb-8 group/sortable">
       <Card 
         style={{ backgroundColor: section.bg_color || '#ffffff' }} 
-        className="border-none shadow-xl shadow-primary/10 rounded-[2.5rem] overflow-hidden transition-all duration-500 hover:shadow-2xl hover:shadow-primary/20"
+        className="border-none shadow-xl shadow-slate-100/50 rounded-[2.5rem] overflow-hidden transition-all duration-500 hover:shadow-2xl hover:shadow-slate-200/50"
       >
         <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-black/5 bg-slate-50/50 p-4 sm:px-8 sm:py-5">
           <div className="flex items-center gap-4 w-full sm:w-auto">
             <div 
               {...attributes} 
               {...listeners} 
-              className="p-2.5 bg-white rounded-2xl shadow-sm border border-black/5 cursor-grab active:cursor-grabbing hover:text-primary hover:border-primary/20 transition-all group-hover/sortable:scale-110"
+              className="p-2.5 bg-white rounded-2xl shadow-sm border border-black/5 cursor-grab active:cursor-grabbing hover:text-slate-600 hover:border-slate-200 transition-all group-hover/sortable:scale-110"
             >
-              <GripVertical className="h-5 w-5 text-slate-900 group-hover/sortable:text-primary" />
+              <GripVertical className="h-5 w-5 text-slate-900 group-hover/sortable:text-slate-600" />
             </div>
             <div className="space-y-0.5">
-              <CardTitle className="text-base sm:text-lg font-black text-slate-900 uppercase tracking-tight flex items-center gap-2">
+              <CardTitle className="text-base sm:text-lg font-bold font-sans text-slate-900 uppercase tracking-tight flex items-center gap-2">
                 <span className="capitalize">{section.title || section.section_key.replace(/_/g, ' ')}</span>
               </CardTitle>
-              <p className="text-[11px] sm:text-xs font-black uppercase tracking-widest text-slate-900">Section Configuration</p>
+              <p className="text-[11px] sm:text-xs font-bold font-sans uppercase tracking-tight text-slate-900">Section Configuration</p>
             </div>
           </div>
 
           <div className="flex items-center gap-3 w-full sm:w-auto justify-end">
              <div className="flex items-center gap-3 bg-white/80 backdrop-blur-sm px-4 py-1.5 rounded-2xl border border-black/5 shadow-sm">
-              <label className="text-[11px] sm:text-xs font-black uppercase tracking-widest text-slate-900">BG Color</label>
+              <label className="text-[11px] sm:text-xs font-bold font-sans uppercase tracking-tight text-slate-900">BG Color</label>
               <div className="flex items-center gap-3 bg-white p-1 rounded-xl border border-black/5 shadow-sm">
                 <div className="relative w-8 h-8 rounded-lg overflow-hidden border-2 border-white shadow-md ring-1 ring-black/5 shrink-0 ml-1">
                   <input 
                     type="color" 
                     value={section.bg_color || '#ffffff'} 
                     onChange={(e) => onChange({ ...section, bg_color: e.target.value })}
-                    className="absolute inset-[-50%] w-[200%] h-[200%] cursor-pointer"
+                    className={cn(
+                      "absolute inset-[-50%] w-[200%] h-[200%]",
+                      canEdit ? "cursor-pointer" : "cursor-not-allowed"
+                    )}
+                    disabled={!canEdit}
                   />
                 </div>
                 <Input 
@@ -99,14 +108,16 @@ const SortableSection = ({
                   onChange={(e) => onChange({ ...section, bg_color: e.target.value })}
                   className="h-8 border-none bg-transparent font-mono uppercase text-[10px] px-1 focus-visible:ring-0 placeholder:text-slate-300 w-20 font-bold text-slate-700"
                   placeholder="#ffffff"
+                  disabled={!canEdit}
                 />
               </div>
             </div>
             <Button 
               variant="outline" 
               size="icon" 
-              className="h-10 w-10 rounded-xl border-red-50 bg-red-50/30 text-red-500 hover:bg-red-600 hover:text-white hover:border-red-600 transition-all duration-300 group/btn"
+              className="h-10 w-10 rounded-xl border-slate-50 bg-slate-50 text-slate-500 hover:bg-slate-700 hover:text-white hover:border-slate-600 transition-all duration-300 group/btn"
               onClick={() => onDelete(section.id)}
+              disabled={!canEdit}
             >
               <Trash2 className="h-4 w-4 group-hover/btn:scale-110 transition-transform" />
             </Button>
@@ -117,22 +128,24 @@ const SortableSection = ({
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             <div className="space-y-4">
               <div className="space-y-2">
-                <label className="text-[11px] sm:text-xs font-black uppercase tracking-widest text-slate-900 ml-1">Section Title</label>
+                <label className="text-[11px] sm:text-xs font-bold font-sans uppercase tracking-tight text-slate-900 ml-1">Section Title</label>
                 <Input
                   value={section.title || ''}
                   onChange={(e) => onChange({ ...section, title: e.target.value })}
-                  className="border-black/10 h-16 text-sm font-medium focus:ring-4 focus:ring-primary/10 focus:border-primary rounded-[2.5rem] bg-white/50 focus:bg-white transition-all shadow-sm px-8"
+                  className="border-black/10 h-16 text-sm font-bold font-sans focus:ring-4 focus:ring-indigo-100/10 focus:border-slate-700 rounded-[2.5rem] bg-white/50 focus:bg-white transition-all shadow-sm px-8"
                   placeholder="e.g. Our Mission"
+                  disabled={!canEdit}
                 />
               </div>
 
               <div className="space-y-2">
-                <label className="text-[11px] sm:text-xs font-black uppercase tracking-widest text-slate-900 ml-1">Section Content</label>
+                <label className="text-[11px] sm:text-xs font-bold font-sans uppercase tracking-tight text-slate-900 ml-1">Section Content</label>
                 <Textarea
                   value={section.content || ''}
                   onChange={(e) => onChange({ ...section, content: e.target.value })}
-                  className="min-h-[200px] border-black/10 text-sm font-medium focus:ring-4 focus:ring-primary/10 focus:border-primary rounded-[2.5rem] bg-white/50 focus:bg-white transition-all shadow-sm resize-none p-8"
+                  className="min-h-[200px] border-black/10 text-sm font-bold font-sans focus:ring-4 focus:ring-indigo-100/10 focus:border-slate-700 rounded-[2.5rem] bg-white/50 focus:bg-white transition-all shadow-sm resize-none p-8"
                   placeholder="Describe your story or mission..."
+                  disabled={!canEdit}
                 />
               </div>
 
@@ -142,10 +155,10 @@ const SortableSection = ({
             <div className="space-y-4 bg-white/40 p-6 rounded-[2.5rem] border border-black/5 shadow-inner">
               <div className="flex items-center justify-between mb-2 px-1">
                 <div className="flex items-center gap-2">
-                  <div className="w-1.5 h-4 bg-primary rounded-full shadow-sm" />
-                  <label className="text-[11px] sm:text-xs font-black uppercase tracking-widest text-slate-900">Section Gallery</label>
+                  <div className="w-1.5 h-4 bg-slate-700 rounded-full shadow-sm" />
+                  <label className="text-[11px] sm:text-xs font-bold font-sans uppercase tracking-tight text-slate-900">Section Gallery</label>
                 </div>
-                <span className="text-[11px] sm:text-xs font-black uppercase tracking-widest text-primary bg-white/80 backdrop-blur-sm px-3 py-1 rounded-full border border-primary/20 shadow-sm">
+                <span className="text-[11px] sm:text-xs font-bold font-sans uppercase tracking-tight text-slate-600 bg-white/80 backdrop-blur-sm px-3 py-1 rounded-full border border-slate-200 shadow-sm">
                   {(section.images || []).length} Images
                 </span>
               </div>
@@ -162,8 +175,9 @@ const SortableSection = ({
                       <Button
                         variant="destructive"
                         size="icon"
-                        className="h-16 w-16 rounded-[2.5rem] bg-white text-red-600 hover:bg-red-600 hover:text-white transition-all duration-300 transform scale-90 group-hover/img:scale-100"
+                        className="h-16 w-16 rounded-[2.5rem] bg-white text-slate-600 hover:bg-slate-700 hover:text-white transition-all duration-300 transform scale-90 group-hover/img:scale-100"
                         onClick={() => onRemoveImage(section.id, url)}
+                        disabled={!canEdit}
                       >
                         <Trash2 className="h-6 w-6" />
                       </Button>
@@ -171,16 +185,23 @@ const SortableSection = ({
                   </div>
                 ))}
                 
-                <div className="aspect-square rounded-[2.5rem] border-2 border-dashed border-black/10 flex flex-col items-center justify-center bg-slate-50/50 hover:bg-primary/5 hover:border-primary/20 transition-all duration-300 cursor-pointer relative overflow-hidden group/add">
+                <div className={cn(
+                  "aspect-square rounded-[2.5rem] border-2 border-dashed border-black/10 flex flex-col items-center justify-center bg-slate-50/50 hover:bg-slate-50 hover:border-slate-200 transition-all duration-300 relative overflow-hidden group/add",
+                  canEdit ? "cursor-pointer" : "cursor-not-allowed opacity-50"
+                )}>
                   <div className="p-3 bg-white rounded-[2.5rem] shadow-sm border border-black/5 mb-2 group-hover/add:scale-110 transition-transform">
-                    <ImageIcon className="h-6 w-6 text-slate-900 group-hover/add:text-primary" />
+                    <ImageIcon className="h-6 w-6 text-slate-900 group-hover/add:text-slate-600" />
                   </div>
-                  <span className="text-[11px] sm:text-xs font-black uppercase tracking-widest text-slate-900 group-hover/add:text-primary">Add Media</span>
+                  <span className="text-[11px] sm:text-xs font-bold font-sans uppercase tracking-tight text-slate-900 group-hover/add:text-slate-600">Add Media</span>
                   <Input
                     type="file"
                     accept="image/*"
                     multiple
-                    className="absolute inset-0 opacity-0 cursor-pointer h-full"
+                    className={cn(
+                      "absolute inset-0 opacity-0 h-full",
+                      canEdit ? "cursor-pointer" : "cursor-not-allowed"
+                    )}
+                    disabled={!canEdit}
                     onChange={(e) => {
                       if (e.target.files?.length) {
                         const files = Array.from(e.target.files);
@@ -194,7 +215,7 @@ const SortableSection = ({
                   />
                 </div>
               </div>
-              <p className="text-[11px] sm:text-xs font-black uppercase tracking-widest text-slate-900 text-center mt-4">
+              <p className="text-[11px] sm:text-xs font-bold font-sans uppercase tracking-tight text-slate-900 text-center mt-4">
                 Max 1MB per file • JPG, PNG, WEBP
               </p>
             </div>
@@ -203,8 +224,8 @@ const SortableSection = ({
           <div className="flex justify-end pt-8 border-t border-black/5">
             <Button 
               onClick={() => onSave(section)}
-              disabled={saving === section.id}
-              className="bg-primary hover:bg-primary/90 text-white shadow-xl shadow-primary/20 transition-all active:scale-[0.98] font-black uppercase tracking-widest h-16 px-10 rounded-[2.5rem] w-full sm:w-auto"
+              disabled={saving === section.id || !canEdit}
+              className="bg-slate-700 hover:bg-slate-700/90 text-white shadow-xl shadow-slate-200/50 transition-all active:scale-[0.98] font-bold font-sans uppercase tracking-tight h-16 px-10 rounded-[2.5rem] w-full sm:w-auto disabled:opacity-50"
             >
               {saving === section.id ? (
                 <>
@@ -225,7 +246,7 @@ const SortableSection = ({
   );
 };
 
-export const AboutPageEditor = () => {
+export const AboutPageEditor = ({ canEdit = true }: { canEdit?: boolean }) => {
   const [sections, setSections] = useState<AboutSection[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<string | null>(null);
@@ -466,25 +487,14 @@ export const AboutPageEditor = () => {
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-700">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div className="space-y-1">
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 bg-primary rounded-2xl shadow-lg shadow-primary/20">
-              <FileText className="w-5 h-5 text-white" />
-            </div>
-            <div>
-              <h2 className="text-base sm:text-lg font-black text-slate-900 uppercase tracking-tight">About Page Content</h2>
-              <p className="text-[11px] sm:text-xs font-black uppercase tracking-widest text-slate-900 mt-0.5">Manage and reorder your story sections</p>
-            </div>
-          </div>
-        </div>
-
+      <div className="flex flex-col sm:flex-row justify-end items-start sm:items-center gap-4">
         <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
           {orderChanged && (
             <Button 
               onClick={handleSaveOrder} 
               variant="secondary" 
-              className="h-12 px-6 bg-amber-500 hover:bg-amber-600 text-white shadow-lg shadow-amber-100 font-black uppercase tracking-widest text-[11px] sm:text-xs rounded-2xl transition-all active:scale-95"
+              disabled={!canEdit}
+              className="h-12 px-6 bg-amber-500 hover:bg-amber-600 text-white shadow-lg shadow-amber-100 font-bold font-sans uppercase tracking-tight text-[11px] sm:text-xs rounded-2xl transition-all active:scale-95"
             >
               <Save className="mr-2 h-4 w-4" />
               Save Order
@@ -492,7 +502,8 @@ export const AboutPageEditor = () => {
           )}
           <Button 
             onClick={addNewSection} 
-            className="h-12 px-6 bg-primary hover:bg-primary/90 text-white shadow-xl shadow-primary/20 font-black uppercase tracking-widest text-[11px] sm:text-xs rounded-2xl transition-all active:scale-95"
+            disabled={!canEdit}
+            className="h-12 px-6 bg-slate-700 hover:bg-slate-700/90 text-white shadow-xl shadow-slate-200/50 font-bold font-sans uppercase tracking-tight text-[11px] sm:text-xs rounded-2xl transition-all active:scale-95"
           >
             <Plus className="mr-2 h-4 w-4" />
             Add Section
@@ -530,6 +541,7 @@ export const AboutPageEditor = () => {
                   onUploadMultipleImages={handleMultipleImagesUpload}
                   onDelete={deleteSection}
                   saving={saving}
+                  canEdit={canEdit}
                 />
               ))}
             </div>
@@ -542,8 +554,8 @@ export const AboutPageEditor = () => {
               <FileText className="w-12 h-12 text-slate-900" />
             </div>
             <div className="space-y-1">
-              <p className="text-sm font-black uppercase tracking-widest text-slate-900">No sections found</p>
-              <p className="text-xs text-slate-900">Start by adding a new section to your about page.</p>
+              <p className="text-sm font-bold font-sans uppercase tracking-tight text-slate-900">No sections found</p>
+              <p className="text-xs text-slate-900 font-sans">Start by adding a new section to your about page.</p>
             </div>
           </div>
         )}

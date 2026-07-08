@@ -31,6 +31,7 @@ interface ContentListProps {
   onReorder: (items: any[]) => void;
   onAdd: () => void;
   renderItem: (item: any) => React.ReactNode;
+  canEdit?: boolean;
 }
 
 interface SortableItemProps {
@@ -39,16 +40,20 @@ interface SortableItemProps {
   onEdit: (item: any) => void;
   onDelete: (id: string) => void;
   renderItem: (item: any) => React.ReactNode;
+  canEdit?: boolean;
 }
 
-function SortableItem({ id, item, onEdit, onDelete, renderItem }: SortableItemProps) {
+function SortableItem({ id, item, onEdit, onDelete, renderItem, canEdit = true }: SortableItemProps) {
   const {
     attributes,
     listeners,
     setNodeRef,
     transform,
     transition,
-  } = useSortable({ id });
+  } = useSortable({ 
+    id,
+    disabled: !canEdit
+  });
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -75,7 +80,8 @@ function SortableItem({ id, item, onEdit, onDelete, renderItem }: SortableItemPr
                 size="sm" 
                 variant="outline" 
                 onClick={() => onEdit(item)}
-                className="h-8 w-8 sm:h-9 sm:w-9 p-0 rounded-full border-black/10 hover:bg-primary/5 hover:text-primary hover:border-primary/20"
+                disabled={!canEdit}
+                className="h-8 w-8 sm:h-9 sm:w-9 p-0 rounded-full border-black/10 hover:bg-slate-50 hover:text-slate-600 hover:border-slate-200 disabled:opacity-50"
               >
                 <Pencil className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
               </Button>
@@ -83,7 +89,8 @@ function SortableItem({ id, item, onEdit, onDelete, renderItem }: SortableItemPr
                 size="sm" 
                 variant="outline" 
                 onClick={() => onDelete(item.id)}
-                className="h-8 w-8 sm:h-9 sm:w-9 p-0 rounded-full border-black/10 hover:bg-red-50 hover:text-red-600 hover:border-red-200"
+                disabled={!canEdit}
+                className="h-8 w-8 sm:h-9 sm:w-9 p-0 rounded-full border-black/10 hover:bg-slate-50 hover:text-slate-600 hover:border-red-200 disabled:opacity-50"
               >
                 <Trash2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
               </Button>
@@ -104,7 +111,8 @@ export function ContentList({
   onDelete, 
   onReorder, 
   onAdd, 
-  renderItem 
+  renderItem,
+  canEdit = true
 }: ContentListProps) {
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -113,7 +121,8 @@ export function ContentList({
     })
   );
 
-  function handleDragEnd(event: DragEndEvent) {
+  const handleDragEnd = (event: DragEndEvent) => {
+    if (!canEdit) return;
     const { active, over } = event;
 
     if (over && active.id !== over.id) {
@@ -121,26 +130,27 @@ export function ContentList({
       const newIndex = items.findIndex((item) => item.id === over.id);
       onReorder(arrayMove(items, oldIndex, newIndex));
     }
-  }
+  };
 
   return (
-    <div className="space-y-4 sm:space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-6">
+    <div className="space-y-4 sm:space-y-6 font-sans">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           {icon && (
-            <div className="bg-primary/5 p-2 sm:p-2.5 rounded-2xl border border-primary/10">
+            <div className="p-2 sm:p-2.5 bg-slate-100 rounded-xl sm:rounded-2xl shadow-sm border border-black/5">
               {icon}
             </div>
           )}
           <div>
-            <h3 className="font-black text-base sm:text-lg text-slate-900 uppercase tracking-tight">{title}</h3>
-            {subtitle && <p className="text-[11px] sm:text-xs font-black uppercase tracking-widest text-slate-900">{subtitle}</p>}
+            <h3 className="text-base sm:text-lg font-bold font-sans text-slate-900 uppercase tracking-tight">{title}</h3>
+            {subtitle && <p className="text-[10px] sm:text-xs font-bold font-sans uppercase tracking-tight text-slate-900">{subtitle}</p>}
           </div>
         </div>
         <Button 
           size="lg"
-          className="bg-primary hover:bg-primary/90 text-white shadow-2xl shadow-primary/20 transition-all font-black uppercase tracking-widest text-[11px] sm:text-xs h-12 sm:h-12 px-5 sm:px-8 active:scale-[0.98] rounded-[2.5rem] w-full sm:w-auto"
+          className="bg-slate-700 hover:bg-slate-700/90 text-white shadow-2xl shadow-slate-200/50 transition-all font-bold font-sans uppercase tracking-tight text-[11px] sm:text-xs h-12 sm:h-12 px-5 sm:px-8 active:scale-[0.98] rounded-[2.5rem] w-full sm:w-auto disabled:opacity-50"
           onClick={onAdd}
+          disabled={!canEdit}
         >
           <Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4 mr-2" /> Add New Item
         </Button>
@@ -164,6 +174,7 @@ export function ContentList({
                 onEdit={onEdit} 
                 onDelete={onDelete}
                 renderItem={renderItem}
+                canEdit={canEdit}
               />
             ))}
           </div>
@@ -175,8 +186,8 @@ export function ContentList({
           <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-full bg-slate-100 flex items-center justify-center mb-3 sm:mb-4 border border-black/5 shadow-inner">
             <Plus className="w-6 h-6 sm:w-8 sm:h-8 text-slate-900" />
           </div>
-          <h3 className="text-[11px] sm:text-xs font-black uppercase tracking-widest text-slate-900 mb-1">No Items Yet</h3>
-          <p className="text-[11px] sm:text-xs text-slate-900 font-medium italic">
+          <h3 className="text-[11px] sm:text-xs font-bold font-sans uppercase tracking-tight text-slate-900 mb-1">No Items Yet</h3>
+          <p className="text-[11px] sm:text-xs text-slate-900 font-bold font-sans italic uppercase tracking-tight">
             Start by adding your first item to this section
           </p>
         </div>

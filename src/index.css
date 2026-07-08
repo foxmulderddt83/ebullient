@@ -1,5 +1,3 @@
-@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&family=Montserrat:wght@400;500;600;700;800&display=swap');
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -138,7 +136,20 @@
   }
 
   .glass-card {
-    @apply bg-white/10 backdrop-blur-md border border-white/20 shadow-xl;
+    @apply bg-white/10 border border-white/20 shadow-xl;
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+  }
+
+  /* Safari fix for sticky/fixed elements with backdrop-blur */
+  .safari-blur-fix {
+    -webkit-transform: translateZ(0);
+    transform: translateZ(0);
+  }
+
+  /* Safari tap highlight fix */
+  * {
+    -webkit-tap-highlight-color: transparent;
   }
 
   .no-scrollbar::-webkit-scrollbar {
@@ -147,6 +158,19 @@
   .no-scrollbar {
     -ms-overflow-style: none;
     scrollbar-width: none;
+  }
+
+  /* Date picker icon visibility - makes it visible on dark backgrounds */
+  input[type="date"]::-webkit-calendar-picker-indicator {
+    filter: invert(0.7);
+    cursor: pointer;
+    border-radius: 4px;
+    padding: 2px;
+  }
+  
+  input[type="date"]::-webkit-calendar-picker-indicator:hover {
+    filter: invert(0.9);
+    background: rgba(255, 255, 255, 0.1);
   }
 }
 

@@ -2,15 +2,100 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta http-equiv="Content-Security-Policy" content="default-src * 'self' 'unsafe-inline' 'unsafe-eval' data: blob:; img-src * 'self' data: blob:; connect-src 'self' https://*.supabase.co https://*.supabase.in https://*.supabase.net https://*.vercel-scripts.com https://ipapi.co https://maps.googleapis.com https://*.fly.dev https://oneday-whatsapp-bot.fly.dev https://api.brevo.com; script-src * 'self' 'unsafe-inline' 'unsafe-eval' data: blob:; style-src * 'self' 'unsafe-inline' data: blob:;">
+    <meta http-equiv="Content-Security-Policy" content="default-src * 'self' 'unsafe-inline' 'unsafe-eval' data: blob:; img-src * 'self' data: blob: https://vumbnail.com https://*.vimeo.com; connect-src 'self' https://*.supabase.co https://*.supabase.in https://*.supabase.net wss://*.supabase.co wss://*.supabase.in wss://*.supabase.net https://*.vercel-scripts.com https://ipapi.co https://maps.googleapis.com https://*.fly.dev https://oneday-whatsapp-bot.fly.dev wss://*.fly.dev wss://oneday-whatsapp-bot.fly.dev https://api.brevo.com https://vimeo.com https://*.vimeo.com; script-src * 'self' 'unsafe-inline' 'unsafe-eval' data: blob:; style-src * 'self' 'unsafe-inline' data: blob:;">
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <!-- TODO: Set the document title to the name of your application -->
-    <title id="site-title">OneDayPilot</title>
-    <link id="favicon" rel="icon" type="image/jpeg" href="/logooneday.jpeg" />
-    <link id="apple-touch-icon" rel="apple-touch-icon" href="/logooneday.jpeg" />
-    <meta id="og-title" property="og:title" content="OneDayPilot" />
-    <meta id="og-image" property="og:image" content="/logooneday.jpeg" />
-    <meta id="twitter-image" name="twitter:image" content="/logooneday.jpeg" />
+    <title id="site-title">OneDayPilot | Fly a Real Plane in KL | Subang Airport Experience</title>
+    <meta
+      id="site-description"
+      name="description"
+      content="Fly a real aircraft over Kuala Lumpur from Subang Airport — no license needed. 30-min or 60-min flights with certified instructor. From RM749. Perfect for gifts, proposals & bridal shoots. Book online today."
+    />
+    <meta
+      name="keywords"
+      content="one day pilot malaysia, fly a plane kl, flight experience subang, pilot for a day malaysia, introductory flight malaysia, airplane joyride kuala lumpur, flying experience gift malaysia, bridal shoot aircraft malaysia, scenic flight kl subang airport"
+    />
+    <link rel="canonical" href="https://onedaypilot.com/" />
+    <link rel="icon" type="image/png" href="/logo.png" />
+    <link rel="apple-touch-icon" href="/logo.png" />
+    
+    <!-- Security: DNS Prefetch for third-party CDNs -->
+    <link rel="dns-prefetch" href="https://fonts.googleapis.com">
+    <link rel="dns-prefetch" href="https://fonts.gstatic.com">
+    <link rel="dns-prefetch" href="https://*.supabase.co">
+
+    <!-- Security: Do Not Track for third-party embeds -->
+    <meta name="dnt" content="on">
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+
+    <!-- Core fonts: Poppins, Montserrat, Barlow Condensed (critical for first paint) -->
+    <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&family=Montserrat:wght@600;700&family=Barlow+Condensed:wght@400;600;700&display=swap">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&family=Montserrat:wght@600;700&family=Barlow+Condensed:wght@400;600;700&display=swap">
+
+    <!-- Display fonts: Playfair, Cormorant, Bebas Neue (async load, non-critical) -->
+    <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700&family=Cormorant+Garamond:ital,wght@0,400;0,700&family=Bebas+Neue&display=swap" media="(prefers-reduced-motion: no-preference)">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700&family=Cormorant+Garamond:ital,wght@0,400;0,700&family=Bebas+Neue&display=swap" media="print" onload="this.media='all'">
+
+    <noscript>
+      <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&family=Montserrat:wght@600;700&family=Barlow+Condensed:wght@400;600;700&family=Playfair+Display:ital,wght@0,400;0,700&family=Cormorant+Garamond:ital,wght@0,400;0,700&family=Bebas+Neue&display=swap">
+    </noscript>
+    
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website" />
+    <meta property="og:locale" content="en_MY" />
+    <meta id="og-url" property="og:url" content="https://onedaypilot.com/" />
+    <meta id="og-title" property="og:title" content="OneDayPilot | Fly a Real Plane in KL | From RM749" />
+    <meta
+      id="og-description"
+      property="og:description"
+      content="Fly a real aircraft over KL from Subang Airport. 30-min or 60-min experience. No license needed. Certified instructor. From RM749."
+    />
+    <meta id="og-image" property="og:image" content="https://onedaypilot.com/banner_experience.png" />
+
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta id="twitter-url" name="twitter:url" content="https://onedaypilot.com/" />
+    <meta id="twitter-title" name="twitter:title" content="OneDayPilot | Fly a Real Plane in KL | From RM749" />
+    <meta
+      id="twitter-description"
+      name="twitter:description"
+      content="30-min scenic flight over KL from Subang Airport. No license needed. From RM749."
+    />
+    <meta id="twitter-image" name="twitter:image" content="https://onedaypilot.com/banner_experience.png" />
+
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": ["LocalBusiness", "TouristAttraction", "SportsActivityLocation"],
+        "name": "OneDayPilot",
+        "description": "Fly a real aircraft over Kuala Lumpur from Subang Airport. Introductory flights with certified instructor. No license needed.",
+        "url": "https://onedaypilot.com",
+        "logo": "https://onedaypilot.com/logo.png",
+        "image": "https://onedaypilot.com/banner_experience.png",
+        "telephone": "+601165127889",
+        "email": "booking@onedaypilot.com",
+        "address": {
+          "@type": "PostalAddress",
+          "streetAddress": "Aerotree Flight Services, Hangar 2, SAAS International Airport",
+          "addressLocality": "Subang",
+          "addressRegion": "Selangor",
+          "postalCode": "47200",
+          "addressCountry": "MY"
+        },
+        "geo": {
+          "@type": "GeoCoordinates",
+          "latitude": 3.1302,
+          "longitude": 101.5496
+        },
+        "priceRange": "RM749–RM1499",
+        "currenciesAccepted": "MYR",
+        "sameAs": [
+          "https://www.facebook.com/onedaypilot/",
+          "https://www.klook.com/en-MY/activity/54083-kuala-lumpur-flight-experience/"
+        ]
+      }
+    </script>
   </head>
 
   <body>

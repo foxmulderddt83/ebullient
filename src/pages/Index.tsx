@@ -1,72 +1,134 @@
-import { useNavigate, useLocation } from "react-router-dom";
+import { useLocation } from "react-router-dom";
+import { useEffect, useState, lazy, Suspense } from "react";
+import { supabase } from "@/lib/supabase";
 import { Header } from "@/components/Header";
 import { HeroCarousel } from "@/components/HeroCarousel";
-import { StarWarsSection } from "@/components/StarWarsSection";
-import { ExperienceSection } from "@/components/ExperienceSection";
-import { BookingWizard } from "@/components/BookingWizard";
-import { ServicesSection } from "@/components/ServicesSection";
-import { AdventureSection } from "@/components/AdventureSection";
-import { FeaturesSection } from "@/components/FeaturesSection";
-import { Footer } from "@/components/Footer";
-import { ScrollReveal } from "@/components/ui/ScrollReveal";
-import { motion } from "framer-motion";
+import { MobileScrollToTop } from "@/components/ui/MobileScrollToTop";
+
+// Lazy load sections below the fold
+const StarWarsSection = lazy(() => import("@/components/StarWarsSection").then(m => ({ default: m.StarWarsSection })));
+const ExperienceSection = lazy(() => import("@/components/ExperienceSection").then(m => ({ default: m.ExperienceSection })));
+const BookingWizard = lazy(() => import("@/components/BookingWizard").then(m => ({ default: m.BookingWizard })));
+const ServicesSection = lazy(() => import("@/components/ServicesSection").then(m => ({ default: m.ServicesSection })));
+const AdventureSection = lazy(() => import("@/components/AdventureSection").then(m => ({ default: m.AdventureSection })));
+const Footer = lazy(() => import("@/components/Footer").then(m => ({ default: m.Footer })));
+const ScrollReveal = lazy(() => import("@/components/ui/ScrollReveal").then(m => ({ default: m.ScrollReveal })));
+
+// Loading placeholder for sections
+const SectionLoader = () => (
+  <div className="w-full h-32 flex items-center justify-center bg-slate-50/50">
+    <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin"></div>
+  </div>
+);
+
+const defaultOrder = [
+  "hero",
+  "starwars",
+  "adventure",
+  "booking",
+  "services",
+  "footer"
+];
+
+const componentMap: Record<string, React.ReactNode> = {
+  "hero": <HeroCarousel key="hero" />,
+  "starwars": (
+    <Suspense key="starwars" fallback={<SectionLoader />}>
+      <StarWarsSection />
+    </Suspense>
+  ),
+  "adventure": (
+    <Suspense key="adventure" fallback={<SectionLoader />}>
+      <ScrollReveal>
+        <AdventureSection />
+      </ScrollReveal>
+    </Suspense>
+  ),
+  "experience": (
+    <Suspense key="experience" fallback={<SectionLoader />}>
+      <ScrollReveal>
+        <ExperienceSection />
+      </ScrollReveal>
+    </Suspense>
+  ),
+  "booking": (
+    <div id="booking" key="booking">
+      <Suspense fallback={<SectionLoader />}>
+        <ScrollReveal>
+          <BookingWizard />
+        </ScrollReveal>
+      </Suspense>
+    </div>
+  ),
+  "services": (
+    <div id="services" key="services">
+      <Suspense fallback={<SectionLoader />}>
+        <ScrollReveal>
+          <ServicesSection />
+        </ScrollReveal>
+      </Suspense>
+    </div>
+  ),
+  "footer": (
+    <Suspense key="footer" fallback={<SectionLoader />}>
+      <Footer />
+    </Suspense>
+  )
+};
 
 const Index = () => {
-  const navigate = useNavigate();
   const location = useLocation();
   const params = new URLSearchParams(location.search);
   const isSharedLink = params.has("sharePackageId");
+  const [sectionOrder, setSectionOrder] = useState<string[]>(defaultOrder);
+
+  useEffect(() => {
+    const fetchOrder = async () => {
+      const { data } = await supabase
+        .from("site_settings")
+        .select("value")
+        .eq("key", "bg_sections_order")
+        .maybeSingle();
+
+      if (data && data.value) {
+        try {
+          const parsedOrder = JSON.parse(data.value);
+          if (Array.isArray(parsedOrder) && parsedOrder.length > 0) {
+            // Merge parsed order with missing default components
+            const validOrder = parsedOrder.filter(id => componentMap[id] && id !== 'experience');
+            const missing = defaultOrder.filter(id => !validOrder.includes(id) && id !== 'tab_section');
+            setSectionOrder([...validOrder, ...missing]);
+          }
+        } catch (e) {
+          console.error("Error parsing section order:", e);
+        }
+      }
+    };
+
+    fetchOrder();
+  }, []);
 
   if (isSharedLink) {
     return (
-      <motion.div 
-        initial={{ opacity: 0, backgroundColor: "#000" }}
-        animate={{ opacity: 1, backgroundColor: "transparent" }}
-        transition={{ duration: 1.0, ease: "easeInOut" }}
-        className="min-h-screen bg-slate-50 pt-10"
-      >
+      <div className="min-h-screen bg-slate-50 pt-10">
         <div id="booking" className="max-w-7xl mx-auto px-4">
           <BookingWizard />
         </div>
-      </motion.div>
+      </div>
     );
   }
 
   return (
-    <motion.div 
-      initial={{ opacity: 0, backgroundColor: "#000" }}
-      animate={{ opacity: 1, backgroundColor: "transparent" }}
-      transition={{ duration: 2.5, ease: "easeInOut" }}
-      className="min-h-screen"
-    >
+    <>
       <Header />
-      <main>
-        <HeroCarousel />
-        <StarWarsSection />
-        <ScrollReveal>
-          <AdventureSection />
-        </ScrollReveal>
-        <div id="experience">
-          <ScrollReveal>
-            <ExperienceSection />
-          </ScrollReveal>
-        </div>
-        <div id="booking">
-          <ScrollReveal>
-            <BookingWizard />
-          </ScrollReveal>
-        </div>
-        <div id="services">
-          <ScrollReveal>
-            <ServicesSection />
-          </ScrollReveal>
-        </div>
-        <ScrollReveal>
-          <FeaturesSection />
-        </ScrollReveal>
-      </main>
-      <Footer />
-    </motion.div>
+      <div className="min-h-screen safari-blur-fix">
+        <main>
+          {sectionOrder.filter(id => id !== 'footer').map(id => componentMap[id])}
+        </main>
+        {sectionOrder.includes('footer') ? componentMap['footer'] : <Footer />}
+      </div>
+      <MobileScrollToTop />
+    </>
   );
 };
 

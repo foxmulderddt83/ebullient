@@ -77,9 +77,9 @@ export const TimeSlotBuilder = ({ initialData, onSave }: TimeSlotBuilderProps) =
           <Badge 
             key={slot} 
             variant="outline" 
-            className="pl-4 pr-2 py-2.5 gap-3 text-[11px] sm:text-xs bg-white border-black/10 shadow-sm text-slate-700 font-bold rounded-2xl transition-all hover:border-primary/30 hover:bg-primary/5/30"
+            className="pl-4 pr-2 py-2.5 gap-3 text-[11px] sm:text-xs bg-white border-black/10 shadow-sm text-slate-700 font-bold rounded-2xl transition-all hover:border-slate-700/30 hover:bg-slate-50/30"
           >
-            <Clock className="w-4 h-4 text-primary" />
+            <Clock className="w-4 h-4 text-slate-600" />
             {slot}
             <button
               onClick={() => removeSlot(slot)}
@@ -103,7 +103,7 @@ export const TimeSlotBuilder = ({ initialData, onSave }: TimeSlotBuilderProps) =
             onChange={(e) => setNewSlot(e.target.value)}
             onKeyDown={handleKeyPress}
             onClick={(e) => (e.currentTarget as any).showPicker()}
-            className="pl-14 h-16 sm:h-14 text-sm font-bold border-black/20 rounded-2xl focus:ring-2 focus:ring-primary bg-white transition-all shadow-sm"
+            className="pl-14 h-16 sm:h-14 text-sm font-bold border-black/20 rounded-2xl focus:ring-2 focus:ring-indigo-100 bg-white transition-all shadow-sm"
             placeholder="Select time..."
           />
         </div>
@@ -111,13 +111,13 @@ export const TimeSlotBuilder = ({ initialData, onSave }: TimeSlotBuilderProps) =
           onClick={addSlot} 
           type="button" 
           variant="outline"
-          className="w-full sm:w-auto border-dashed border-primary/20 bg-primary/5/50 text-primary hover:bg-primary/10 hover:border-primary/30 h-16 sm:h-14 px-8 rounded-2xl font-bold transition-all shadow-sm active:scale-[0.98]"
+          className="w-full sm:w-auto border-dashed border-slate-200 bg-slate-50/50 text-slate-600 hover:bg-slate-700/10 hover:border-slate-700/30 h-16 sm:h-14 px-8 rounded-2xl font-bold transition-all shadow-sm active:scale-[0.98]"
         >
           <Plus className="w-6 h-6 mr-2" /> Add Slot
         </Button>
       </div>
       <div className="flex items-center gap-2 px-1">
-        <div className="w-1 h-1 bg-primary/40 rounded-full" />
+        <div className="w-1 h-1 bg-slate-700/40 rounded-full" />
         <p className="text-[11px] sm:text-xs text-slate-900 font-medium italic">
           Tip: Click the clock icon or input to select a time.
         </p>

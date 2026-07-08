@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { MessageCircle, X, ChevronDown, ChevronUp, Phone, HelpCircle, Volume2, VolumeX } from "lucide-react";
+import { MessageCircle, X, ChevronDown, ChevronUp, Phone, HelpCircle, Volume2, VolumeX, Plane } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/lib/supabase";
 import { AnimatePresence, motion } from "framer-motion";
@@ -78,7 +78,7 @@ const FAQ_ITEMS = [
 
 export const FloatingSupport = () => {
   const [isOpen, setIsOpen] = useState(false);
-  const [whatsappNumber, setWhatsappNumber] = useState("601156736410"); // Default from questions.md
+  const [whatsappNumber, setWhatsappNumber] = useState("601156736410");
   const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(null);
   const [isAudioMuted, setIsAudioMuted] = useState(() => {
     const saved = localStorage.getItem("starwars-audio-muted");
@@ -91,11 +91,8 @@ export const FloatingSupport = () => {
     const handleSectionVisibility = (event: any) => {
       setIsSpeakerVisible(event.detail);
     };
-
     window.addEventListener("starwars-section-visible", handleSectionVisibility);
-    return () => {
-      window.removeEventListener("starwars-section-visible", handleSectionVisibility);
-    };
+    return () => window.removeEventListener("starwars-section-visible", handleSectionVisibility);
   }, []);
 
   useEffect(() => {
@@ -106,10 +103,7 @@ export const FloatingSupport = () => {
         .select('value')
         .eq('key', 'contact_phone')
         .maybeSingle();
-      
-      if (data?.value) {
-        setWhatsappNumber(data.value);
-      }
+      if (data?.value) setWhatsappNumber(data.value);
     };
     fetchSettings();
   }, []);
@@ -122,7 +116,6 @@ export const FloatingSupport = () => {
     const newState = !isAudioMuted;
     setIsAudioMuted(newState);
     localStorage.setItem("starwars-audio-muted", String(newState));
-    // Dispatch custom event for StarWarsSection
     window.dispatchEvent(new CustomEvent("starwars-mute-toggle", { detail: newState }));
   };
 
@@ -133,50 +126,76 @@ export const FloatingSupport = () => {
       <AnimatePresence>
         {isOpen && (
           <motion.div
-            initial={{ opacity: 0, y: 20, scale: 0.9 }}
+            initial={{ opacity: 0, y: 16, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 20, scale: 0.9 }}
-            className="bg-white rounded-2xl shadow-2xl border border-black w-[350px] overflow-hidden mb-2"
+            exit={{ opacity: 0, y: 16, scale: 0.95 }}
+            transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
+            className="bg-white rounded-3xl shadow-[0_24px_60px_-12px_rgba(15,23,42,0.2)] border border-slate-200 w-[320px] max-w-[calc(100vw-2rem)] overflow-hidden mb-2"
           >
-            <div className="bg-primary p-4 text-primary-foreground flex justify-between items-center">
-              <div className="font-bold flex items-center gap-2">
-                <HelpCircle className="w-5 h-5" />
-                <span>Quick Support</span>
+            {/* Header */}
+            <div
+              className="relative p-5 text-white overflow-hidden"
+              style={{ background: 'linear-gradient(135deg, #CC1F1F 0%, #A11818 100%)' }}
+            >
+              {/* Decorative wave */}
+              <div className="absolute inset-0 opacity-20" style={{
+                background: 'radial-gradient(circle at top right, rgba(255,255,255,0.3) 0%, transparent 60%)'
+              }} />
+              <div className="relative flex justify-between items-start">
+                <div>
+                  <span className="text-[9px] tracking-[0.32em] uppercase opacity-80 block mb-1" style={{ fontFamily: "'Barlow Condensed', sans-serif" }}>
+                    Help Desk · 24/7
+                  </span>
+                  <h3 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: '1.5rem', letterSpacing: '0.03em' }}>
+                    Quick Support
+                  </h3>
+                </div>
+                <button
+                  className="w-8 h-8 rounded-full bg-white/15 hover:bg-white/25 transition-colors flex items-center justify-center"
+                  onClick={() => setIsOpen(false)}
+                >
+                  <X className="w-4 h-4" />
+                </button>
               </div>
-              <Button 
-                variant="ghost" 
-                size="icon" 
-                className="text-primary-foreground hover:bg-primary/80 h-8 w-8"
-                onClick={() => setIsOpen(false)}
-              >
-                <X className="w-5 h-5" />
-              </Button>
             </div>
 
-            <div className="max-h-[400px] overflow-y-auto custom-scrollbar p-2 bg-slate-50">
-              <div className="space-y-2 p-2">
+            {/* FAQ list */}
+            <div className="max-h-[420px] overflow-y-auto custom-scrollbar bg-slate-50/40">
+              <div className="p-3 space-y-2">
                 {FAQ_ITEMS.map((item, index) => (
-                  <div key={index} className="bg-white rounded-lg border border-black shadow-sm overflow-hidden">
+                  <div
+                    key={index}
+                    className="bg-white rounded-xl border border-slate-200/80 overflow-hidden transition-colors hover:border-[#CC1F1F]/20"
+                  >
                     <button
                       onClick={() => toggleFaq(index)}
-                      className="w-full flex items-center justify-between p-3 text-left text-sm font-medium hover:bg-slate-50 transition-colors"
+                      className="w-full flex items-center justify-between gap-3 p-3.5 text-left text-[13px] font-semibold text-slate-800 hover:bg-slate-50/60 transition-colors"
+                      style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}
                     >
-                      <span>{item.question}</span>
-                      {openFaqIndex === index ? (
-                        <ChevronUp className="w-4 h-4 text-muted-foreground" />
-                      ) : (
-                        <ChevronDown className="w-4 h-4 text-muted-foreground" />
-                      )}
+                      <span className="flex items-center gap-3 flex-1 min-w-0">
+                        <span className="text-[9px] font-mono text-slate-400 shrink-0">
+                          {String(index + 1).padStart(2, '0')}
+                        </span>
+                        <span className="line-clamp-2">{item.question}</span>
+                      </span>
+                      <span className={`w-6 h-6 rounded-full flex items-center justify-center transition-all shrink-0 ${openFaqIndex === index ? 'bg-[#CC1F1F] text-white' : 'bg-slate-100 text-slate-500'}`}>
+                        {openFaqIndex === index ? (
+                          <ChevronUp className="w-3 h-3" />
+                        ) : (
+                          <ChevronDown className="w-3 h-3" />
+                        )}
+                      </span>
                     </button>
-                    <AnimatePresence>
+                    <AnimatePresence initial={false}>
                       {openFaqIndex === index && (
                         <motion.div
-                          initial={{ height: 0 }}
-                          animate={{ height: "auto" }}
-                          exit={{ height: 0 }}
+                          initial={{ height: 0, opacity: 0 }}
+                          animate={{ height: "auto", opacity: 1 }}
+                          exit={{ height: 0, opacity: 0 }}
+                          transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
                           className="overflow-hidden"
                         >
-                          <div className="p-3 pt-0 text-xs text-muted-foreground border-t bg-slate-50/50 leading-relaxed">
+                          <div className="px-4 pb-4 pt-1 text-[12px] text-slate-600 leading-relaxed border-t border-dashed border-slate-200" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
                             {item.answer}
                           </div>
                         </motion.div>
@@ -187,18 +206,20 @@ export const FloatingSupport = () => {
               </div>
             </div>
 
-            <div className="p-4 bg-white border-t">
-              <a 
+            {/* Footer CTA */}
+            <div className="p-4 bg-white border-t border-slate-200">
+              <a
                 href={`https://wa.me/${whatsappNumber.replace(/\D/g, '')}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center justify-center gap-2 w-full bg-[#25D366] hover:bg-[#20bd5a] text-white font-bold py-3 px-4 rounded-lg transition-all shadow-md hover:shadow-lg transform hover:-translate-y-0.5"
+                className="flex items-center justify-center gap-2 w-full bg-[#25D366] hover:bg-[#1eb558] text-white font-bold py-3 px-4 rounded-full transition-all shadow-[0_6px_20px_-4px_rgba(37,211,102,0.45)] hover:shadow-[0_8px_24px_-4px_rgba(37,211,102,0.6)] hover:-translate-y-0.5 text-[12px] tracking-[0.18em] uppercase"
+                style={{ fontFamily: "'Barlow Condensed', sans-serif" }}
               >
-                <MessageCircle className="w-5 h-5" />
-                Talk to Agent
+                <MessageCircle className="w-4 h-4" />
+                Chat Live Agent
               </a>
-              <p className="text-xs text-center text-muted-foreground mt-2">
-                Replies typically in few minutes
+              <p className="text-[10px] text-center text-slate-400 mt-2.5 tracking-[0.15em] uppercase font-medium" style={{ fontFamily: "'Barlow Condensed', sans-serif" }}>
+                Avg reply · Few minutes
               </p>
             </div>
           </motion.div>
@@ -206,59 +227,81 @@ export const FloatingSupport = () => {
       </AnimatePresence>
 
       <div className="flex items-center gap-3">
-        {/* Speaker Mute/Unmute Toggle - only visible when StarWarsSection is in view */}
+        {/* Speaker toggle */}
         <AnimatePresence>
           {isSpeakerVisible && (
             <motion.div
               initial={{ opacity: 0, x: 20, scale: 0.8 }}
               animate={{ opacity: 1, x: 0, scale: 1 }}
               exit={{ opacity: 0, x: 20, scale: 0.8 }}
-              transition={{ duration: 0.3 }}
+              transition={{ duration: 0.25 }}
             >
-              <Button
+              <button
                 onClick={toggleAudio}
-                variant="outline"
-                size="icon"
-                className={`rounded-full h-7 w-7 border-2 transition-all duration-300 shadow-lg ${
-                  isAudioMuted 
-                    ? "bg-slate-100 border-slate-300 text-slate-400" 
-                    : "bg-primary/10 border-primary text-primary animate-pulse"
-                }`}
+                aria-label={isAudioMuted ? "Unmute Sound" : "Mute Sound"}
                 title={isAudioMuted ? "Unmute Sound" : "Mute Sound"}
+                className={`rounded-full h-8 w-8 md:h-9 md:w-9 transition-all duration-300 shadow-lg flex items-center justify-center ${isAudioMuted
+                    ? "bg-white border border-slate-200 text-slate-400 hover:text-slate-600"
+                    : "bg-white border border-[#CC1F1F]/40 text-[#CC1F1F] shadow-[0_6px_16px_-4px_rgba(204,31,31,0.4)]"
+                  }`}
               >
-                {isAudioMuted ? (
-                  <VolumeX className="w-3 h-3" />
-                ) : (
-                  <Volume2 className="w-3 h-3" />
-                )}
-              </Button>
+                {isAudioMuted ? <VolumeX className="w-3 h-3 md:w-3.5 md:h-3.5" /> : <Volume2 className="w-3 h-3 md:w-3.5 md:h-3.5" />}
+              </button>
             </motion.div>
           )}
         </AnimatePresence>
 
-        {/* WhatsApp Support Toggle */}
-        <Button
+        {/* Main FAB */}
+        <motion.button
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
           onClick={() => setIsOpen(!isOpen)}
-          size="lg"
-          className={`rounded-full h-12 w-12 transition-all duration-300 relative group border ${
-            isOpen 
-              ? "bg-red-500 hover:bg-red-600 rotate-90 border-black shadow-[0_0_20px_rgba(239,68,68,0.5),0_0_40px_rgba(239,68,68,0.2)]" 
-              : "bg-[#25D366] hover:bg-[#20bd5a] hover:scale-110 border-black shadow-[0_0_20px_rgba(37,211,102,0.5),0_0_40px_rgba(37,211,102,0.2)]"
-          }`}
+          aria-label={isOpen ? "Close Support" : "Open Support"}
+          className={`relative rounded-full h-11 w-11 md:h-14 md:w-14 transition-all duration-400 group overflow-hidden ${isOpen
+              ? "bg-slate-900"
+              : "bg-[#25D366]"
+            }`}
+          style={{
+            boxShadow: isOpen
+              ? '0 8px 32px -8px rgba(15,23,42,0.4), inset 0 1px 0 rgba(255,255,255,0.15)'
+              : '0 8px 32px -8px rgba(37,211,102,0.55), inset 0 1px 0 rgba(255,255,255,0.25)',
+          }}
         >
-          {isOpen ? (
-            <X className="w-5 h-5 text-white" />
-          ) : (
+          <AnimatePresence mode="wait">
+            {isOpen ? (
+              <motion.div
+                key="close"
+                initial={{ rotate: -90, opacity: 0 }}
+                animate={{ rotate: 0, opacity: 1 }}
+                exit={{ rotate: 90, opacity: 0 }}
+                transition={{ duration: 0.2 }}
+                className="absolute inset-0 flex items-center justify-center"
+              >
+                <X className="w-4 h-4 md:w-5 md:h-5 text-white" />
+              </motion.div>
+            ) : (
+              <motion.div
+                key="open"
+                initial={{ rotate: 90, opacity: 0 }}
+                animate={{ rotate: 0, opacity: 1 }}
+                exit={{ rotate: -90, opacity: 0 }}
+                transition={{ duration: 0.2 }}
+                className="absolute inset-0 flex items-center justify-center"
+              >
+                <MessageCircle className="w-5 h-5 md:w-6 md:h-6 text-white" />
+              </motion.div>
+            )}
+          </AnimatePresence>
+          {!isOpen && (
             <>
-              <MessageCircle className="w-6 h-6 text-white group-hover:scale-110 transition-transform" />
-              <span className="absolute -top-1 -right-1 flex h-3 w-3">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-3 w-3 bg-white border-2 border-[#25D366]"></span>
+              <span className="absolute -top-0.5 -right-0.5 flex h-3 w-3">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white/80" />
+                <span className="relative inline-flex rounded-full h-3 w-3 bg-white border-2 border-[#25D366]" />
               </span>
-              <span className="absolute inset-0 rounded-full border-2 border-white/30 animate-pulse pointer-events-none" />
+              <span className="absolute inset-0 rounded-full ring-2 ring-white/30 animate-pulse pointer-events-none" />
             </>
           )}
-        </Button>
+        </motion.button>
       </div>
     </div>
   );

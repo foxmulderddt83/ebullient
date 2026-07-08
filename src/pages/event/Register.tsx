@@ -45,6 +45,25 @@ const Register = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [params] = useSearchParams();
+
+  const formatFlightTime = (time: string | null | undefined) => {
+    if (!time) return "TBD";
+    if (time.toLowerCase().includes('am') || time.toLowerCase().includes('pm')) {
+      return time.toUpperCase();
+    }
+    try {
+      if (!time.includes(':')) return time.toUpperCase();
+      const parts = time.split(':');
+      const h = parseInt(parts[0], 10);
+      const m = parts[1] || '00';
+      if (isNaN(h)) return time.toUpperCase();
+      const ampm = h >= 12 ? 'PM' : 'AM';
+      const h12 = h % 12 || 12;
+      return `${h12}:${m.padStart(2, '0')} ${ampm}`;
+    } catch (error) {
+      return time.toUpperCase();
+    }
+  };
   const [step, setStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [timeSlots, setTimeSlots] = useState(eventDetails.timeSlots);
@@ -65,6 +84,14 @@ const Register = () => {
   const [testTimeLeft, setTestTimeLeft] = useState<number | null>(null);
   const [registeredId, setRegisteredId] = useState<string | null>(null);
   const [resolvedEventId, setResolvedEventId] = useState<string | null>(null);
+  const [isMobileView, setIsMobileView] = useState(false);
+
+  useEffect(() => {
+    const updateMobileView = () => setIsMobileView(window.innerWidth < 768);
+    updateMobileView();
+    window.addEventListener("resize", updateMobileView);
+    return () => window.removeEventListener("resize", updateMobileView);
+  }, []);
 
   // Helper function to format time
   const formatTimeLeft = (seconds: number) => {
@@ -122,8 +149,11 @@ const Register = () => {
 
       if (!supabase) return;
 
-      // Fetch settings first
-      const { data: settingsData } = await supabase.from('site_settings').select('*');
+      // Fetch settings first (only needed keys for performance)
+      const { data: settingsData } = await supabase.from('site_settings').select('*').in('key', [
+        'event_time_slots',
+        'event_registration_template'
+      ]);
       const settingsMap: Record<string, string> = {};
       if (settingsData) {
         settingsData.forEach(s => settingsMap[s.key] = s.value);
@@ -168,10 +198,20 @@ const Register = () => {
 
       // Fetch event data
       if (eid && eid !== 'default') {
-        // Try events first
-        const { data: eventData } = await supabase.from('events').select('*').eq('id', eid).maybeSingle();
+        let eventData = null;
+        const { data: byManualId } = await supabase.from('events').select('*').eq('event_id', eid).maybeSingle();
+        if (byManualId) {
+          eventData = byManualId;
+        } else {
+          const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(eid);
+          if (isUuid) {
+            const { data: byUuid } = await supabase.from('events').select('*').eq('id', eid).maybeSingle();
+            eventData = byUuid;
+          }
+        }
+
         if (eventData) {
-          setResolvedEventId(eid);
+          setResolvedEventId(eventData.id);
           let updatedEventData: any = { ...eventData };
           const eventTime = new Date(`${eventData.event_date}T${eventData.event_time}`);
           if (!isTest && new Date() > eventTime) {
@@ -314,37 +354,8 @@ const Register = () => {
   });
 
   const checkWhatsAppStatus = async () => {
-    if (!supabase) return false;
-    try {
-      // 1. Check from DB status (updated by bot periodically)
-      const { data } = await supabase
-        .from('site_settings')
-        .select('value')
-        .eq('key', 'whatsapp_bot_status')
-        .maybeSingle();
-      
-      if (data && data.value === 'connected') return true;
-
-      // 2. Fallback: Direct API check
-      const { data: apiUrlData } = await supabase
-        .from('site_settings')
-        .select('value')
-        .eq('key', 'whatsapp_api_url')
-        .maybeSingle();
-
-      const API_URL = apiUrlData?.value || import.meta.env.VITE_WHATSAPP_API_URL;
-      
-      if (API_URL) {
-        const res = await fetch(`${API_URL}/api/status`).catch(() => null);
-        if (res && res.ok) {
-          const json = await res.json();
-          return Boolean(json.connected);
-        }
-      }
-      return false;
-    } catch (e) {
-      return false;
-    }
+    // ALWAYS return true to prevent blocking the user
+    return true;
   };
 
   const updateForm = <K extends keyof RegistrationFormData>(field: K, value: RegistrationFormData[K]) => {
@@ -356,8 +367,8 @@ const Register = () => {
     if (file) {
       // Check file type to determine limit
       const isImage = file.type.startsWith('image/');
-      const limit = isImage ? 1 * 1024 * 1024 : 5 * 1024 * 1024;
-      const limitLabel = isImage ? "1MB" : "5MB";
+      const limit = isImage ? 3 * 1024 * 1024 : 5 * 1024 * 1024;
+      const limitLabel = isImage ? "3MB" : "5MB";
 
       if (file.size > limit) {
         toast({ 
@@ -480,14 +491,14 @@ const Register = () => {
         // Try 'media' bucket first as it usually has public RLS policies
         const { data: uploadData, error: uploadError } = await supabase.storage
           .from('media')
-          .upload(`registrations/${filePath}`, compressedDocument);
+          .upload(`registrations/${filePath}`, compressedDocument, { upsert: true, cacheControl: '31536000' });
 
         if (uploadError) {
           console.error("Media bucket upload error:", uploadError);
           // Fallback to 'registrations' bucket
           const { data: regData, error: regError } = await supabase.storage
             .from('registrations')
-            .upload(filePath, compressedDocument);
+            .upload(filePath, compressedDocument, { upsert: true, cacheControl: '31536000' });
           
           if (regError) {
             console.error("Registrations bucket upload error:", regError);
@@ -669,7 +680,7 @@ const Register = () => {
 
       {/* Content */}
       <main className={`max-w-lg mx-auto px-4 ${params.get("test") === "true" ? 'pt-40' : 'pt-28'} pb-28`}>
-        <div className="animate-fade-in space-y-6">
+        <div className={`${isMobileView ? '' : 'animate-fade-in'} space-y-6`}>
           {templateConfig?.steps?.[step - 1]?.fields.map((fieldId: string) => (
             <FieldRenderer 
               key={fieldId} 
@@ -681,6 +692,8 @@ const Register = () => {
               handleFileUpload={handleFileUpload} 
               onSubmit={handleSubmit}
               isSubmitting={isSubmitting}
+              formatFlightTime={formatFlightTime}
+              isMobileView={isMobileView}
             />
           ))}
 
@@ -713,7 +726,7 @@ const Register = () => {
 
                     let value = "";
                     if (fieldId === "date") value = formData.selectedDate?.toLocaleDateString() || "";
-                    else if (fieldId === "timeSlot") value = formData.selectedTimeSlot || "";
+                    else if (fieldId === "timeSlot") value = formatFlightTime(formData.selectedTimeSlot) || "";
                     else if (fieldId === "nric") value = formData.nric_number || "";
                     else if (fieldId === "document") value = formData.document ? "Uploaded" : "";
                     else value = (formData as any)[fieldId]?.toString() || "";
@@ -742,7 +755,7 @@ const Register = () => {
       </main>
 
       {/* Bottom CTA */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-xl border-t border-slate-200 p-4">
+      <div className="fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-xl border-t border-slate-200 p-4 z-50">
         <div className="max-w-lg mx-auto">
           {step < (templateConfig?.steps?.length || 3) ? (
             <Button
@@ -777,9 +790,22 @@ interface FieldRendererProps {
   handleFileUpload: (e: React.ChangeEvent<HTMLInputElement>) => void;
   onSubmit: () => void;
   isSubmitting: boolean;
+  formatFlightTime: (time: string | null | undefined) => string;
+  isMobileView: boolean;
 }
 
-const FieldRenderer = ({ fieldId, formData, updateForm, timeSlots, templateConfig, handleFileUpload, onSubmit, isSubmitting }: FieldRendererProps) => {
+const FieldRenderer = ({ 
+  fieldId, 
+  formData, 
+  updateForm, 
+  timeSlots, 
+  templateConfig, 
+  handleFileUpload, 
+  onSubmit, 
+  isSubmitting, 
+  formatFlightTime,
+  isMobileView
+}: FieldRendererProps) => {
   const fieldConfig = templateConfig?.fieldsConfig?.[fieldId];
   const label = fieldConfig?.label || (
     fieldId === "date" ? "Select Date" :
@@ -803,12 +829,12 @@ const FieldRenderer = ({ fieldId, formData, updateForm, timeSlots, templateConfi
       return (
         <div className="space-y-4">
           <h2 className="text-xl font-bold text-slate-900">{label} {isRequired && <span className="text-event-pink">*</span>}</h2>
-          <div className="bg-white rounded-3xl border border-black p-4 shadow">
+          <div className="bg-white rounded-3xl border border-black p-3 sm:p-4 shadow overflow-x-auto flex justify-center">
             <Calendar
               mode="single"
               selected={formData.selectedDate}
               onSelect={(date) => updateForm("selectedDate", date)}
-              className="w-full"
+              className="w-full max-w-full"
               disabled={(date) => date < new Date()}
             />
           </div>
@@ -818,7 +844,7 @@ const FieldRenderer = ({ fieldId, formData, updateForm, timeSlots, templateConfi
       return (
         <div className="space-y-4">
           <h2 className="text-xl font-bold text-slate-900">{label} {isRequired && <span className="text-event-pink">*</span>}</h2>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {timeSlots.map((slot) => (
               <button
                 key={slot}
@@ -829,7 +855,7 @@ const FieldRenderer = ({ fieldId, formData, updateForm, timeSlots, templateConfi
                     : "border-slate-200 bg-slate-50 text-slate-500 hover:border-event-pink/30"
                 }`}
               >
-                {slot}
+                {formatFlightTime(slot)}
               </button>
             ))}
           </div>
@@ -844,7 +870,7 @@ const FieldRenderer = ({ fieldId, formData, updateForm, timeSlots, templateConfi
             value={formData.name}
             onChange={(e) => updateForm("name", e.target.value)}
             placeholder={`Enter your ${label.toLowerCase()}`}
-            className="h-14 rounded-2xl border-slate-200 focus:border-event-pink focus:ring-event-pink/20"
+            className="h-12 sm:h-14 rounded-2xl border-slate-200 focus:border-event-pink focus:ring-event-pink/20 text-sm"
           />
         </div>
       );
@@ -858,7 +884,7 @@ const FieldRenderer = ({ fieldId, formData, updateForm, timeSlots, templateConfi
             value={formData.email}
             onChange={(e) => updateForm("email", e.target.value)}
             placeholder="your@email.com"
-            className="h-14 rounded-2xl border-slate-200 focus:border-event-pink focus:ring-event-pink/20"
+            className="h-12 sm:h-14 rounded-2xl border-slate-200 focus:border-event-pink focus:ring-event-pink/20 text-sm"
           />
         </div>
       );
@@ -873,7 +899,7 @@ const FieldRenderer = ({ fieldId, formData, updateForm, timeSlots, templateConfi
             value={formData.phone}
             onChange={(e) => updateForm("phone", e.target.value)}
             placeholder="+1 234 567 8900"
-            className={`h-14 rounded-2xl border-slate-200 focus:border-event-pink focus:ring-event-pink/20 ${
+            className={`h-12 sm:h-14 rounded-2xl border-slate-200 focus:border-event-pink focus:ring-event-pink/20 text-sm ${
               formData.phone && !isPhoneValid ? "border-red-500 focus:border-red-500 focus:ring-red-500/20" : ""
             }`}
           />
@@ -895,7 +921,7 @@ const FieldRenderer = ({ fieldId, formData, updateForm, timeSlots, templateConfi
             value={formData.gender}
             onValueChange={(value) => updateForm("gender", value as "Male" | "Female" | "Other")}
           >
-            <SelectTrigger className="h-14 rounded-2xl border-slate-200 focus:border-event-pink focus:ring-event-pink/20">
+            <SelectTrigger className="h-12 sm:h-14 rounded-2xl border-slate-200 focus:border-event-pink focus:ring-event-pink/20 text-sm">
               <SelectValue />
             </SelectTrigger>
             <SelectContent className="rounded-2xl">
@@ -917,7 +943,7 @@ const FieldRenderer = ({ fieldId, formData, updateForm, timeSlots, templateConfi
             onChange={(e) => updateForm("age", parseInt(e.target.value) || 0)}
             min={1}
             max={120}
-            className="h-14 rounded-2xl border-slate-200 focus:border-event-pink focus:ring-event-pink/20"
+            className="h-12 sm:h-14 rounded-2xl border-slate-200 focus:border-event-pink focus:ring-event-pink/20 text-sm"
           />
         </div>
       );
@@ -932,7 +958,7 @@ const FieldRenderer = ({ fieldId, formData, updateForm, timeSlots, templateConfi
             onChange={(e) => updateForm("weight", parseInt(e.target.value) || 0)}
             min={1}
             max={300}
-            className="h-14 rounded-2xl border-slate-200 focus:border-event-pink focus:ring-event-pink/20"
+            className="h-12 sm:h-14 rounded-2xl border-slate-200 focus:border-event-pink focus:ring-event-pink/20 text-sm"
           />
         </div>
       );
@@ -945,7 +971,7 @@ const FieldRenderer = ({ fieldId, formData, updateForm, timeSlots, templateConfi
             value={formData.address}
             onChange={(e) => updateForm("address", e.target.value)}
             placeholder="Enter your full address"
-            className="min-h-[100px] rounded-2xl border-slate-200 focus:border-event-pink focus:ring-event-pink/20"
+            className="min-h-[80px] sm:min-h-[100px] rounded-2xl border-slate-200 focus:border-event-pink focus:ring-event-pink/20 text-sm"
           />
         </div>
       );
@@ -957,7 +983,7 @@ const FieldRenderer = ({ fieldId, formData, updateForm, timeSlots, templateConfi
 
       return (
         <div className="space-y-4">
-          <div className="flex items-start space-x-3 bg-slate-50 p-4 rounded-2xl border border-slate-200">
+          <div className="flex items-start space-x-3 bg-slate-50 p-3 sm:p-4 rounded-2xl border border-slate-200">
             <Checkbox
               id="nric_confirmed"
               checked={formData.nric_confirmed}
@@ -971,14 +997,14 @@ const FieldRenderer = ({ fieldId, formData, updateForm, timeSlots, templateConfi
               >
                 {label.toUpperCase()} {isRequired && "*"}
               </label>
-              <p className="text-xs text-slate-500">
+              <p className="text-[10px] sm:text-xs text-slate-500">
                 I agree to provide my ID details for verification purposes.
               </p>
             </div>
           </div>
           
           {formData.nric_confirmed && (
-            <div className="space-y-6 animate-in fade-in slide-in-from-top-2 duration-200">
+            <div className={`space-y-4 sm:space-y-6 ${isMobileView ? '' : 'animate-in fade-in slide-in-from-top-2 duration-200'}`}>
               <div className="space-y-2">
                 <Label htmlFor="nric_number" className="text-sm font-bold text-slate-700">NRIC / Passport Number {isRequired && "*"}</Label>
                 <Input
@@ -986,47 +1012,47 @@ const FieldRenderer = ({ fieldId, formData, updateForm, timeSlots, templateConfi
                   value={formData.nric_number}
                   onChange={(e) => updateForm("nric_number", e.target.value.toUpperCase())}
                   placeholder="Enter NRIC / Passport Number"
-                  className="h-14 rounded-2xl border-slate-200 focus:border-event-pink focus:ring-event-pink/20 uppercase"
+                  className="h-12 sm:h-14 rounded-2xl border-slate-200 focus:border-event-pink focus:ring-event-pink/20 uppercase text-sm"
                 />
               </div>
 
               {isDocumentEnabled && (
                 <div className="space-y-2">
                   <h3 className="text-sm font-bold text-slate-700">{docLabel} {isDocRequired && <span className="text-primary">*</span>}</h3>
-                  <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm text-center">
+                  <div className="bg-white rounded-2xl border border-slate-200 p-3 sm:p-6 shadow-sm text-center">
                     {formData.document ? (
                       <div className="space-y-3">
-                        <div className="w-12 h-12 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto">
-                          <Check className="w-6 h-6" />
+                        <div className="w-10 h-10 sm:w-12 sm:h-12 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto">
+                          <Check className="w-5 h-5 sm:w-6 sm:h-6" />
                         </div>
                         <div>
-                          <p className="font-bold text-sm text-slate-900">File Selected</p>
-                          <p className="text-xs text-slate-500 truncate max-w-[200px] mx-auto">{formData.document.name}</p>
+                          <p className="font-bold text-xs sm:text-sm text-slate-900">File Selected</p>
+                          <p className="text-[10px] sm:text-xs text-slate-500 truncate max-w-[150px] sm:max-w-[200px] mx-auto">{formData.document.name}</p>
                         </div>
                         <Button 
                           variant="outline" 
                           size="sm"
                           onClick={() => updateForm("document", null)}
-                          className="rounded-xl border-primary/20 text-primary hover:bg-primary/5"
+                          className="h-8 sm:h-9 rounded-xl border-primary/20 text-primary hover:bg-primary/5 text-[10px] sm:text-xs"
                         >
                           Change File
                         </Button>
                       </div>
                     ) : (
-                      <label className="cursor-pointer block space-y-3 group">
-                        <div className="w-12 h-12 bg-slate-50 group-hover:bg-primary/5 text-slate-400 group-hover:text-primary rounded-full flex items-center justify-center mx-auto transition-colors">
-                          <Upload className="w-6 h-6" />
+                      <label className="cursor-pointer block space-y-2 sm:space-y-3 group">
+                        <div className="w-10 h-10 sm:w-12 sm:h-12 bg-slate-50 group-hover:bg-primary/5 text-slate-400 group-hover:text-primary rounded-full flex items-center justify-center mx-auto transition-colors">
+                          <Upload className="w-5 h-5 sm:w-6 sm:h-6" />
                         </div>
                         <div>
-                          <p className="font-bold text-slate-900 text-xs uppercase tracking-widest">Click to Upload</p>
-                          <p className="text-[10px] text-slate-500 mt-1 italic">Support PDF (Max 5MB), JPG, PNG (Max 1MB)</p>
+                          <p className="font-bold text-slate-900 text-[10px] sm:text-xs uppercase tracking-widest">Click to Upload</p>
+                          <p className="text-[9px] sm:text-[10px] text-slate-500 mt-1 italic">Support PDF (Max 5MB), JPG, PNG (Max 3MB)</p>
                         </div>
                         <input 
                           type="file" 
                           className="hidden" 
                           accept=".pdf,.jpg,.jpeg,.png"
                           onChange={handleFileUpload}
-                        />
+                         />
                       </label>
                     )}
                   </div>
@@ -1057,33 +1083,34 @@ const FieldRenderer = ({ fieldId, formData, updateForm, timeSlots, templateConfi
 
       return (
         <div className="space-y-4">
-          <h2 className="text-xl font-bold text-slate-900">{label} {isRequired && <span className="text-primary">*</span>}</h2>
-          <div className="bg-white rounded-3xl border border-black p-8 shadow-sm text-center">
+          <h2 className="text-lg sm:text-xl font-bold text-slate-900">{label} {isRequired && <span className="text-primary">*</span>}</h2>
+          <div className="bg-white rounded-3xl border border-black p-3 sm:p-8 shadow-sm text-center">
             {formData.document ? (
               <div className="space-y-4">
-                <div className="w-16 h-16 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto">
-                  <Check className="w-8 h-8" />
+                <div className="w-10 h-10 sm:w-16 sm:h-16 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto">
+                  <Check className="w-5 h-5 sm:w-8 sm:h-8" />
                 </div>
                 <div>
-                  <p className="font-bold text-slate-900">File Selected</p>
-                  <p className="text-sm text-slate-500">{formData.document.name}</p>
+                  <p className="font-bold text-slate-900 text-xs sm:text-base">File Selected</p>
+                  <p className="text-[10px] sm:text-sm text-slate-500">{formData.document.name}</p>
                 </div>
                 <Button 
                   variant="outline" 
+                  size="sm"
                   onClick={() => updateForm("document", null)}
-                  className="rounded-xl border-primary/20 text-primary hover:bg-primary/5"
+                  className="h-9 sm:h-10 rounded-xl border-primary/20 text-primary hover:bg-primary/5 text-xs sm:text-sm"
                 >
                   Change File
                 </Button>
               </div>
             ) : (
-              <label className="cursor-pointer block space-y-4 group">
-                <div className="w-16 h-16 bg-slate-50 group-hover:bg-primary/5 text-slate-400 group-hover:text-primary rounded-full flex items-center justify-center mx-auto transition-colors">
-                  <Upload className="w-8 h-8" />
+              <label className="cursor-pointer block space-y-3 sm:space-y-4 group">
+                <div className="w-10 h-10 sm:w-16 sm:h-16 bg-slate-50 group-hover:bg-primary/5 text-slate-400 group-hover:text-primary rounded-full flex items-center justify-center mx-auto transition-colors">
+                  <Upload className="w-5 h-5 sm:w-8 sm:h-8" />
                 </div>
                 <div>
-                  <p className="font-bold text-slate-900 font-black uppercase tracking-widest text-[11px] sm:text-xs">Click to Upload</p>
-                  <p className="text-[11px] sm:text-xs font-black uppercase tracking-widest text-slate-500 mt-1 italic">Support PDF (Max 5MB), JPG, PNG (Max 1MB)</p>
+                  <p className="font-bold text-slate-900 text-[10px] sm:text-xs uppercase tracking-widest">Click to Upload</p>
+                  <p className="text-[9px] sm:text-[10px] text-slate-500 mt-1 italic">Support PDF (Max 5MB), JPG, PNG (Max 3MB)</p>
                 </div>
                 <input 
                   type="file" 

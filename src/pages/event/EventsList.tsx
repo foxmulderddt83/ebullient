@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { supabase } from "@/lib/supabase";
@@ -8,6 +8,8 @@ import { format } from "date-fns";
 import { MapPin, Clock, DollarSign, ArrowLeft } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import eventHero from "@/assets/event-hero.jpg";
+import { io } from "socket.io-client";
+import { toast } from "sonner";
 
 interface EventProfile {
   id: string;
@@ -34,6 +36,16 @@ interface Event {
   event_profile_id?: string | null;
 }
 
+const resolveImageUrl = (url: string | null | undefined) => {
+  if (!url) return "";
+  if (url.startsWith("http") || url.startsWith("/") || url.startsWith("data:")) {
+    return url;
+  }
+  if (!supabase) return url;
+  // Use supabase storage to get the public URL correctly
+  return supabase.storage.from('media').getPublicUrl(url).data.publicUrl;
+};
+
 const EventsList = () => {
   const [events, setEvents] = useState<Event[]>([]);
   const [eventProfiles, setEventProfiles] = useState<EventProfile[]>([]);
@@ -42,90 +54,205 @@ const EventsList = () => {
   const [promotionBannerUrl, setPromotionBannerUrl] = useState<string>("");
   const navigate = useNavigate();
 
+  const fetchEvents = useCallback(async () => {
+    if (!supabase) {
+      setLoading(false);
+      return;
+    }
+
+    const { data: eventsData, error: eventsError } = await supabase
+      .from("events")
+      .select("*")
+      .eq("is_active", true)
+      .order("start_time", { ascending: true });
+
+    const { data: profilesData } = await supabase
+      .from("event_profiles")
+      .select("*");
+
+    const { data: settingsData } = await supabase
+      .from('site_settings')
+      .select('key, value')
+      .eq('key', 'promotion_image_banner')
+      .maybeSingle();
+
+    if (settingsData?.value) {
+      setPromotionBannerUrl(resolveImageUrl(settingsData.value));
+    }
+
+    if (eventsError) {
+      console.error("Error fetching events:", eventsError);
+    } else {
+      if (profilesData) {
+        setEventProfiles(profilesData);
+      }
+
+      const now = new Date();
+      const upcomingEvents = (eventsData || []).filter(event => {
+        if (event.event_date && event.event_time) {
+          return new Date(`${event.event_date}T${event.event_time}`) > now;
+        }
+        if (event.end_time) {
+          return new Date(event.end_time) > now;
+        }
+        if (event.start_time) {
+          return new Date(event.start_time) > now;
+        }
+        return true; // If no date info, show it
+      });
+      setEvents(upcomingEvents);
+    }
+    setLoading(false);
+  }, []);
+
+  const formatFlightTime = (time: string | null | undefined) => {
+    if (!time) return "TBD";
+    if (time.toLowerCase().includes('am') || time.toLowerCase().includes('pm')) {
+      return time.toUpperCase();
+    }
+    try {
+      if (!time.includes(':')) return time.toUpperCase();
+      const parts = time.split(':');
+      const h = parseInt(parts[0], 10);
+      const m = parts[1] || '00';
+      if (isNaN(h)) return time.toUpperCase();
+      const ampm = h >= 12 ? 'PM' : 'AM';
+      const h12 = h % 12 || 12;
+      return `${h12}:${m.padStart(2, '0')} ${ampm}`;
+    } catch (error) {
+      return time.toUpperCase();
+    }
+  };
+
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(timer);
   }, []);
 
   useEffect(() => {
-    const fetchEvents = async () => {
-      if (!supabase) return;
-      
-      const { data: eventsData, error: eventsError } = await supabase
-        .from("events")
-        .select("*")
-        .eq("is_active", true)
-        .order("start_time", { ascending: true });
+    fetchEvents();
+  }, [fetchEvents]);
 
-      const { data: profilesData } = await supabase
-        .from("event_profiles")
-        .select("*");
-      
-      const { data: settingsData } = await supabase
-        .from('site_settings')
-        .select('key, value')
-        .eq('key', 'promotion_image_banner')
-        .maybeSingle();
-      
-      if (settingsData) {
-        setPromotionBannerUrl(settingsData.value);
-      }
+  useEffect(() => {
+    // Setup WebSocket listener
+    const setupWebSocket = async () => {
+      let apiUrl = import.meta.env.VITE_WHATSAPP_API_URL;
 
-      if (eventsError) {
-        console.error("Error fetching events:", eventsError);
-      } else {
-        if (profilesData) {
-          setEventProfiles(profilesData);
+      // Try to get dynamic URL from settings first
+      if (supabase) {
+        const { data: settingsData } = await supabase
+          .from('site_settings')
+          .select('value')
+          .eq('key', 'whatsapp_api_url')
+          .maybeSingle();
+
+        if (settingsData?.value) {
+          apiUrl = settingsData.value;
         }
-
-        const now = new Date();
-        const upcomingEvents = (eventsData || []).filter(event => {
-          if (event.event_date && event.event_time) {
-            return new Date(`${event.event_date}T${event.event_time}`) > now;
-          }
-          if (event.end_time) {
-            return new Date(event.end_time) > now;
-          }
-          if (event.start_time) {
-            return new Date(event.start_time) > now;
-          }
-          return true; // If no date info, show it
-        });
-        setEvents(upcomingEvents);
       }
-      setLoading(false);
+
+      if (!apiUrl) return;
+
+      // Ensure URL has protocol
+      if (apiUrl && !apiUrl.startsWith('http')) {
+        apiUrl = `https://${apiUrl}`;
+      }
+
+      // Clean URL (remove trailing slash)
+      const cleanUrl = apiUrl.replace(/\/$/, '');
+
+      console.log(`🔌 Connecting to WebSocket at ${cleanUrl} for live updates...`);
+      const socket = io(cleanUrl, {
+        transports: ['polling', 'websocket'] as any, // Try polling first then upgrade
+        reconnectionAttempts: 5,
+        reconnectionDelay: 1000,
+      });
+
+      socket.on('connect', () => {
+        console.log('✅ Connected to live updates server');
+      });
+
+      socket.on('connect_error', (error) => {
+        console.error('❌ WebSocket connection error:', error.message);
+        // If polling fails, try forcing websocket only
+        if (socket.io.opts.transports && (socket.io.opts.transports as any[]).includes('polling')) {
+          console.log('🔄 Retrying with WebSocket only...');
+          socket.io.opts.transports = ['websocket'] as any;
+        }
+      });
+
+      socket.on('site_data_updated', (data) => {
+        console.log('📢 Received site update event:', data);
+        if (data.type === 'event_created' || data.type === 'event_updated' || data.type === 'event_deleted') {
+          console.log(`🔄 Action ${data.type} detected, refreshing events list...`);
+
+          // Show a subtle notification
+          const actionText = data.type === 'event_deleted' ? 'removed' : (data.type === 'event_created' ? 'added' : 'updated');
+          toast.info(`Event list updated`, {
+            description: `An event has been ${actionText}. Refreshing...`,
+            duration: 3000
+          });
+
+          fetchEvents();
+        }
+      });
+
+      socket.on('disconnect', (reason) => {
+        console.log('❌ Disconnected from live updates server:', reason);
+      });
+
+      return socket;
     };
 
-    fetchEvents();
-  }, []);
+    let socketInstance: any;
+    let isMounted = true;
+
+    setupWebSocket().then(socket => {
+      if (!isMounted && socket) {
+        socket.disconnect();
+        return;
+      }
+      socketInstance = socket;
+    });
+
+    return () => {
+      isMounted = false;
+      if (socketInstance) {
+        console.log('🔌 Disconnecting WebSocket...');
+        socketInstance.disconnect();
+      }
+    };
+  }, [fetchEvents]);
 
   const getEventImage = (event: Event) => {
     if (event.event_profile_id) {
       const profile = eventProfiles.find(p => p.id === event.event_profile_id);
       if (profile?.event_hero_image) {
-        return profile.event_hero_image;
+        return resolveImageUrl(profile.event_hero_image);
       }
     }
-    return event.event_image_url || eventHero;
+    return resolveImageUrl(event.event_image_url) || eventHero;
   };
 
   const getEventTimeLabel = (event: Event) => {
     if (event.event_date && event.event_time) {
       try {
         const formattedDate = format(new Date(event.event_date + 'T00:00:00'), "MMM dd, yyyy");
-        return `${formattedDate} • ${event.event_time}`;
+        return `${formattedDate} • ${formatFlightTime(event.event_time)}`;
       } catch (e) {
-        return `${event.event_date} • ${event.event_time}`;
+        return `${event.event_date} • ${formatFlightTime(event.event_time)}`;
       }
     }
     if (event.start_time) {
       try {
-        return format(new Date(event.start_time), "MMM dd, yyyy • HH:mm");
+        const dateStr = format(new Date(event.start_time), "MMM dd, yyyy");
+        const timeStr = format(new Date(event.start_time), "HH:mm");
+        return `${dateStr} • ${formatFlightTime(timeStr)}`;
       } catch (e) {
-        return `${event.event_date} • ${event.event_time}`;
+        return `${event.event_date} • ${formatFlightTime(event.event_time)}`;
       }
     }
-    return `${event.event_date} • ${event.event_time}`;
+    return `${event.event_date} • ${formatFlightTime(event.event_time)}`;
   };
 
   return (
@@ -138,8 +265,8 @@ const EventsList = () => {
           {/* Back Button */}
           <div className="fixed top-20 left-4 z-40 md:top-24 md:left-8">
             <Link to="/">
-              <Button 
-                variant="outline" 
+              <Button
+                variant="outline"
                 className="gap-2 px-4 py-3 sm:px-6 sm:py-6 rounded-2xl border-2 border-white text-white hover:bg-white hover:text-slate-900 transition-all duration-300 font-black uppercase tracking-tighter shadow-[0_0_20px_rgba(0,0,0,0.3)] active:scale-95 group bg-slate-900/40 backdrop-blur-md"
               >
                 <ArrowLeft className="h-4 w-4 sm:h-5 sm:w-5 transition-transform group-hover:-translate-x-2" />
@@ -163,7 +290,7 @@ const EventsList = () => {
           ) : events.length === 0 ? (
             <div className="text-center py-20 bg-white rounded-[2.5rem] border border-black shadow-xl shadow-slate-950/20">
               <p className="text-slate-400 font-black uppercase tracking-widest text-sm">No upcoming events scheduled</p>
-              <Button 
+              <Button
                 onClick={() => navigate("/")}
                 className="mt-6 bg-primary hover:bg-primary/90 text-white font-black uppercase tracking-widest text-xs h-12 px-8 rounded-2xl shadow-xl shadow-primary/20"
               >
@@ -175,37 +302,37 @@ const EventsList = () => {
               {events.map((event) => {
                 const start = event.promotion_start_at ? new Date(event.promotion_start_at) : null;
                 const end = event.promotion_end_at ? new Date(event.promotion_end_at) : null;
-                
+
                 const isStartValid = start && !isNaN(start.getTime());
                 const isEndValid = end && !isNaN(end.getTime());
 
-                const isPromotionActive = event.promotion_price && 
-                   (!isStartValid || start! <= currentTime) &&
-                   (!isEndValid || end! > currentTime);
+                const isPromotionActive = event.promotion_price &&
+                  (!isStartValid || start! <= currentTime) &&
+                  (!isEndValid || end! > currentTime);
 
-                 let timeLeft = "";
-                 if (isPromotionActive && isEndValid) {
-                   const diff = end!.getTime() - currentTime.getTime();
-                   if (diff > 0) {
-                     const hours = Math.floor(diff / (1000 * 60 * 60));
-                     const mins = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-                     const secs = Math.floor((diff % (1000 * 60)) / 1000);
-                     timeLeft = `${hours}h ${mins}m ${secs}s`;
-                   }
-                 }
+                let timeLeft = "";
+                if (isPromotionActive && isEndValid) {
+                  const diff = end!.getTime() - currentTime.getTime();
+                  if (diff > 0) {
+                    const hours = Math.floor(diff / (1000 * 60 * 60));
+                    const mins = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+                    const secs = Math.floor((diff % (1000 * 60)) / 1000);
+                    timeLeft = `${hours}h ${mins}m ${secs}s`;
+                  }
+                }
 
                 return (
-                  <div 
+                  <div
                     key={event.id}
                     className="bg-white rounded-[2.5rem] border border-black overflow-hidden shadow-xl shadow-slate-950/20 hover:shadow-2xl hover:shadow-primary/10 transition-all duration-500 flex flex-col group relative"
                   >
                     {/* Promotion Decoration like FlightPackagesSection */}
-                    <div className="absolute top-2 left-2 w-20 h-20 pointer-events-none z-30 transform -rotate-12 group-hover:scale-110 group-hover:rotate-0 transition-all duration-500">
+                    <div className="absolute top-2 left-2 w-24 h-24 sm:w-28 sm:h-28 pointer-events-none z-30 transform -rotate-12 group-hover:scale-110 group-hover:rotate-0 transition-all duration-500">
                       {isPromotionActive ? (
                         <div className="animate-glowing-fast">
-                          <img 
-                            src={promotionBannerUrl || "/special_promo_banner.png"} 
-                            alt="Promotion" 
+                          <img
+                            src={promotionBannerUrl || "/special_promo_banner.png"}
+                            alt="Promotion"
                             className="w-full h-auto drop-shadow-lg"
                           />
                         </div>
@@ -215,13 +342,13 @@ const EventsList = () => {
                     </div>
 
                     <div className="aspect-[16/9] relative overflow-hidden bg-slate-100">
-                      <img 
-                        src={getEventImage(event)} 
+                      <img
+                        src={getEventImage(event)}
                         alt={event.name}
                         className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
                       />
                     </div>
-                    
+
                     <div className="p-6 sm:p-8 flex flex-col flex-1">
                       <div className="flex-1">
                         <h2 className="text-xl font-black text-slate-900 uppercase tracking-tight line-clamp-2 mb-4">
@@ -235,12 +362,12 @@ const EventsList = () => {
                             </p>
                           </div>
                         )}
-                        
+
                         <div className="space-y-3 mb-6">
                           <div className="flex items-center gap-3 text-slate-600">
-                            <div className="bg-slate-50 p-0.5 rounded-xl border border-black overflow-hidden w-8 h-8 flex items-center justify-center">
-                              <img 
-                                src={getEventImage(event)} 
+                            <div className="bg-slate-50 p-0.5 rounded-xl border border-black overflow-hidden w-10 h-10 sm:w-12 sm:h-12 flex items-center justify-center">
+                              <img
+                                src={getEventImage(event)}
                                 alt=""
                                 className="w-full h-full object-cover"
                               />
@@ -249,48 +376,48 @@ const EventsList = () => {
                               {getEventTimeLabel(event)}
                             </span>
                           </div>
-                          
+
                           {event.location && (
                             <div className="flex items-center gap-3 text-slate-600">
                               <div className="bg-slate-50 p-2 rounded-xl border border-black">
                                 <MapPin className="w-4 h-4 text-primary" />
                               </div>
                               <span className="text-[11px] sm:text-xs font-black uppercase tracking-widest line-clamp-1">
-                            {event.location}
-                          </span>
-                        </div>
-                      )}
-
-                      <div className="flex items-center gap-3 text-slate-600">
-                        <div className="bg-slate-50 p-2 rounded-xl border border-black">
-                          <DollarSign className="w-4 h-4 text-primary" />
-                        </div>
-                        <div className="flex flex-col">
-                          <div className="flex items-center gap-2">
-                            {isPromotionActive ? (
-                              <>
-                                <span className="text-lg font-black text-primary">MYR {event.promotion_price}</span>
-                                <span className="text-xs font-bold text-slate-400 line-through decoration-red-500 decoration-2">MYR {event.price || '0.00'}</span>
-                                <Badge className="bg-primary text-white border-none text-[8px] px-2 h-5 font-black uppercase tracking-tighter">PROMO</Badge>
-                              </>
-                            ) : (
-                              <span className="text-lg font-black text-slate-900">MYR {event.price || '0.00'}</span>
-                            )}
-                          </div>
-                          {isPromotionActive && timeLeft && (
-                            <div className="flex items-center gap-1.5 text-[10px] font-bold text-red-500 animate-pulse mt-1">
-                              <Clock className="w-3 h-3" />
-                              <span className="uppercase tracking-widest">ENDS IN: {timeLeft}</span>
+                                {event.location}
+                              </span>
                             </div>
                           )}
+
+                          <div className="flex items-center gap-3 text-slate-600">
+                            <div className="bg-slate-50 p-2 rounded-xl border border-black">
+                              <DollarSign className="w-4 h-4 text-primary" />
+                            </div>
+                            <div className="flex flex-col">
+                              <div className="flex items-center gap-2">
+                                {isPromotionActive ? (
+                                  <>
+                                    <span className="text-lg font-black text-primary">MYR {event.promotion_price}</span>
+                                    <span className="text-xs font-bold text-slate-400 line-through decoration-red-500 decoration-2">MYR {event.price || '0.00'}</span>
+                                    <Badge className="bg-primary text-white border-none text-[8px] px-2 h-5 font-black uppercase tracking-tighter">PROMO</Badge>
+                                  </>
+                                ) : (
+                                  <span className="text-lg font-black text-slate-900">MYR {event.price || '0.00'}</span>
+                                )}
+                              </div>
+                              {isPromotionActive && timeLeft && (
+                                <div className="flex items-center gap-1.5 text-[10px] font-bold text-red-500 animate-pulse mt-1">
+                                  <Clock className="w-3 h-3" />
+                                  <span className="uppercase tracking-widest">ENDS IN: {timeLeft}</span>
+                                </div>
+                              )}
+                            </div>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  </div>
 
-                      <Button 
+                      <Button
                         onClick={() => navigate(`/event?eid=${event.event_id || event.id}`)}
-                        className="w-full bg-primary hover:bg-primary/90 text-white font-black uppercase tracking-widest text-xs h-14 rounded-2xl shadow-xl shadow-primary/20 group-hover:translate-y-[-4px] transition-all active:scale-95"
+                        className="w-full bg-destructive hover:bg-destructive/90 text-white font-black uppercase tracking-widest text-xs h-14 rounded-2xl shadow-xl shadow-destructive/20 group-hover:translate-y-[-4px] transition-all active:scale-95"
                       >
                         View Event Details
                       </Button>

@@ -1,5 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
-import { trackEvent } from "@/lib/analytics";
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 
 export interface CartItem {
   id: string;
@@ -12,6 +11,7 @@ export interface CartItem {
   parentPackageId?: string;
   sort_order?: number;
   category_id?: string;
+  category_name?: string;
 }
 
 interface CartContextType {
@@ -48,7 +48,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     localStorage.setItem('cart', JSON.stringify(items));
   }, [items]);
 
-  const addItem = (item: Omit<CartItem, 'quantity'>) => {
+  const addItem = useCallback((item: Omit<CartItem, 'quantity'>) => {
     setItems(prev => {
       const existing = prev.find(i => i.id === item.id && i.sort_order === item.sort_order);
       if (existing) {
@@ -56,9 +56,9 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
       return [...prev, { ...item, quantity: 1 }];
     });
-  };
+  }, []);
 
-  const removeItem = (id: string, sortOrder?: number) => {
+  const removeItem = useCallback((id: string, sortOrder?: number) => {
     setItems(prev => {
       const itemToRemove = prev.find(i => i.id === id && (sortOrder === undefined || i.sort_order === sortOrder));
       if (!itemToRemove) return prev;
@@ -80,19 +80,19 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // If it's a sort_order 1 item or any other item, just remove it
       return prev.filter(i => !(i.id === id && (sortOrder === undefined || i.sort_order === sortOrder)));
     });
-  };
+  }, []);
 
-  const updateQuantity = (id: string, quantity: number, sortOrder?: number) => {
+  const updateQuantity = useCallback((id: string, quantity: number, sortOrder?: number) => {
     if (quantity < 1) {
       removeItem(id, sortOrder);
       return;
     }
     setItems(prev => prev.map(i => (i.id === id && (sortOrder === undefined || i.sort_order === sortOrder)) ? { ...i, quantity } : i));
-  };
+  }, [removeItem]);
 
-  const clearCart = () => {
+  const clearCart = useCallback(() => {
     setItems([]);
-  };
+  }, []);
 
   const total = items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
 

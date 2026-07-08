@@ -51,7 +51,7 @@ export const ImageUploader = ({
 
       const { error: uploadError } = await supabase.storage
         .from(bucketName)
-        .upload(filePath, compressedFile);
+        .upload(filePath, compressedFile, { upsert: true, cacheControl: '31536000' });
 
       if (uploadError) throw uploadError;
 
@@ -104,7 +104,7 @@ export const ImageUploader = ({
           <div className="flex flex-wrap items-center gap-2">
             <Button
               type="button"
-              className="relative overflow-hidden bg-primary hover:bg-primary/90 text-white font-bold border-none shadow-md transition-all active:scale-[0.98] h-9 px-4 text-[11px] sm:text-xs shrink-0"
+              className="relative overflow-hidden bg-slate-700 hover:bg-slate-700/90 text-white font-bold border-none shadow-md transition-all active:scale-[0.98] h-9 px-4 text-[11px] sm:text-xs shrink-0"
               disabled={isUploading}
             >
               {isUploading ? (

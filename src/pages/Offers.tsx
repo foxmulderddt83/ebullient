@@ -108,10 +108,10 @@ const Offers = () => {
                         <img
                           src={category.offer_image_url}
                           alt={category.name}
-                          className="w-20 h-20 rounded-2xl object-cover shadow-md"
+                          className="w-24 h-24 sm:w-28 sm:h-28 rounded-2xl object-cover shadow-md"
                         />
                       ) : (
-                        <div className="w-20 h-20 rounded-2xl bg-primary/5 flex items-center justify-center text-primary font-black text-xl">
+                        <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-2xl bg-primary/5 flex items-center justify-center text-primary font-black text-xl">
                           {category.name?.charAt(0) || "O"}
                         </div>
                       )}

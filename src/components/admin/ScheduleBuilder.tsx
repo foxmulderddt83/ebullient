@@ -65,7 +65,7 @@ const SortableItem = ({ id, item, onUpdate, onRemove }: SortableItemProps) => {
             <div
               {...attributes}
               {...listeners}
-              className="p-4 -m-4 text-slate-900 cursor-grab shrink-0 hover:text-primary transition-colors touch-none flex items-center justify-center w-14 h-14"
+              className="p-4 -m-4 text-slate-900 cursor-grab shrink-0 hover:text-slate-600 transition-colors touch-none flex items-center justify-center w-14 h-14"
               title="Drag to reorder"
             >
               <GripVertical className="h-6 w-6" />
@@ -83,31 +83,31 @@ const SortableItem = ({ id, item, onUpdate, onRemove }: SortableItemProps) => {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-5 flex-1 w-full">
             <div className="space-y-1.5">
-              <label className="text-[11px] sm:text-xs font-bold uppercase tracking-wider text-slate-900 ml-1">Time</label>
+              <label className="text-[11px] sm:text-xs font-bold uppercase tracking-tight text-slate-900 ml-1">Time</label>
               <Input
                 type="time"
                 value={item.time}
                 onChange={(e) => onUpdate("time", e.target.value)}
                 onClick={(e) => (e.currentTarget as any).showPicker()}
-                className="h-16 sm:h-14 text-sm border-black/20 rounded-2xl focus:ring-2 focus:ring-primary bg-white"
+                className="h-16 sm:h-14 text-sm border-black/20 rounded-2xl focus:ring-2 focus:ring-indigo-100 bg-white"
               />
             </div>
             <div className="space-y-1.5">
-              <label className="text-[11px] sm:text-xs font-bold uppercase tracking-wider text-slate-900 ml-1">Session Title</label>
+              <label className="text-[11px] sm:text-xs font-bold uppercase tracking-tight text-slate-900 ml-1">Session Title</label>
               <Input
                 value={item.title}
                 onChange={(e) => onUpdate("title", e.target.value)}
                 placeholder="Opening Keynote"
-                className="h-16 sm:h-14 text-sm border-black/20 rounded-2xl focus:ring-2 focus:ring-primary bg-white"
+                className="h-16 sm:h-14 text-sm border-black/20 rounded-2xl focus:ring-2 focus:ring-indigo-100 bg-white"
               />
             </div>
             <div className="space-y-1.5 sm:col-span-2 md:col-span-1">
-              <label className="text-[11px] sm:text-xs font-bold uppercase tracking-wider text-slate-900 ml-1">Location</label>
+              <label className="text-[11px] sm:text-xs font-bold uppercase tracking-tight text-slate-900 ml-1">Location</label>
               <Input
                 value={item.location}
                 onChange={(e) => onUpdate("location", e.target.value)}
                 placeholder="Room A"
-                className="h-16 sm:h-14 text-sm border-black/20 rounded-2xl focus:ring-2 focus:ring-primary bg-white"
+                className="h-16 sm:h-14 text-sm border-black/20 rounded-2xl focus:ring-2 focus:ring-indigo-100 bg-white"
               />
             </div>
           </div>
@@ -231,7 +231,7 @@ export const ScheduleBuilder = ({ initialData, onSave }: ScheduleBuilderProps) =
         <Button
           onClick={addItem}
           variant="outline"
-          className="w-full sm:flex-1 border-dashed border-primary/20 bg-primary/5/50 text-primary hover:bg-primary/10 hover:border-primary/30 h-16 sm:h-14 rounded-2xl font-bold transition-all shadow-sm"
+          className="w-full sm:flex-1 border-dashed border-slate-200 bg-slate-50/50 text-slate-600 hover:bg-slate-700/10 hover:border-slate-700/30 h-16 sm:h-14 rounded-2xl font-bold transition-all shadow-sm"
         >
           <Plus className="mr-2 h-6 w-6" /> Add Session
         </Button>

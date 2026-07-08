@@ -19,6 +19,16 @@ interface AboutSection {
   additional_data: any;
 }
 
+const resolveImageUrl = (url: string | null) => {
+  if (!url) return "";
+  if (url.startsWith("http") || url.startsWith("/") || url.startsWith("data:")) {
+    return url;
+  }
+  if (!supabase) return url;
+  // Use supabase storage to get the public URL correctly
+  return supabase.storage.from('media').getPublicUrl(url).data.publicUrl;
+};
+
 const AutoScrollGallery = ({ images, title, onImageClick, isLogos = false, imageData = [] }: { 
   images: string[], 
   title: string, 
@@ -32,8 +42,8 @@ const AutoScrollGallery = ({ images, title, onImageClick, isLogos = false, image
   
   // Use imageData if provided, otherwise construct it from images
   const displayData: { url: string; description?: string }[] = imageData.length > 0 
-    ? imageData 
-    : images.map(url => ({ url }));
+    ? imageData.map(item => ({ ...item, url: resolveImageUrl(item.url) }))
+    : images.map(url => ({ url: resolveImageUrl(url) }));
 
   useEffect(() => {
     const el = scrollRef.current;
@@ -97,8 +107,8 @@ const AutoScrollGallery = ({ images, title, onImageClick, isLogos = false, image
             key={idx} 
             className={`flex-shrink-0 relative group/image cursor-zoom-in ${
               isLogos 
-                ? 'w-48 h-32 p-4 bg-white rounded-xl shadow-sm border border-slate-100' 
-                : 'w-80 md:w-96 rounded-xl overflow-hidden shadow-lg bg-white flex flex-col'
+                ? 'w-56 h-40 p-6 bg-white rounded-2xl shadow-sm border border-slate-100' 
+                : 'w-96 md:w-[28rem] rounded-2xl overflow-hidden shadow-xl bg-white flex flex-col'
             }`}
             onClick={() => onImageClick(item.url)}
           >
@@ -131,49 +141,123 @@ const AutoScrollGallery = ({ images, title, onImageClick, isLogos = false, image
   );
 };
 
-const SectionRenderer = ({ section, onImageClick }: { section: AboutSection, onImageClick: (url: string) => void }) => {
+const SectionRenderer = ({ section, onImageClick, index }: { section: AboutSection, onImageClick: (url: string) => void, index: number }) => {
   const isClients = section.section_key === 'our_clients' || section.additional_data?.is_logos;
-  const allImages = section.images && section.images.length > 0 
-    ? section.images 
+  const allImages = section.images && section.images.length > 0
+    ? section.images
     : (section.image_url ? [section.image_url] : []);
-  
-  // Extract image data from additional_data if it exists (for descriptions)
+
   const imageData = section.additional_data?.image_data || [];
+  const isEven = index % 2 === 0;
+
+  const sectionVariants = {
+    hidden: {
+      opacity: 0,
+      y: 40,
+      scale: 0.98,
+      filter: "blur(10px)",
+    },
+    show: {
+      opacity: 1,
+      y: 0,
+      scale: 1,
+      filter: "blur(0px)",
+      transition: {
+        type: "spring" as const,
+        stiffness: 50,
+        damping: 20,
+        duration: 0.8,
+      },
+    },
+  };
+
+  const textVariants = {
+    hidden: { opacity: 0, y: 20, filter: "blur(5px)" },
+    show: {
+      opacity: 1,
+      y: 0,
+      filter: "blur(0px)",
+      transition: { duration: 0.6, ease: "easeOut" as const, staggerChildren: 0.1 },
+    },
+  };
+
+  const headingVariants = {
+    hidden: { opacity: 0, y: 20, scale: 0.95, filter: "blur(10px)" },
+    show: {
+      opacity: 1,
+      y: 0,
+      scale: 1,
+      filter: "blur(0px)",
+      transition: { type: "spring" as const, stiffness: 80, damping: 20, duration: 0.8 },
+    },
+  };
+
+  const imageVariants = {
+    hidden: { opacity: 0, scale: 0.9, filter: "blur(10px)", y: 20 },
+    show: {
+      opacity: 1,
+      scale: 1,
+      filter: "blur(0px)",
+      y: 0,
+      transition: { type: "spring" as const, stiffness: 60, damping: 18, duration: 1.0, delay: 0.2 },
+    },
+  };
 
   return (
-    <motion.section 
-      initial={{ opacity: 0, y: 50 }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true, margin: "-100px" }}
-      transition={{ duration: 0.6 }}
+    <section
       className="p-8 md:p-12 rounded-3xl transition-colors duration-500 overflow-hidden"
-      style={{ backgroundColor: section.bg_color || '#ffffff' }}
+      style={{
+        backgroundColor: section.bg_color || '#ffffff',
+        marginTop: isEven ? '2rem' : '5rem',
+        marginBottom: isEven ? '5rem' : '2rem'
+      }}
     >
       <div className="max-w-6xl mx-auto space-y-8">
-        <div className="text-center space-y-4">
-          <h2 className="text-3xl md:text-5xl font-black text-slate-900 uppercase tracking-tighter italic">
+        <motion.div
+          className="text-center space-y-4"
+          variants={textVariants}
+          initial="hidden"
+          whileInView="show"
+          viewport={{ once: true, margin: "-80px" }}
+        >
+          <motion.h2
+            variants={headingVariants}
+            className="text-3xl md:text-5xl font-bold text-slate-900 uppercase tracking-wider font-sans"
+          >
             {section.title}
-          </h2>
+          </motion.h2>
           {section.content && (
-            <div className="prose prose-lg text-slate-600 max-w-3xl whitespace-pre-line mx-auto text-center font-medium">
+            <motion.div
+              variants={{
+                hidden: { opacity: 0, y: 15, filter: "blur(6px)" },
+                show: { opacity: 1, y: 0, filter: "blur(0px)", transition: { delay: 0.1 } }
+              }}
+              className="prose prose-lg text-slate-600 max-w-3xl whitespace-pre-line mx-auto text-center font-medium leading-relaxed font-sans"
+            >
               {section.content}
-            </div>
+            </motion.div>
           )}
-        </div>
+        </motion.div>
 
         {allImages.length > 0 && (
-          <div className="mt-8">
-            <AutoScrollGallery 
-              images={allImages} 
-              title={section.title} 
+          <motion.div
+            variants={imageVariants}
+            initial="hidden"
+            whileInView="show"
+            viewport={{ once: true, margin: "-80px" }}
+            className="mt-8"
+          >
+            <AutoScrollGallery
+              images={allImages}
+              title={section.title}
               onImageClick={onImageClick}
               isLogos={isClients}
               imageData={imageData}
             />
-          </div>
+          </motion.div>
         )}
       </div>
-    </motion.section>
+    </section>
   );
 };
 
@@ -250,7 +334,7 @@ const About = () => {
               <Link to="/">
                 <Button 
                   variant="outline" 
-                  className="gap-2 px-4 py-3 sm:px-6 sm:py-6 rounded-2xl border-2 border-white text-white hover:bg-white hover:text-slate-900 transition-all duration-300 font-black uppercase tracking-tighter shadow-[0_0_20px_rgba(0,0,0,0.3)] active:scale-95 group bg-slate-900/40 backdrop-blur-md"
+                  className="gap-2 px-4 py-3 sm:px-6 sm:py-6 rounded-2xl border-2 border-white text-white hover:bg-white hover:text-slate-900 transition-all duration-300 font-bold uppercase tracking-tighter shadow-[0_0_20px_rgba(0,0,0,0.3)] active:scale-95 group bg-slate-900/40 backdrop-blur-md font-sans"
                 >
                   <ArrowLeft className="h-4 w-4 sm:h-5 sm:w-5 transition-transform group-hover:-translate-x-2" />
                   <span className="text-xs sm:text-base">Back to Flight Deck</span>
@@ -259,28 +343,53 @@ const About = () => {
             </div>
 
             <motion.div 
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6 }}
+              initial="hidden"
+              animate="show"
+              variants={{
+                hidden: { opacity: 0 },
+                show: {
+                  opacity: 1,
+                  transition: { staggerChildren: 0.2, delayChildren: 0.3 }
+                }
+              }}
               className="max-w-4xl"
             >
-              <h1 className="text-4xl md:text-6xl font-black text-white mb-6 tracking-tighter uppercase italic">
+              <motion.h1 
+                variants={{
+                  hidden: { opacity: 0, x: -60, y: 20, rotate: -3 },
+                  show: { 
+                    opacity: 1, 
+                    x: 0, 
+                    y: 0, 
+                    rotate: 0,
+                    transition: { type: "spring", stiffness: 70, damping: 15 }
+                  }
+                }}
+                className="text-4xl md:text-6xl font-bold text-white mb-6 tracking-tighter uppercase font-sans"
+              >
                 Our Aviation <span className="text-primary">Legacy</span>
-              </h1>
-              <p className="text-slate-400 text-lg md:text-xl font-medium max-w-2xl leading-relaxed">
+              </motion.h1>
+              <motion.p 
+                variants={{
+                  hidden: { opacity: 0, y: 20 },
+                  show: { opacity: 1, y: 0 }
+                }}
+                className="text-slate-400 text-lg md:text-xl font-medium max-w-2xl leading-relaxed font-sans"
+              >
                 Discover the story behind OneDayPilot, our commitment to safety, and our mission to make the sky accessible to everyone.
-              </p>
+              </motion.p>
             </motion.div>
           </div>
         </div>
 
         <div className="container mx-auto px-4 mt-12">
           <div className="space-y-12">
-            {sections.map((section) => (
+            {sections.map((section, index) => (
               <SectionRenderer 
                 key={section.id} 
                 section={section} 
                 onImageClick={setSelectedImage} 
+                index={index}
               />
             ))}
           </div>

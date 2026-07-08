@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { motion, useAnimation } from 'framer-motion';
+import { motion, useReducedMotion } from 'framer-motion';
 
 interface Particle {
   id: number;
@@ -26,6 +26,9 @@ export const BackgroundParticles = ({
 }: BackgroundParticlesProps) => {
   const [particles, setParticles] = useState<Particle[]>([]);
   const [isGlobalPaused, setIsGlobalPaused] = useState(false);
+  const [isVisibilityPaused, setIsVisibilityPaused] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+  const reduceMotion = useReducedMotion();
   
   useEffect(() => {
     const handleToggle = (e: Event) => {
@@ -38,12 +41,31 @@ export const BackgroundParticles = ({
     return () => window.removeEventListener('toggle-animation-freeze', handleToggle);
   }, []);
 
-  const effectivelyPaused = isPaused || isGlobalPaused;
+  useEffect(() => {
+    const updateIsMobile = () => setIsMobile(window.innerWidth < 768);
+    updateIsMobile();
+    window.addEventListener('resize', updateIsMobile, { passive: true } as any);
+    return () => window.removeEventListener('resize', updateIsMobile as any);
+  }, []);
+
+  useEffect(() => {
+    const onVisibilityChange = () => setIsVisibilityPaused(document.hidden);
+    onVisibilityChange();
+    document.addEventListener('visibilitychange', onVisibilityChange, { passive: true } as any);
+    return () => document.removeEventListener('visibilitychange', onVisibilityChange as any);
+  }, []);
+
+  const effectivelyPaused = isPaused || isGlobalPaused || isVisibilityPaused || Boolean(reduceMotion);
 
   useEffect(() => {
     const generateParticles = () => {
       const newParticles: Particle[] = [];
-      const particleCount = count || (variant === 'dark' ? 30 : 0);
+      let particleCount = count || (variant === 'dark' ? 30 : 0);
+      
+      // Reduce particles on mobile for performance
+      if (isMobile) {
+        particleCount = Math.floor(particleCount / 2);
+      }
       
       for (let i = 0; i < particleCount; i++) {
         const baseDuration = Math.random() * 40 + 60;
@@ -61,49 +83,65 @@ export const BackgroundParticles = ({
     };
 
     generateParticles();
-  }, [variant, count, speedMultiplier]);
+  }, [variant, count, speedMultiplier, isMobile]);
+
+  if (reduceMotion) return null;
 
   return (
     <div className="absolute inset-0 overflow-hidden pointer-events-none z-[50]">
       {particles.map((particle) => (
         <motion.div
           key={particle.id}
-          initial={variant === 'dark' ? { 
-            top: "110%", 
-            left: `${particle.x}%`, 
-            opacity: 0,
-            scale: 0.5
-          } : {
-            left: "-20%",
-            top: `${particle.y}%`,
-            opacity: 0,
-            scale: 1
-          }}
-          animate={effectivelyPaused ? {} : { 
-            top: "-10%", 
-            opacity: [0, 0.6, 0.6, 0], // Slightly increased peak opacity for better visibility
-            scale: particle.isStar ? [0.8, 1.5, 0.8] : 1, // Further increased scale range for stars
-          }}
+          initial={variant === 'dark'
+            ? {
+                y: '110vh',
+                opacity: 0,
+                scale: 0.5,
+              }
+            : {
+                x: '-20vw',
+                opacity: 0,
+                scale: 1,
+              }}
+          animate={effectivelyPaused
+            ? {}
+            : (variant === 'dark'
+                ? {
+                    y: '-10vh',
+                    opacity: [0, 0.6, 0.6, 0],
+                    scale: particle.isStar ? [0.8, 1.5, 0.8] : 1,
+                  }
+                : {
+                    x: '120vw',
+                    opacity: [0, 0.35, 0.35, 0],
+                  })}
           transition={{
             duration: particle.duration,
             repeat: Infinity,
             delay: particle.delay,
             ease: "linear"
           }}
-          className="absolute"
-          style={variant === 'dark' ? {
-            width: particle.size,
-            height: particle.size,
-            backgroundColor: particle.isStar ? "#FFD700" : "#FFFFFF",
-            borderRadius: "50%",
-            filter: particle.isStar ? "blur(1px) drop-shadow(0 0 5px #FFD700)" : "blur(1px)",
-            boxShadow: particle.isStar ? "0 0 10px 2px rgba(255, 215, 0, 0.4)" : "none"
-          } : {
-            width: particle.size * 4, 
-            height: particle.size * 2,
-            filter: "blur(8px)", // Softer edges for ultra-minimal look
-            pointerEvents: "none"
-          }}
+          className="absolute will-change-transform"
+          style={variant === 'dark'
+            ? {
+                left: `${particle.x}%`,
+                top: 0,
+                width: particle.size,
+                height: particle.size,
+                backgroundColor: particle.isStar ? "#FFD700" : "#FFFFFF",
+                borderRadius: "50%",
+                opacity: particle.isStar ? 0.8 : 0.5,
+                filter: isMobile ? "none" : (particle.isStar ? "drop-shadow(0 0 4px rgba(255, 215, 0, 0.6))" : "none"),
+                boxShadow: isMobile ? "none" : (particle.isStar ? "0 0 8px 1px rgba(255, 215, 0, 0.35)" : "none"),
+              }
+            : {
+                left: 0,
+                top: `${particle.y}%`,
+                width: particle.size * 4,
+                height: particle.size * 2,
+                filter: isMobile ? "blur(4px)" : "blur(8px)",
+                pointerEvents: "none",
+              }}
         >
           {variant === 'light' ? (
             <svg 

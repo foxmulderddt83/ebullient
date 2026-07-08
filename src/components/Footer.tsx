@@ -7,7 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogPortal, DialogO
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { cn } from "@/lib/utils";
 import { BackgroundParticles } from "./ui/BackgroundParticles";
-import { trackEvent } from "@/lib/analytics";
+import { sanitizeHtml } from "@/lib/security";
 import TermsText from "../../Terms & Conditions.txt?raw";
 import PrivacyText from "../../Privacy Policy.txt?raw";
 import RefundText from "../../Sales & Refund Policy.txt?raw";
@@ -67,10 +67,11 @@ const RedIcon = ({ className }: { className?: string }) => (
 );
 
 const footerLinks = [
-  { name: "Home", href: "/" },
+  { name: "Home", href: "/#home" },
+  { name: "Packages", href: "/#booking" },
+  { name: "Experience", href: "/#experience" },
+  { name: "Gallery", href: "/#sky" },
   { name: "About", href: "/about" },
-  { name: "Packages", href: "/#services" },
-  { name: "Story Telling", href: "/#experience" },
 ];
 
 interface BusinessHour {
@@ -133,7 +134,7 @@ export const Footer = () => {
     policy_privacy: "",
     policy_refund: "",
     site_logo_main: "",
-    bottom_main_page_bg_color: "#1a1a1a",
+    bottom_main_page_bg_color: "#0D0D0D",
     bg_gradient_footer: "",
   });
 
@@ -159,7 +160,7 @@ export const Footer = () => {
 
     // Check if content is HTML (from rich text editor)
     if (policyContent.trim().startsWith('<')) {
-      return <div dangerouslySetInnerHTML={{ __html: policyContent }} />;
+      return <div dangerouslySetInnerHTML={{ __html: sanitizeHtml(policyContent) }} />;
     }
 
     const getEmoji = (text: string) => {
@@ -270,7 +271,7 @@ export const Footer = () => {
   }, []);
 
   const socialLinks = [
-    { icon: Youtube, href: settings.social_youtube, label: "YouTube", color: "text-[#FF0000]", hoverBg: "hover:bg-[#FF0000]/20", glowColor: "rgba(255, 0, 0, 0.5)" },
+    { icon: Youtube, href: settings.social_youtube, label: "YouTube", color: "text-[#CD5C5C]", hoverBg: "hover:bg-[#CD5C5C]/20", glowColor: "rgba(205, 92, 92, 0.5)" },
     { icon: Instagram, href: settings.social_instagram, label: "Instagram", color: "text-[#E4405F]", hoverBg: "hover:bg-[#E4405F]/20", glowColor: "rgba(228, 64, 95, 0.5)" },
     { icon: Facebook, href: settings.social_facebook, label: "Facebook", color: "text-[#1877F2]", hoverBg: "hover:bg-[#1877F2]/20", glowColor: "rgba(24, 119, 242, 0.5)" },
     { icon: TikTokIcon, href: settings.social_tiktok, label: "TikTok", color: "text-[#00f2ea]", hoverBg: "hover:bg-[#00f2ea]/20", glowColor: "rgba(0, 242, 234, 0.5)" },
@@ -278,176 +279,195 @@ export const Footer = () => {
   ];
 
   return (
-    <footer id="contact" className="py-16 relative overflow-hidden" style={{ background: settings.bg_gradient_footer || settings.bottom_main_page_bg_color }}>
-      <BackgroundParticles variant="dark" isPaused={isGlobalPaused} />
-      <div className="absolute top-0 right-0 h-px w-1/3 bg-gradient-to-l from-[#ea580c] to-transparent" />
-      <div className="absolute bottom-0 left-0 h-px w-1/2 bg-gradient-to-r from-[#ea580c] via-[#facc15]/50 to-transparent" />
-      <div className="container mx-auto px-4">
-        <div
-          className="group relative overflow-hidden border border-white/10 bg-[#08101f] p-0 shadow-[0_28px_90px_-35px_rgba(0,0,0,0.95)] backdrop-blur-md"
-          style={{ clipPath: "polygon(0 0, calc(100% - 24px) 0, 100% 24px, 100% 100%, 24px 100%, 0 calc(100% - 24px))" }}
-        >
-          <div className="absolute -mr-32 -mt-32 h-64 w-64 rounded-full bg-[#ea580c]/10 blur-3xl transition-colors group-hover:bg-[#ea580c]/15" />
-          
-          <div className="absolute -top-12 -left-12 w-64 md:w-96 opacity-15 pointer-events-none transform rotate-[15deg] scale-x-[-1] group-hover:translate-x-4 group-hover:translate-y-4 transition-all duration-1000 ease-out z-0">
-            <img src="/airplane_transparent.svg" alt="" className="w-full h-auto filter brightness-0" />
-          </div>
-          
-          <div className="grid grid-cols-1 lg:grid-cols-2 items-stretch relative z-10">
+    <footer id="contact" className="py-16 relative overflow-hidden" style={{ background: settings.bg_gradient_footer || settings.bottom_main_page_bg_color, boxShadow: 'none' }}>
+      <div className="absolute inset-0 z-0 opacity-20 mix-blend-multiply pointer-events-none overflow-hidden">
+        <picture>
+          <source srcSet="/bg-experience.webp" type="image/webp" />
+          <img
+            src="/bg-experience.png"
+            alt=""
+            loading="lazy"
+            decoding="async"
+            width={1920}
+            height={1080}
+            className="absolute inset-0 w-full h-full object-cover"
+          />
+        </picture>
+      </div>
+      <BackgroundParticles variant="light" isPaused={isGlobalPaused} />
+      <div className="absolute bottom-0 left-0 h-px w-1/2 bg-gradient-to-r from-[#CD5C5C] via-[#CD5C5C]/50 to-transparent" />
+      <div className="w-full relative z-10 px-2 lg:px-4">
+        <div className="max-w-[1900px] mx-auto">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 items-stretch relative z-10">
             {/* Left Side: Contact Info */}
-            <div className="p-8 md:p-12 space-y-12">
-              {/* Logo & Description */}
-              <div className="space-y-6">
-                <div className="flex items-center">
-                  <motion.div 
-                    initial={{ opacity: 0, scale: 0.8 }}
-                    whileInView={{ opacity: 1, scale: 1 }}
-                    viewport={{ once: true }}
-                    transition={{ duration: 0.5 }}
-                    className="p-0 rounded-xl"
-                  >
-                    <img 
-                       src={settings.site_logo_main || "/logooneday.jpeg"} 
-                       alt="OneDayPilot" 
-                       className="h-14 md:h-[72px] w-auto object-contain" 
-                       style={!settings.site_logo_main ? { filter: "url(#remove-black-bg)" } : {}}
-                     />
-                  </motion.div>
-                </div>
-                <div className="space-y-3">
-                  <span
-                    className="text-[10px] font-black uppercase tracking-[0.35em] text-[#ea580c]"
-                    style={{ fontFamily: "'Barlow Condensed', sans-serif" }}
-                  >
-                    Ready For Takeoff
-                  </span>
-                  <p className="max-w-md text-white/70 text-sm leading-relaxed">
-                  Experience the thrill of flying - no license required! Join us for an unforgettable journey above the clouds.
-                  </p>
-                </div>
-                <div className="relative group/subscribe mb-4">
+          <motion.div 
+            className="pt-4 pb-8 px-8 md:pt-6 md:pb-12 md:px-12 space-y-6 relative overflow-hidden border border-white/10 bg-white/5 shadow-[0_28px_90px_-35px_rgba(0,0,0,0.7)] backdrop-blur-md transition-all duration-500 rounded-2xl md:rounded-3xl"
+            style={{
+              marginTop: '0',
+              marginBottom: '3rem',
+              backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='28' height='49' viewBox='0 0 28 49'%3E%3Cpath fill='%23ffffff' fill-opacity='0.03' d='M13.99 9.25l13 7.5v15l-13 7.5L1 31.75v-15l12.99-7.5zM3 17.89v12.72l11 6.35 11-6.35V17.89l-11-6.35-11 6.35z'/%3E%3C/svg%3E")`,
+              backgroundSize: '28px 49px'
+            }}
+            initial="hidden"
+            whileInView="show"
+            whileHover={{ 
+              y: -8,
+              backgroundColor: "rgba(255, 255, 255, 0.08)",
+              borderColor: "rgba(205, 92, 92, 0.3)",
+              boxShadow: "0 40px 100px -40px rgba(0,0,0,0.8), 0 0 20px rgba(205, 92, 92, 0.1)",
+              transition: { duration: 0.4, ease: "easeOut" }
+            }}
+            viewport={{ once: true, margin: "-100px" }}
+            variants={{
+              hidden: { opacity: 0, scale: 0.8, y: 40 },
+              show: { 
+                opacity: 1, 
+                scale: 1,
+                y: 0, 
+                transition: { type: "spring", stiffness: 70, damping: 15, delay: 0.1 }
+              }
+            }}
+          >
+            {/* Animated Shine Effect */}
+            <motion.div
+              animate={!isGlobalPaused ? {
+                left: ["-150%", "200%"],
+              } : {}}
+              transition={{
+                duration: 5,
+                repeat: Infinity,
+                ease: "linear",
+                repeatDelay: 3
+              }}
+              className="absolute top-0 h-full w-48 bg-gradient-to-r from-transparent via-white/[0.08] to-transparent skew-x-[-25deg] pointer-events-none z-10"
+            />
+            <div className="absolute -mr-32 -mt-32 h-64 w-64 rounded-full bg-[#CD5C5C]/5 blur-3xl transition-colors group-hover:bg-[#CD5C5C]/10" />
+            
+            <div className="absolute -top-12 -right-12 w-64 md:w-96 opacity-40 pointer-events-none transform rotate-[-15deg] transition-all duration-1000 ease-out z-[5]">
+              <img
+                src="/airplane_transparent.svg"
+                alt=""
+                loading="lazy"
+                decoding="async"
+                width={640}
+                height={360}
+                className="w-full h-auto filter grayscale invert(0.5) brightness-125"
+              />
+            </div>
+
+            {/* Logo & Description */}
+            <div className="relative z-20 space-y-3">
+              <div className="flex items-center -ml-1">
+                <motion.div 
+                  initial={{ opacity: 0, scale: 0.8 }}
+                  whileInView={{ opacity: 1, scale: 1 }}
+                  viewport={{ once: true }}
+                  transition={{ duration: 0.5 }}
+                  className="p-0 rounded-xl"
+                >
+                  <img 
+                     loading="lazy"
+                     decoding="async"
+                     width={320}
+                     height={80}
+                     src={settings.site_logo_main || "/logo.png"} 
+                     alt="OneDayPilot" 
+                     className="h-16 md:h-20 w-auto object-contain" 
+                     style={!settings.site_logo_main ? { filter: "url(#remove-black-bg)" } : {}}
+                   />
+                </motion.div>
+              </div>
+              <div className="space-y-2">
+                <span
+                  className="text-[10px] font-black uppercase tracking-[0.35em] text-[#CD5C5C]"
+                  style={{ fontFamily: "'Barlow Condensed', sans-serif" }}
+                >
+                  Ready For Takeoff
+                </span>
+                <p className="max-w-md text-gray-300 text-xs md:text-sm leading-relaxed">
+                Experience the thrill of flying - no license required! Join us for an unforgettable journey above the clouds.
+                </p>
+              </div>
+              <div className="relative group/subscribe mb-4">
+                <motion.div
+                  animate={!isGlobalPaused ? {
+                    scale: [1, 1.05, 1],
+                  } : {}}
+                  transition={{
+                    duration: 2,
+                    repeat: Infinity,
+                    ease: "easeInOut"
+                  }}
+                  className="relative flex cursor-pointer items-center gap-2 overflow-hidden border-none bg-[#CD5C5C] px-5 py-3 text-[13px] font-black uppercase tracking-[0.22em] text-white shadow-[0_8px_30px_-8px_rgba(205, 92, 92, 0.6)] rounded-full"
+                  style={{ fontFamily: "'Barlow Condensed', sans-serif" }}
+                >
+                  {/* Shine Effect */}
                   <motion.div
                     animate={!isGlobalPaused ? {
-                      scale: [1, 1.05, 1],
+                      left: ["-100%", "200%"],
                     } : {}}
                     transition={{
-                      duration: 2,
+                      duration: 3,
                       repeat: Infinity,
-                      ease: "easeInOut"
+                      ease: "linear",
+                      repeatDelay: 1
                     }}
-                    className="relative flex cursor-pointer items-center gap-2 overflow-hidden border border-[#ea580c]/35 bg-[#ea580c] px-5 py-3 text-[13px] font-black uppercase tracking-[0.22em] text-white shadow-[0_18px_50px_-18px_rgba(234,88,12,0.6)]"
-                    style={{ fontFamily: "'Barlow Condensed', sans-serif", clipPath: "polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 12px 100%, 0 calc(100% - 12px))" }}
-                  >
-                    {/* Shine Effect */}
-                    <motion.div
-                      animate={!isGlobalPaused ? {
-                        left: ["-100%", "200%"],
-                      } : {}}
-                      transition={{
-                        duration: 3,
-                        repeat: Infinity,
-                        ease: "linear",
-                        repeatDelay: 1
-                      }}
-                      className="absolute top-0 h-full w-12 bg-white/30 skew-x-[-25deg] blur-sm z-10"
-                    />
+                    className="absolute top-0 h-full w-12 bg-white/30 skew-x-[-25deg] blur-sm z-10"
+                  />
 
-                    {/* Star Loop Animations */}
-                    {[...Array(3)].map((_, i) => (
-                      <motion.div
-                        key={i}
-                        initial={{ opacity: 0, scale: 0 }}
-                        animate={!isGlobalPaused ? {
-                          opacity: [0, 1, 0],
-                          scale: [0, 1, 0],
-                          x: [0, (i - 1) * 30],
-                          y: [0, -30 - (i * 10)],
-                        } : {}}
-                        transition={{
-                          duration: 1.5,
-                          repeat: Infinity,
-                          delay: i * 0.4,
-                          ease: "easeOut"
-                        }}
-                        className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none"
-                      >
-                        <Star className="w-3 h-3 fill-[#facc15] text-[#facc15]" />
-                      </motion.div>
-                    ))}
-
-                    <Youtube className="w-5 h-5 fill-white stroke-none relative z-20" />
-                    <span className="relative z-20 tracking-[0.22em]">Subscribe</span>
+                  {/* Star Loop Animations */}
+                  {[...Array(3)].map((_, i) => (
                     <motion.div
+                      key={i}
+                      initial={{ opacity: 0, scale: 0 }}
                       animate={!isGlobalPaused ? {
-                        scale: [1, 1.2, 1],
-                        rotate: [0, -10, 0],
-                        x: [0, 2, 0],
-                        y: [0, -2, 0]
+                        opacity: [0, 1, 0],
+                        scale: [0, 1, 0],
+                        x: [0, (i - 1) * 30],
+                        y: [0, -30 - (i * 10)],
                       } : {}}
                       transition={{
                         duration: 1.5,
                         repeat: Infinity,
-                        ease: "easeInOut"
+                        delay: i * 0.4,
+                        ease: "easeOut"
                       }}
-                      className="relative z-20 ml-1"
+                      className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none"
                     >
-                      <MousePointer2 className="w-4 h-4 fill-white text-white drop-shadow-[0_0_5px_rgba(255,255,255,0.8)]" />
+                      <Star className="w-3 h-3 fill-[#CD5C5C] text-[#CD5C5C]" />
                     </motion.div>
+                  ))}
+
+                  <Youtube className="w-5 h-5 fill-white stroke-none relative z-20" />
+                  <span className="relative z-20 tracking-[0.22em]">Subscribe</span>
+                  <motion.div
+                    animate={!isGlobalPaused ? {
+                      scale: [1, 1.2, 1],
+                      rotate: [0, -10, 0],
+                      x: [0, 2, 0],
+                      y: [0, -2, 0]
+                    } : {}}
+                    transition={{
+                      duration: 1.5,
+                      repeat: Infinity,
+                      ease: "easeInOut"
+                    }}
+                    className="relative z-20 ml-1"
+                  >
+                    <MousePointer2 className="w-4 h-4 fill-white text-gray-900" />
                   </motion.div>
-                </div>
-                <div className="flex gap-3">
-                  {socialLinks.map((social, index) => {
-                    const Icon = social.icon;
-                    return (
-                      <motion.a
-                        key={social.label}
-                        href={social.href}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        onClick={() => trackEvent({
-                          action_type: 'click',
-                          entity_type: 'custom',
-                          entity_id: `social_${social.label.toLowerCase()}`,
-                          entity_name: `Social Link: ${social.label}`
-                        })}
-                        aria-label={social.label}
-                        animate={!isGlobalPaused ? {
-                          boxShadow: [
-                            `0 0 0px ${social.glowColor}`,
-                            `0 0 12px ${social.glowColor}`,
-                            `0 0 0px ${social.glowColor}`
-                          ],
-                          filter: [
-                            "brightness(1)",
-                            "brightness(1.2)",
-                            "brightness(1)"
-                          ]
-                        } : {}}
-                        transition={{
-                          duration: 2,
-                          repeat: Infinity,
-                          ease: "easeInOut",
-                          delay: index * 0.2 // Stagger the animation
-                        }}
-                        className={`flex h-10 w-10 items-center justify-center border border-white/10 bg-white/[0.04] ${social.color} ${social.hoverBg} shadow-sm transition-all duration-300 hover:scale-110`}
-                        style={{ clipPath: "polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 8px 100%, 0 calc(100% - 8px))" }}
-                      >
-                        <Icon className="w-5 h-5" />
-                      </motion.a>
-                    );
-                  })}
-                </div>
+                </motion.div>
               </div>
 
               {/* Contact Details Grid */}
-              <div className="max-w-md mx-auto">
+              <div className="max-w-md">
                 {/* Business Hours */}
-                <div className="group/hours relative overflow-hidden border border-white/10 bg-white/[0.04] p-6 transition-all duration-300 hover:bg-white/[0.07]">
-                  <h3 className="mb-4 flex items-center gap-2 text-2xl uppercase text-white" style={{ fontFamily: "'Bebas Neue', sans-serif", letterSpacing: "0.04em" }}>
-                    <Clock className="w-5 h-5 text-[#ea580c]" />
+                <div className="group/hours relative overflow-hidden border border-white/10 bg-white/5 p-4 md:p-6">
+                  <h3 className="mb-3 md:mb-4 flex items-center gap-2 text-xl md:text-2xl uppercase text-gray-200" style={{ fontFamily: "'Bebas Neue', sans-serif", letterSpacing: "0.04em" }}>
+                    <Clock className="w-4 h-4 md:w-5 md:h-5 text-[#CD5C5C]" />
                     Business Hours
                   </h3>
-                  <div className="space-y-2 text-sm text-white/60">
+                  <div className="space-y-1.5 md:space-y-2 text-xs md:text-sm text-gray-400">
                     {settings.business_hours && settings.business_hours.length > 0 ? (
                       groupBusinessHours(settings.business_hours).map((group, idx) => (
                         <div key={idx} className="flex justify-between">
@@ -456,90 +476,136 @@ export const Footer = () => {
                               ? (shortDays[group.startDay] || group.startDay)
                               : `${shortDays[group.startDay] || group.startDay} - ${shortDays[group.endDay] || group.endDay}`}
                           </span>
-                          <span className={group.isOpen ? "text-white/80" : "text-red-400 font-semibold"}>
+                          <span className={group.isOpen ? "text-gray-200" : "text-red-400 font-semibold"}>
                             {group.hours}
                           </span>
                         </div>
                       ))
                     ) : (
-                      <div className="text-white/60">Hours not configured</div>
+                      <div className="text-gray-400">Hours not configured</div>
                     )}
                   </div>
                 </div>
               </div>
             </div>
+          </motion.div>
 
-            {/* Right Side: Map & Images */}
-            <div className="relative min-h-[400px] overflow-hidden border-t border-white/10 lg:min-h-full lg:border-l lg:border-t-0">
-              <iframe
-                src={settings.google_maps_link}
-                width="100%"
-                height="100%"
-                style={{ border: 0 }}
-                allowFullScreen
-                loading="lazy"
-                referrerPolicy="no-referrer-when-downgrade"
-                className="grayscale-[0.2] contrast-[1.1] hover:grayscale-0 transition-all duration-700"
-              />
-              {/* Image Overlay Panel */}
-              <div className="absolute bottom-6 right-6 flex gap-3 z-20 pointer-events-none">
-                <motion.div 
-                  initial={{ opacity: 0, y: 20 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true }}
-                  transition={{ duration: 0.5, delay: 0.1 }}
-                  className="h-24 w-24 overflow-hidden border border-white/20 shadow-xl transition-transform duration-300 hover:-translate-y-2 pointer-events-auto"
-                  style={{ clipPath: "polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 12px 100%, 0 calc(100% - 12px))" }}
-                >
-                  <img src="https://images.unsplash.com/photo-1569154941061-e231b4725ef1?q=80&w=200&auto=format&fit=crop" alt="Flight" className="w-full h-full object-cover" />
-                </motion.div>
-                <motion.div 
-                  initial={{ opacity: 0, y: 20 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true }}
-                  transition={{ duration: 0.5, delay: 0.2 }}
-                  className="h-24 w-24 overflow-hidden border border-white/20 shadow-xl transition-transform duration-300 delay-75 hover:-translate-y-2 pointer-events-auto"
-                  style={{ clipPath: "polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 12px 100%, 0 calc(100% - 12px))" }}
-                >
-                  <img src="https://images.unsplash.com/photo-1583608205776-bfd35f0d9f83?q=80&w=200&auto=format&fit=crop" alt="Pilot" className="w-full h-full object-cover" />
-                </motion.div>
-              </div>
+          {/* Right Side: Map & Images */}
+          <motion.div 
+            className="relative min-h-[400px] overflow-hidden border border-white/10 bg-white/5 shadow-[0_28px_90px_-35px_rgba(0,0,0,0.7)] backdrop-blur-md transition-all duration-500 lg:min-h-full rounded-2xl md:rounded-3xl"
+            style={{
+              marginTop: '4rem',
+              marginBottom: '0'
+            }}
+            initial="hidden"
+            whileInView="show"
+            whileHover={{ 
+              y: -8,
+              backgroundColor: "rgba(255, 255, 255, 0.08)",
+              borderColor: "rgba(205, 92, 92, 0.3)",
+              boxShadow: "0 40px 100px -40px rgba(0,0,0,0.8), 0 0 20px rgba(205, 92, 92, 0.1)",
+              transition: { duration: 0.4, ease: "easeOut" }
+            }}
+            viewport={{ once: true, margin: "-100px" }}
+            variants={{
+              hidden: { opacity: 0, scale: 0.8, y: 40 },
+              show: { 
+                opacity: 1, 
+                scale: 1,
+                y: 0, 
+                transition: { type: "spring", stiffness: 70, damping: 15, delay: 0.3 }
+              }
+            }}
+          >
+            <iframe
+              src={settings.google_maps_link}
+              width="100%"
+              height="100%"
+              style={{ border: 0 }}
+              allowFullScreen
+              loading="lazy"
+              referrerPolicy="no-referrer-when-downgrade"
+              className="grayscale-[0.2] contrast-[1.1] hover:grayscale-0 transition-all duration-700 h-full min-h-[400px]"
+            />
+            {/* Image Overlay Panel */}
+            <div className="absolute bottom-6 right-6 flex gap-3 z-20 pointer-events-none">
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ duration: 0.5, delay: 0.1 }}
+                className="h-24 w-24 overflow-hidden border border-gray-300 shadow-xl transition-transform duration-300 hover:-translate-y-2 pointer-events-auto rounded-2xl md:rounded-3xl"
+              >
+                <img
+                  src="https://images.unsplash.com/photo-1569154941061-e231b4725ef1?q=80&w=200&auto=format&fit=crop"
+                  alt="Flight experience"
+                  className="w-full h-full object-cover"
+                  width={96}
+                  height={96}
+                  loading="lazy"
+                  decoding="async"
+                />
+              </motion.div>
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ duration: 0.5, delay: 0.2 }}
+                className="h-24 w-24 overflow-hidden border border-gray-300 shadow-xl transition-transform duration-300 delay-75 hover:-translate-y-2 pointer-events-auto rounded-2xl md:rounded-3xl"
+              >
+                <img
+                  src="https://images.unsplash.com/photo-1583608205776-bfd35f0d9f83?q=80&w=200&auto=format&fit=crop"
+                  alt="Pilot portrait"
+                  className="w-full h-full object-cover"
+                  width={96}
+                  height={96}
+                  loading="lazy"
+                  decoding="async"
+                />
+              </motion.div>
             </div>
-          </div>
+          </motion.div>
         </div>
 
         {/* Official Footer Info Section */}
-        <div className="relative mt-16 overflow-visible border border-white/10 bg-white/[0.04] p-8 backdrop-blur-sm md:p-12">
-          <div className="pointer-events-none absolute -left-3 -top-7 z-50 -rotate-2 scale-100 transform md:scale-110">
+        <div className="relative mt-28 overflow-visible">
+          <div className="pointer-events-none absolute -left-1.5 -top-10 z-50 -rotate-[6deg] scale-100 transform md:scale-110">
             <div className="relative flex items-center">
-              <div className="h-10 w-1.5 bg-[#006837] shadow-lg" />
+              {/* The "Hugging" Fold */}
+              <div 
+                className="absolute -bottom-2 left-0 h-2 w-2 bg-[#8B3A3A]" 
+                style={{ clipPath: "polygon(0 0, 100% 0, 100% 100%)" }}
+              />
+              
               <motion.div 
                 animate={!isGlobalPaused ? { 
                   boxShadow: [
-                    "0 0 0px rgba(237, 28, 36, 0)",
-                    "0 0 15px rgba(237, 28, 36, 0.8)",
-                    "0 0 25px rgba(237, 28, 36, 0.4)",
-                    "0 0 15px rgba(237, 28, 36, 0.8)",
-                    "0 0 0px rgba(237, 28, 36, 0)"
+                    "0 0 0px rgba(205, 92, 92, 0)",
+                    "0 0 20px rgba(205, 92, 92, 0.5)",
+                    "0 0 30px rgba(205, 92, 92, 0.3)",
+                    "0 0 20px rgba(205, 92, 92, 0.5)",
+                    "0 0 0px rgba(205, 92, 92, 0)"
                   ],
                   filter: [
                     "brightness(1)",
-                    "brightness(1.2)",
+                    "brightness(1.15)",
                     "brightness(1)"
                   ]
                 } : {}}
                 transition={{
-                  duration: 2,
+                  duration: 2.5,
                   repeat: Infinity,
                   ease: "easeInOut"
                 }}
-                className="flex items-center justify-center bg-[#ed1c24] px-5 py-2 shadow-2xl"
+                className="flex items-center justify-center bg-[#CD5C5C] px-6 py-2 md:px-8 md:py-2.5 shadow-2xl"
+                style={{ 
+                  clipPath: "polygon(0 0, 100% 0, 88% 50%, 100% 100%, 0 100%)",
+                }}
               >
                 <span 
-                  className="whitespace-nowrap text-lg font-black uppercase tracking-[0.18em] text-white md:text-xl" 
+                  className="whitespace-nowrap text-base font-black uppercase tracking-[0.2em] text-white md:text-xl" 
                   style={{ 
                     fontFamily: "'Barlow Condensed', sans-serif",
-                    textShadow: '1px 1px 2px rgba(0,0,0,0.2)'
                   }}
                 >
                   Get in Touch
@@ -547,155 +613,181 @@ export const Footer = () => {
               </motion.div>
             </div>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-12">
-            {/* Column 1: Address */}
-            <div className="space-y-6">
-              <h4 className="flex items-center gap-2 text-2xl uppercase text-white" style={{ fontFamily: "'Bebas Neue', sans-serif", letterSpacing: "0.04em" }}>
-                <MapPin className="w-5 h-5 text-[#ea580c]" />
-                Our Locations
-              </h4>
-              <div className="space-y-6">
-                <div className="space-y-2 group">
-                  <p className="text-xs font-semibold uppercase tracking-[0.22em] text-white/40 transition-colors group-hover:text-[#ea580c]">Sales Office</p>
-                  <p className="text-white/70 text-sm leading-relaxed group-hover:text-white transition-colors">
-                    {settings.contact_address_sales}
-                  </p>
+
+          <motion.div 
+            initial="hidden"
+            whileInView="show"
+            whileHover={{ 
+              y: -8,
+              backgroundColor: "rgba(255, 255, 255, 0.08)",
+              borderColor: "rgba(205, 92, 92, 0.3)",
+              boxShadow: "0 40px 100px -40px rgba(0,0,0,0.95), 0 0 30px rgba(205, 92, 92, 0.1)",
+              transition: { duration: 0.4, ease: "easeOut" }
+            }}
+            viewport={{ once: true, margin: "-100px" }}
+            variants={{
+              hidden: { opacity: 0, scale: 0.9, y: 50 },
+              show: {
+                opacity: 1,
+                scale: 1,
+                y: 0,
+                transition: {
+                  duration: 0.8,
+                  ease: "easeOut"
+                }
+              }
+            }}
+            className="relative overflow-hidden border border-white/10 bg-white/5 p-8 md:p-12 backdrop-blur-md shadow-[0_28px_90px_-35px_rgba(0,0,0,0.95)] transition-all duration-500 rounded-2xl md:rounded-3xl"
+            style={{ 
+              backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='28' height='49' viewBox='0 0 28 49'%3E%3Cpath fill='%23ffffff' fill-opacity='0.03' d='M13.99 9.25l13 7.5v15l-13 7.5L1 31.75v-15l12.99-7.5zM3 17.89v12.72l11 6.35 11-6.35V17.89l-11-6.35-11 6.35z'/%3E%3C/svg%3E")`,
+              backgroundSize: '28px 49px'
+            }}
+          >
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8 lg:gap-12 relative z-10">
+              {/* Column 1: Address */}
+              <div className="space-y-4 md:space-y-6">
+                <h4 className="flex items-center gap-2 text-xl md:text-2xl uppercase text-gray-200" style={{ fontFamily: "'Bebas Neue', sans-serif", letterSpacing: "0.04em" }}>
+                  <MapPin className="w-4 h-4 md:w-5 md:h-5 text-[#CD5C5C]" />
+                  Our Locations
+                </h4>
+                <div className="space-y-4 md:space-y-6">
+                  <div className="space-y-1.5 md:space-y-2 group">
+                    <p className="text-[10px] md:text-xs font-semibold uppercase tracking-[0.22em] text-gray-400 transition-colors group-hover:text-[#CD5C5C]">Sales Office</p>
+                    <p className="text-gray-400 text-xs md:text-sm leading-relaxed group-hover:text-[#CD5C5C] transition-colors">
+                      {settings.contact_address_sales}
+                    </p>
+                  </div>
+                  <div className="space-y-1.5 md:space-y-2 group">
+                    <p className="text-[10px] md:text-xs font-semibold uppercase tracking-[0.22em] text-gray-400 transition-colors group-hover:text-[#CD5C5C]">Flight Operations</p>
+                    <p className="text-gray-400 text-xs md:text-sm leading-relaxed group-hover:text-[#CD5C5C] transition-colors">
+                      {settings.contact_address}
+                    </p>
+                  </div>
                 </div>
-                <div className="space-y-2 group">
-                  <p className="text-xs font-semibold uppercase tracking-[0.22em] text-white/40 transition-colors group-hover:text-[#ea580c]">Flight Operations</p>
-                  <p className="text-white/70 text-sm leading-relaxed group-hover:text-white transition-colors">
-                    {settings.contact_address}
+              </div>
+
+              {/* Column 2: Contact & Links */}
+              <div className="space-y-4 md:space-y-6">
+                <h4 className="flex items-center gap-2 text-xl md:text-2xl uppercase text-gray-200" style={{ fontFamily: "'Bebas Neue', sans-serif", letterSpacing: "0.04em" }}>
+                  <Phone className="w-4 h-4 md:w-5 md:h-5 text-[#CD5C5C]" />
+                  Contact & Info
+                </h4>
+                <div className="space-y-3 md:space-y-4">
+                  <div className="flex flex-col gap-1.5 md:gap-2">
+                    <a href={`tel:${settings.contact_hotline}`} className="flex items-center gap-2 text-xs md:text-sm text-gray-400 transition-colors hover:text-[#CD5C5C]">
+                      <span className="h-1 w-1 md:h-1.5 md:w-1.5 rounded-full bg-[#CD5C5C]/70"></span>
+                      Hotline: {settings.contact_hotline}
+                    </a>
+                    <a href={`mailto:${settings.contact_email}`} className="flex items-center gap-2 text-xs md:text-sm text-gray-400 transition-colors hover:text-[#CD5C5C]">
+                      <span className="h-1 w-1 md:h-1.5 md:w-1.5 rounded-full bg-[#CD5C5C]/70"></span>
+                      {settings.contact_email}
+                    </a>
+                  </div>
+                  
+                  <div className="pt-3 md:pt-4 border-t border-white/5 flex flex-col gap-1.5 md:gap-2">
+                    <button 
+                      type="button"
+                      onClick={() => openPolicy("Terms & Conditions", settings.policy_terms || TermsText)}
+                      className="text-left text-gray-400 hover:text-[#CD5C5C] text-xs md:text-sm transition-colors flex items-center gap-2"
+                    >
+                      <span className="w-0.5 h-0.5 md:w-1 md:h-1 rounded-full bg-white/20"></span>
+                      Terms & Conditions
+                    </button>
+                    <button 
+                      type="button"
+                      onClick={() => openPolicy("Privacy Policy", settings.policy_privacy || PrivacyText)}
+                      className="text-left text-gray-400 hover:text-[#CD5C5C] text-xs md:text-sm transition-colors flex items-center gap-2"
+                    >
+                      <span className="w-0.5 h-0.5 md:w-1 md:h-1 rounded-full bg-white/20"></span>
+                      Privacy Policy
+                    </button>
+                    <button 
+                      type="button"
+                      onClick={() => openPolicy("Refund Policy", settings.policy_refund || RefundText)}
+                      className="text-left text-gray-400 hover:text-[#CD5C5C] text-xs md:text-sm transition-colors flex items-center gap-2"
+                    >
+                      <span className="w-0.5 h-0.5 md:w-1 md:h-1 rounded-full bg-white/20"></span>
+                      Refund Policy
+                    </button>
+                    <a 
+                      href="/flight-information.html"
+                      className="text-left text-gray-400 hover:text-[#CD5C5C] text-xs md:text-sm transition-colors flex items-center gap-2"
+                    >
+                      <span className="w-0.5 h-0.5 md:w-1 md:h-1 rounded-full bg-white/20"></span>
+                      Flight Information
+                    </a>
+                  </div>
+                </div>
+              </div>
+
+              {/* Column 3: Social & Branding */}
+              <div className="space-y-4 md:space-y-6">
+                <h4 className="flex items-center gap-2 text-xl md:text-2xl uppercase text-gray-200" style={{ fontFamily: "'Bebas Neue', sans-serif", letterSpacing: "0.04em" }}>
+                  <Music className="w-4 h-4 md:w-5 md:h-5 text-[#CD5C5C]" />
+                  Connect With Us
+                </h4>
+                <div className="space-y-3 md:space-y-4">
+                  <p className="text-gray-400 text-xs md:text-sm leading-relaxed">
+                    Follow our aviation adventures on social media. Tag us in your photos with #OneDayPilot!
                   </p>
+                  <div className="flex flex-wrap gap-2 md:gap-3">
+                    {socialLinks.map((social, index) => {
+                      const Icon = social.icon;
+                      return (
+                        <motion.a
+                          key={social.label}
+                          href={social.href}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          aria-label={social.label}
+                          className={`flex h-9 w-9 md:h-10 md:w-10 items-center justify-center border border-white/10 bg-white/5/[0.04] ${social.color} ${social.hoverBg} shadow-sm transition-all duration-300 hover:scale-110 rounded-xl`}
+                        >
+                          <Icon className="w-4 h-4 md:w-5 md:h-5" />
+                        </motion.a>
+                      );
+                    })}
+                  </div>
                 </div>
               </div>
             </div>
+          </motion.div>
+        </div>
 
-            {/* Column 2: Contact & Links */}
-            <div className="space-y-6">
-              <h4 className="flex items-center gap-2 text-2xl uppercase text-white" style={{ fontFamily: "'Bebas Neue', sans-serif", letterSpacing: "0.04em" }}>
-                <Phone className="w-5 h-5 text-[#ea580c]" />
-                Contact & Info
-              </h4>
-              <div className="space-y-4">
-                <div className="flex flex-col gap-2">
-                  <a href={`tel:${settings.contact_hotline}`} className="flex items-center gap-2 text-sm text-white/70 transition-colors hover:text-[#ea580c]">
-                    <span className="h-1.5 w-1.5 rounded-full bg-[#ea580c]/70"></span>
-                    Hotline: {settings.contact_hotline}
-                  </a>
-                  <a href={`mailto:${settings.contact_email}`} className="flex items-center gap-2 text-sm text-white/70 transition-colors hover:text-[#ea580c]">
-                    <span className="h-1.5 w-1.5 rounded-full bg-[#ea580c]/70"></span>
-                    {settings.contact_email}
-                  </a>
-                </div>
-                
-                <div className="pt-4 border-t border-white/5 flex flex-col gap-2">
-                  <button 
-                    type="button"
-                    onClick={() => openPolicy("Terms & Conditions", settings.policy_terms || TermsText)}
-                    className="text-left text-white/50 hover:text-white text-sm transition-colors flex items-center gap-2"
-                  >
-                    <span className="w-1 h-1 rounded-full bg-white/20"></span>
-                    Terms & Conditions
-                  </button>
-                  <button 
-                    type="button"
-                    onClick={() => openPolicy("Privacy Policy", settings.policy_privacy || PrivacyText)}
-                    className="text-left text-white/50 hover:text-white text-sm transition-colors flex items-center gap-2"
-                  >
-                    <span className="w-1 h-1 rounded-full bg-white/20"></span>
-                    Privacy Policy
-                  </button>
-                  <button 
-                    type="button"
-                    onClick={() => openPolicy("Refund Policy", settings.policy_refund || RefundText)}
-                    className="text-left text-white/50 hover:text-white text-sm transition-colors flex items-center gap-2"
-                  >
-                    <span className="w-1 h-1 rounded-full bg-white/20"></span>
-                    Refund Policy
-                  </button>
-                </div>
-              </div>
+        <div className="mt-12 border-t border-gray-200 pt-8">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+            <div className="flex-1">
+              <p className="text-secondary-foreground/40 text-[10px] md:text-xs tracking-wider font-medium text-gray-400">
+                © {new Date().getFullYear()} <span className="text-gray-500">ONEDAYPILOT.com</span> All rights reserved.
+              </p>
+            </div>
+            
+            <div className="flex-[2] text-center">
+              <p className="max-w-2xl mx-auto leading-relaxed opacity-70 text-secondary-foreground/40 text-[10px] md:text-xs tracking-wider">
+                This website is owned and operated by Global Business Partners Sdn. Bhd. 200601012662 (732412-K), a registered event management company.
+              </p>
             </div>
 
-            {/* Column 3: Social & Branding */}
-            <div className="space-y-6">
-              <h4 className="flex items-center gap-2 text-2xl uppercase text-white" style={{ fontFamily: "'Bebas Neue', sans-serif", letterSpacing: "0.04em" }}>
-                <Music className="w-5 h-5 text-[#ea580c]" />
-                Connect With Us
-              </h4>
-              <div className="space-y-4">
-                <p className="text-white/60 text-sm leading-relaxed">
-                  Follow our aviation adventures on social media. Tag us in your photos with #OneDayPilot!
-                </p>
-                <div className="flex flex-wrap gap-3">
-                  {socialLinks.map((social, index) => {
-                    const Icon = social.icon;
-                    return (
-                      <motion.a
-                        key={social.label}
-                        href={social.href}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        onClick={() => trackEvent({
-                          action_type: 'click',
-                          entity_type: 'custom',
-                          entity_id: `social_bottom_${social.label.toLowerCase()}`,
-                          entity_name: `Social Link (Bottom): ${social.label}`
-                        })}
-                        aria-label={social.label}
-                        animate={!isGlobalPaused ? {
-                          boxShadow: [
-                            `0 0 0px ${social.glowColor}`,
-                            `0 0 12px ${social.glowColor}`,
-                            `0 0 0px ${social.glowColor}`
-                          ],
-                          filter: [
-                            "brightness(1)",
-                            "brightness(1.2)",
-                            "brightness(1)"
-                          ]
-                        } : {}}
-                        transition={{
-                          duration: 2,
-                          repeat: Infinity,
-                          ease: "easeInOut",
-                          delay: index * 0.2
-                        }}
-                        className={`flex h-10 w-10 items-center justify-center border border-white/10 bg-white/[0.04] ${social.color} ${social.hoverBg} shadow-sm transition-all duration-300 hover:scale-110`}
-                        style={{ clipPath: "polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 8px 100%, 0 calc(100% - 8px))" }}
-                      >
-                        <Icon className="w-4 h-4" />
-                      </motion.a>
-                    );
-                  })}
-                </div>
-              </div>
+            <div className="flex-1 text-right">
+              <Link 
+                to="/admin" 
+                className="shrink-0 text-[10px] font-bold uppercase tracking-[0.3em] text-white/20 transition-all duration-300 hover:text-[#CD5C5C] md:text-xs"
+              >
+                Admin Access
+              </Link>
             </div>
           </div>
         </div>
-
-        {/* Copyright */}
-        <div className="mt-12 flex flex-col items-center justify-between gap-4 border-t border-white/10 pt-8 text-center md:flex-row">
-          <p className="text-secondary-foreground/40 text-xs tracking-wide">
-            © {new Date().getFullYear()} ONEDAYPILOT. ALL RIGHTS RESERVED.
-          </p>
-          <Link 
-            to="/admin" 
-            className="text-xs font-medium uppercase tracking-[0.24em] text-white/25 transition-colors hover:text-[#ea580c]"
-          >
-            Admin Access
-          </Link>
-        </div>
       </div>
+    </div>
       {/* Policy Dialog */}
       <Dialog open={policyOpen} onOpenChange={setPolicyOpen}>
         <PolicyDialogContent className="max-w-3xl w-[92vw] p-0 overflow-hidden bg-white text-slate-900">
-          <DialogHeader className="p-4 md:p-6 border-b bg-slate-900 text-white">
+          <DialogHeader className="p-4 md:p-6 border-b bg-gray-900 text-gray-900">
             <DialogTitle className="text-base md:text-lg font-bold text-white flex items-center gap-2">
-              {policyTitle === "Terms & Conditions" && "📜"}
-              {policyTitle === "Privacy Policy" && "🔒"}
-              {policyTitle === "Refund Policy" && "💸"}
-              {policyTitle}
+              {policyTitle === "Terms & Conditions" && <span>📜</span>}
+              {policyTitle === "Privacy Policy" && <span>🔒</span>}
+              {policyTitle === "Refund Policy" && <span>💸</span>}
+              <span>{policyTitle}</span>
             </DialogTitle>
             <DialogDescription className="sr-only">
               Read our {policyTitle} to understand your rights and responsibilities.

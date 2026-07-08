@@ -19,9 +19,38 @@ OUTPUT_DIR = os.path.join(os.getcwd(), "temp_outputs")
 generator = PDFTemplateGenerator(output_dir=OUTPUT_DIR)
 
 # Initialize Supabase client for storage upload
-SUPABASE_URL = os.environ.get("SUPABASE_URL")
-SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
-supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+# Priority order for URL
+url_candidates = [
+    os.environ.get("SUPABASE_URL"),
+    os.environ.get("NEXT_PUBLIC_SUPABASE_URL"),
+    os.environ.get("VITE_SUPABASE_URL")
+]
+SUPABASE_URL = next((u for u in url_candidates if u), None)
+
+# Priority order for Key
+key_candidates = [
+    os.environ.get("SUPABASE_SERVICE_ROLE_KEY"),
+    os.environ.get("NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY"),
+    os.environ.get("VITE_SUPABASE_SERVICE_ROLE_KEY"),
+    os.environ.get("SUPABASE_SECRET_KEY"),
+    os.environ.get("SUPABASE_KEY"),
+    os.environ.get("NEXT_PUBLIC_SUPABASE_ANON_KEY"),
+    os.environ.get("VITE_SUPABASE_ANON_KEY")
+]
+SUPABASE_KEY = next((k for k in key_candidates if k), None)
+
+# Clean quotes
+if SUPABASE_URL: SUPABASE_URL = SUPABASE_URL.strip("'\"").strip()
+if SUPABASE_KEY: SUPABASE_KEY = SUPABASE_KEY.strip("'\"").strip()
+
+supabase = None
+if SUPABASE_URL and SUPABASE_KEY:
+    try:
+        supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+    except Exception as e:
+        print(f"Error initializing secondary Supabase client: {e}")
+else:
+    print("WARNING: Missing credentials for secondary Supabase client (Storage upload will fail)")
 
 @app.route('/health', methods=['GET'])
 def health_check():

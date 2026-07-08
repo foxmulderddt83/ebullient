@@ -18,12 +18,12 @@ export default function BookingSuccess() {
   const [processed, setProcessed] = useState(false);
 
   useEffect(() => {
-    // Clear cart on successful booking
-    clearCart();
-
     // Fetch booking reference and details for display
     if (bookingId && !processed) {
       setProcessed(true);
+      // Clear cart on successful booking
+      clearCart();
+      
       const fetchBooking = async () => {
         setLoading(true);
         const { data, error } = await supabase
@@ -42,15 +42,26 @@ export default function BookingSuccess() {
               packages (
                 name
               )
-            )
+            ),
+            booking_passengers (*)
           `)
           .eq('booking_id', bookingId)
           .single();
         
         if (data && !error) {
           setBookingDetails(data);
-          // Trigger notifications (Text-only for checkout as requested)
-          await notificationService.sendPaymentSuccessNotifications(bookingId, true);
+          
+          // Only send notifications if they haven't been sent yet
+          if (!data.notifications_sent) {
+            // Trigger notifications (Allow PDFs if configured in settings)
+            await notificationService.sendPaymentSuccessNotifications(bookingId, false);
+            
+            // Mark notifications as sent in the database to prevent duplicates on refresh
+            await supabase
+              .from('bookings')
+              .update({ notifications_sent: true })
+              .eq('booking_id', bookingId);
+          }
         }
         setLoading(false);
       };
@@ -74,6 +85,34 @@ export default function BookingSuccess() {
       currency: "MYR",
       minimumFractionDigits: 2,
     }).format(amount || 0);
+  };
+
+  const formatFlightTime = (time: string | null | undefined) => {
+    if (!time) return "TBD";
+    
+    // If it's already in 12h format (contains AM/PM), just return it
+    if (time.toLowerCase().includes('am') || time.toLowerCase().includes('pm')) {
+      return time.toUpperCase();
+    }
+    
+    try {
+      // If it's just a number or something unexpected, return as is
+      if (!time.includes(':')) return time.toUpperCase();
+      
+      // Assume format is HH:mm or HH:mm:ss
+      const parts = time.split(':');
+      const h = parseInt(parts[0], 10);
+      const m = parts[1] || '00';
+      
+      if (isNaN(h)) return time.toUpperCase();
+      
+      const ampm = h >= 12 ? 'PM' : 'AM';
+      const h12 = h % 12 || 12;
+      
+      return `${h12}:${m.padStart(2, '0')} ${ampm}`;
+    } catch (error) {
+      return time.toUpperCase();
+    }
   };
 
   if (loading) {
@@ -127,6 +166,10 @@ export default function BookingSuccess() {
                     <p className="text-base font-semibold text-slate-800">{formatCurrency(bookingDetails.total_amount)}</p>
                   </div>
                   <div>
+                    <p className="text-sm text-slate-500 mb-1 font-medium">Customer Name</p>
+                    <p className="text-base font-semibold text-slate-800">{bookingDetails.customers?.name || '—'}</p>
+                  </div>
+                  <div>
                     <p className="text-sm text-slate-500 mb-1 font-medium">Booking Reference</p>
                     <p className="text-base font-mono font-bold text-primary">{bookingDetails.booking_reference}</p>
                   </div>
@@ -163,7 +206,7 @@ export default function BookingSuccess() {
                     <Clock className="w-5 h-5 mr-3 text-slate-400 mt-0.5" />
                     <div>
                       <p className="text-sm text-slate-500 font-medium">Flight Time</p>
-                      <p className="text-base font-semibold text-slate-900">{bookingDetails.flight_time || "TBD"}</p>
+                      <p className="text-base font-semibold text-slate-900">{formatFlightTime(bookingDetails.flight_time)}</p>
                     </div>
                   </div>
                 </div>
@@ -188,6 +231,46 @@ export default function BookingSuccess() {
                   </div>
                 )}
               </div>
+
+              <Separator />
+
+              {/* Passengers Section */}
+              {bookingDetails.booking_passengers && bookingDetails.booking_passengers.length > 0 && (
+                <div className="p-6 sm:p-8 bg-white">
+                  <h3 className="text-lg font-bold text-slate-900 flex items-center mb-4">
+                    <CheckCircle2 className="w-5 h-5 mr-2 text-primary" />
+                    Passenger Information
+                  </h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {bookingDetails.booking_passengers.map((p: any, idx: number) => (
+                      <div key={idx} className="bg-slate-50 p-4 rounded-xl border border-slate-100 flex items-center justify-between">
+                        <div className="flex flex-col min-w-0">
+                          <span className="text-xs font-bold text-slate-400 uppercase tracking-tight mb-0.5">{p.type}</span>
+                          <span className="text-sm font-bold text-slate-900 truncate">{p.name}</span>
+                        </div>
+                        {p.will_fly && (
+                          <span className="bg-[#CC1F1F]/10 text-[#CC1F1F] text-[10px] font-black uppercase px-2 py-1 rounded-md">
+                            Flying
+                          </span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Special Requests Section */}
+              {bookingDetails.notes && (
+                <div className="p-6 sm:p-8 bg-amber-50/30 border-t border-amber-100">
+                  <h3 className="text-sm font-bold text-amber-800 flex items-center mb-2 uppercase tracking-wider">
+                    <FileText className="w-4 h-4 mr-2" />
+                    Special Requests
+                  </h3>
+                  <p className="text-sm text-amber-900/80 leading-relaxed italic">
+                    "{bookingDetails.notes}"
+                  </p>
+                </div>
+              )}
 
               <Separator />
 
@@ -231,7 +314,7 @@ export default function BookingSuccess() {
             <Button 
               onClick={() => navigate('/')} 
               size="lg"
-              className="w-full sm:w-auto sm:min-w-[200px] mx-auto flex items-center justify-center gap-2 font-bold py-6 shadow-md hover:shadow-lg transition-all"
+              className="w-full sm:w-auto sm:min-w-[200px] mx-auto flex items-center justify-center gap-2 font-bold py-6 shadow-md hover:shadow-lg transition-all text-sm uppercase tracking-wider"
             >
               <Home className="w-5 h-5" /> 
               Back to Main Page

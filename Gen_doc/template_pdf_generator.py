@@ -14,28 +14,196 @@ import re
 import os
 import json
 
+def format_flight_time(time_str):
+    if not time_str:
+        return "TBD"
+    time_str = str(time_str)
+    if 'am' in time_str.lower() or 'pm' in time_str.lower():
+        return time_str.upper()
+    try:
+        if ':' not in time_str:
+            return time_str.upper()
+        parts = time_str.split(':')
+        h = int(parts[0])
+        m = parts[1] if len(parts) > 1 else '00'
+        # Handle cases like "09:00:00" from database
+        m = m[:2]
+        ampm = 'PM' if h >= 12 else 'AM'
+        h12 = h % 12
+        if h12 == 0: h12 = 12
+        return f"{h12}:{m.zfill(2)} {ampm}"
+    except:
+        return time_str.upper()
 
 class TemplateEngine:
     """Handles variable replacement in templates"""
     
     @staticmethod
+    def auto_link_html(html):
+        """Automatically converts URLs in HTML text to clickable anchor tags"""
+        if not html: return html
+
+        # 1. First, temporarily hide existing anchor tags to avoid double-linking
+        placeholders = []
+        def a_tag_replacer(match):
+            placeholder = f"__A_TAG_PLACEHOLDER_{len(placeholders)}__"
+            placeholders.append(match.group(0))
+            return placeholder
+        
+        processed_html = re.sub(r'<a\s+[^>]*>[\s\S]*?</a>', a_tag_replacer, html, flags=re.IGNORECASE)
+
+        # 2. Hide other tags as well to avoid linking inside attributes (like src="http://...")
+        tag_placeholders = []
+        def tag_replacer(match):
+            placeholder = f"__TAG_PLACEHOLDER_{len(tag_placeholders)}__"
+            tag_placeholders.append(match.group(0))
+            return placeholder
+        
+        processed_html = re.sub(r'<[^>]+>', tag_replacer, processed_html)
+
+        # 3. Regex for finding URLs (with lookahead to stop before any placeholders)
+        url_regex = r'(https?://[^\s<"\']+?)(?=__TAG_PLACEHOLDER_|__A_TAG_PLACEHOLDER_|[\s<"\']|$)'
+        
+        # 4. Replace URLs with anchor tags
+        processed_html = re.sub(url_regex, r'<a href="\1" target="_blank" color="blue"><u>\1</u></a>', processed_html)
+
+        # 5. Restore other tags
+        for i, tag in enumerate(tag_placeholders):
+            processed_html = processed_html.replace(f"__TAG_PLACEHOLDER_{i}__", tag)
+
+        # 6. Restore original anchor tags
+        for i, tag in enumerate(placeholders):
+            processed_html = processed_html.replace(f"__A_TAG_PLACEHOLDER_{i}__", tag)
+
+        return processed_html
+
+    @staticmethod
     def replace_variables(template_text, data):
         """
-        Replace {variable} placeholders with actual values
-        
-        Example:
-            template = "Hello {name}, your booking is {booking_id}"
-            data = {"name": "Amir", "booking_id": "YL11002"}
-            result = "Hello Amir, your booking is YL11002"
+        Replace {variable} placeholders with actual values and process sum() formulas
         """
+        def get_val(key):
+            # Support nested keys like {customer.name}
+            # Remove braces if they are part of the key passed from replacer
+            clean_key = key.strip('{}')
+            val = TemplateEngine._get_nested_value(data, clean_key)
+            if val is None: return "0"
+            
+            if clean_key == 'package.google_maps_link' and val:
+                return f'<div style="margin-top: 4px;"><a href="{val}" target="_blank" color="blue"><u>{val}</u></a></div>'
+            
+            # Format time fields to 12-hour format
+            is_time = any(word in clean_key.lower() for word in ['time', 'slot'])
+            if is_time:
+                return format_flight_time(val)
+            
+            # Formatting logic similar to html_pdf_generator.py
+            if isinstance(val, (int, float)):
+                # If it's a price field or total, add RM
+                if any(word in clean_key.lower() for word in ['price', 'amount', 'total', 'paid', 'deposit', 'balance', 'discount']):
+                    return f"RM {float(val):.2f}"
+                return str(val)
+            
+            # Ensure all variables are uppercase like in Vercel (pdfGenerator.ts)
+            # BUT skip HTML content which should preserve case for tags
+            # and skip URLs/images which are case-sensitive
+            is_html = clean_key in ["add_items_amount", "booking.add_items_summary", "passenger.name"] # these can return HTML
+            is_asset = any(word in clean_key.lower() for word in ["url", "image", "link", "proof"])
+            
+            # In pdfGenerator.ts:
+            # - names, emails, phones, references, status, payment methods ARE uppered.
+            # - flight_time, pilot_name, aircraft_reg ARE uppered.
+            # - dates (flight_date, created_at, paid_at) ARE NOT uppered (format() returns mixed case).
+            # - weight (kg) and height (cm) ARE NOT uppered.
+            is_date_only = ("date" in clean_key.lower() or "at" in clean_key.lower()) and "time" not in clean_key.lower()
+            is_measure = "weight" in clean_key.lower() or "height" in clean_key.lower()
+            
+            value = str(val)
+            if not is_html and not is_asset and not is_date_only and not is_measure:
+                value = value.upper()
+                
+            return value
+
+        # 1. First pass: Process sum(...) formulas
+        def formula_replacer(match):
+            expression = match.group(1)
+            try:
+                # Strip HTML if any
+                eval_expr = re.sub(r'<[^>]*>?', '', expression).strip()
+                is_time_calc = False
+                has_currency = False
+                
+                # Replace variables within the formula
+                def var_replacer(var_match):
+                    var_name = var_match.group(0)
+                    val = get_val(var_name)
+                    val_str = str(val).strip()
+                    
+                    nonlocal has_currency, is_time_calc
+                    
+                    if re.match(r'^RM\s*', val_str, re.IGNORECASE):
+                        has_currency = True
+                    
+                    clean_val = re.sub(r'^RM\s*', '', val_str, flags=re.IGNORECASE).strip()
+                    if clean_val == "": clean_val = "0"
+                    
+                    # Time arithmetic check
+                    if ':' in clean_val or re.match(r'^\d+h$', clean_val, re.IGNORECASE):
+                        is_time_calc = True
+                        if ':' in clean_val:
+                            time_match = re.match(r'(\d+):(\d+)\s*(am|pm)?', clean_val, re.IGNORECASE)
+                            if time_match:
+                                h = int(time_match.group(1))
+                                m = int(time_match.group(2))
+                                period = time_match.group(3).lower() if time_match.group(3) else None
+                                if period == 'pm' and h < 12: h += 12
+                                if period == 'am' and h == 12: h = 0
+                                return str(h * 60 + m)
+                        elif re.match(r'^\d+h$', clean_val, re.IGNORECASE):
+                            return str(int(re.sub(r'h$', '', clean_val, flags=re.IGNORECASE)) * 60)
+                    
+                    return clean_val.replace(',', '')
+
+                eval_expr = re.sub(r'\{[^}]+\}', var_replacer, eval_expr)
+                
+                # Sanitize: allow digits, ., +, -, *, /, (, ), and spaces
+                if not re.match(r'^[\d+\-*/().\s]+$', eval_expr):
+                    return match.group(0)
+                
+                result = eval(eval_expr)
+                
+                if is_time_calc and isinstance(result, (int, float)):
+                    mins = round(result) % 1440
+                    if mins < 0: mins += 1440
+                    h = mins // 60
+                    m = mins % 60
+                    period = 'pm' if h >= 12 else 'am'
+                    display_h = 12 if h % 12 == 0 else h % 12
+                    return f"{display_h}:{m:02d}{period}"
+                
+                if isinstance(result, (int, float)):
+                    formatted = f"{result:.2f}" if result % 1 != 0 else str(int(result))
+                    return f"RM {formatted}" if has_currency else formatted
+                
+                return str(result)
+            except Exception as e:
+                print(f"Formula error in legacy template: {e}")
+                return match.group(0)
+
+        processed_text = re.sub(r'sum\((.*?)\)', formula_replacer, template_text)
+
+        # 2. Second pass: Replace all remaining {variable} with their values
         def replacer(match):
             key = match.group(1)
-            # Support nested keys like {customer.name}
-            value = TemplateEngine._get_nested_value(data, key)
-            return str(value) if value is not None else match.group(0)
+            value = get_val(key)
+            return value if value is not None else match.group(0)
         
-        # Replace {variable} with actual values
-        return re.sub(r'\{([^}]+)\}', replacer, template_text)
+        processed_text = re.sub(r'\{([^}]+)\}', replacer, processed_text)
+        
+        # 3. Third pass: Auto-link URLs
+        processed_text = TemplateEngine.auto_link_html(processed_text)
+        
+        return processed_text
     
     @staticmethod
     def _get_nested_value(data, key):

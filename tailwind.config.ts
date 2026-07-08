@@ -17,6 +17,14 @@ export default {
       fontFamily: {
         sans: ['Poppins', 'sans-serif'],
         heading: ['Montserrat', 'sans-serif'],
+        display: ['Playfair Display', 'Georgia', 'serif'],
+        elegant: ['Cormorant Garamond', 'Georgia', 'serif'],
+        modern: ['Raleway', 'sans-serif'],
+        title: ['Bebas Neue', 'Impact', 'sans-serif'],
+        script: ['Dancing Script', 'cursive'],
+        accent: ['Oswald', 'sans-serif'],
+        condensed: ['Barlow Condensed', 'sans-serif'],
+        jakarta: ['Plus Jakarta Sans', 'sans-serif'],
       },
       colors: {
         border: "hsl(var(--border))",

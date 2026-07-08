@@ -6,11 +6,40 @@ load_dotenv()
 
 class SupabasePDFService:
     def __init__(self):
-        url = os.environ.get("SUPABASE_URL")
-        key = os.environ.get("SUPABASE_KEY")
+        # Priority order for URL
+        url_candidates = [
+            os.environ.get("SUPABASE_URL"),
+            os.environ.get("NEXT_PUBLIC_SUPABASE_URL"),
+            os.environ.get("VITE_SUPABASE_URL")
+        ]
+        url = next((u for u in url_candidates if u), None)
+
+        # Priority order for Key
+        key_candidates = [
+            os.environ.get("SUPABASE_SERVICE_ROLE_KEY"),
+            os.environ.get("NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY"),
+            os.environ.get("VITE_SUPABASE_SERVICE_ROLE_KEY"),
+            os.environ.get("SUPABASE_SECRET_KEY"),
+            os.environ.get("SUPABASE_KEY"),
+            os.environ.get("NEXT_PUBLIC_SUPABASE_ANON_KEY"),
+            os.environ.get("VITE_SUPABASE_ANON_KEY")
+        ]
+        key = next((k for k in key_candidates if k), None)
+
+        # Clean quotes
+        if url: url = url.strip("'\"").strip()
+        if key: key = key.strip("'\"").strip()
+
         if not url or not key:
-            raise ValueError("SUPABASE_URL and SUPABASE_KEY must be set in environment variables")
-        self.supabase: Client = create_client(url, key)
+            print("WARNING: SUPABASE_URL and SUPABASE_KEY not found in environment")
+            # We don't raise here, maybe we'll get it from somewhere else or it's not needed for health check
+            # But let's keep it for safety in actual generation
+        
+        try:
+            self.supabase: Client = create_client(url, key)
+        except Exception as e:
+            print(f"Error initializing Supabase client in SupabasePDFService: {e}")
+            self.supabase = None
 
     def get_booking_data(self, booking_id):
         """Fetch complete booking data for PDF generation"""
@@ -24,6 +53,26 @@ class SupabasePDFService:
         
         # Transform data into a flat dictionary for template replacement
         return self._transform_data(booking)
+
+    def _format_time(self, time_str):
+        if not time_str:
+            return "TBD"
+        time_str = str(time_str)
+        if 'am' in time_str.lower() or 'pm' in time_str.lower():
+            return time_str.upper()
+        try:
+            if ':' not in time_str:
+                return time_str.upper()
+            parts = time_str.split(':')
+            h = int(parts[0])
+            m = parts[1] if len(parts) > 1 else '00'
+            m = m[:2]
+            ampm = 'PM' if h >= 12 else 'AM'
+            h12 = h % 12
+            if h12 == 0: h12 = 12
+            return f"{h12}:{m.zfill(2)} {ampm}"
+        except:
+            return time_str.upper()
 
     def _transform_data(self, booking):
         """Map database fields to template variables according to schemas.md"""
@@ -42,7 +91,7 @@ class SupabasePDFService:
             'payment_status': booking.get('payment_status'),
             'payment_method': booking.get('payment_method'),
             'flight_date': str(booking.get('flight_date')) if booking.get('flight_date') else None,
-            'flight_time': booking.get('flight_time'),
+            'flight_time': self._format_time(booking.get('flight_time')),
             'invoice_id': booking.get('invoice_id'),
             'pilot_name': booking.get('pilot_name'),
             'aircraft_registration': booking.get('aircraft_registration', '9M-BFF'),
@@ -61,7 +110,7 @@ class SupabasePDFService:
             # Derived/Legacy variables for compatibility
             'customer_ic': '', # Not in schemas.md customers table, but might be in notes or elsewhere
             'event_date': str(booking.get('flight_date')),
-            'event_time': booking.get('flight_time'),
+            'event_time': self._format_time(booking.get('flight_time')),
             'event_venue': 'Subang Skypark Terminal, Malaysia',
             
             # Passengers

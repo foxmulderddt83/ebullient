@@ -1,4 +1,6 @@
 import express from 'express';
+import { createServer } from 'http';
+import { Server } from 'socket.io';
 import cors from 'cors';
 import makeWASocket, { DisconnectReason, fetchLatestBaileysVersion } from '@whiskeysockets/baileys';
 import { useSupabaseAuthState } from './supabase-auth.js';
@@ -17,7 +19,34 @@ if (!globalThis.crypto) {
 dotenv.config();
 
 const app = express();
+const httpServer = createServer(app);
+const io = new Server(httpServer, {
+    cors: {
+        origin: "*", // Adjust this to your frontend URL in production for security
+        methods: ["GET", "POST"]
+    }
+});
 const PORT = process.env.PORT || 8080;
+const API_AUTH_TOKEN = process.env.API_AUTH_TOKEN;
+
+if (!API_AUTH_TOKEN) {
+    console.warn('⚠️ API_AUTH_TOKEN not set! Backend endpoints are unprotected.');
+}
+
+// Middleware for token authentication
+const authenticateToken = (req, res, next) => {
+    // Skip auth for public health/status checks if needed, 
+    // but broadcast and message sending MUST be protected.
+    if (!API_AUTH_TOKEN) return next();
+
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.split(' ')[1];
+
+    if (!token || token !== API_AUTH_TOKEN) {
+        return res.status(401).json({ error: 'Unauthorized: Invalid or missing token' });
+    }
+    next();
+};
 
 // Supabase Setup
 const SUPABASE_URL = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.VITE_SUPABASE_URL;
@@ -48,9 +77,9 @@ if (SUPABASE_URL && SUPABASE_KEY) {
 
 // CORS - Allow Frontend
 app.use(cors({
-    origin: ['https://oneday-clone-main.vercel.app', 'https://onedaypilot.vercel.app', 'https://onedaypilot-clone.vercel.app', 'http://localhost:5173', 'http://localhost:3000'],
-    methods: ['GET', 'POST', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
+    origin: true, // Dynamically allow any origin that matches the whitelist or just allow all for debugging
+    methods: ['GET', 'POST', 'OPTIONS', 'PUT', 'PATCH', 'DELETE'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
     credentials: true
 }));
 
@@ -63,6 +92,7 @@ let qrCode = null;
 let heartbeatInterval;
 let realtimeChannel = null;
 let realtimeRetryTimeout = null;
+let realtimeHeartbeatInterval = null;
 let realtimeRetryDelay = 30000;
 
 // Heartbeat logic to prevent multiple instances conflict
@@ -118,8 +148,17 @@ async function connectToWhatsApp() {
             auth: state,
             printQRInTerminal: false,
             browser: ['OneDayPilot', 'Chrome', '121.0.0.0'],
-            connectTimeoutMs: 60000,
-            syncFullHistory: false // optimize startup
+            connectTimeoutMs: 120000, 
+            defaultQueryTimeoutMs: 120000, 
+            keepAliveIntervalMs: 20000,   
+            syncFullHistory: false, // optimize startup
+            markOnlineOnConnect: true,
+            retryRequestDelayMs: 5000,
+            linkPreviewImageThumbnailWidth: 192,
+            generateHighQualityLinkPreview: true,
+            // Additional optimizations for low-resource environments
+            shouldIgnoreJid: (jid) => jid.includes('@broadcast'), // Ignore status updates to save RAM/CPU
+            getMessage: async (key) => { return { noMessage: true }; } // Don't store messages in memory
         });
 
         sock.ev.on('creds.update', saveCreds);
@@ -163,7 +202,13 @@ async function connectToWhatsApp() {
                 // Start heartbeat
                 if (heartbeatInterval) clearInterval(heartbeatInterval);
                 updateHeartbeat();
-                heartbeatInterval = setInterval(updateHeartbeat, 30000); // 30s
+                heartbeatInterval = setInterval(async () => {
+                    updateHeartbeat();
+                    // Force status update in DB to ensure frontend sees it
+                    if (supabase) {
+                        await supabase.from('site_settings').upsert({ key: 'whatsapp_bot_status', value: 'connected' });
+                    }
+                }, 30000); // 30s
 
                 console.log('📱 Number:', sock.user?.id);
                 if (supabase) {
@@ -187,7 +232,26 @@ async function connectToWhatsApp() {
     }
 }
 
+// Socket.io connection handling
+io.on('connection', (socket) => {
+    console.log('🔌 New client connected to live updates');
+    socket.on('disconnect', () => {
+        console.log('🔌 Client disconnected from live updates');
+    });
+});
+
 // API Routes
+app.get('/', (req, res) => {
+    res.json({ status: 'ok', service: 'OneDayPilot API Gateway' });
+});
+
+app.post('/api/broadcast-update', authenticateToken, (req, res) => {
+    const { type, details } = req.body;
+    console.log(`📢 Broadcasting global update: ${type}`);
+    io.emit('site_data_updated', { type, details });
+    res.json({ status: 'broadcasted' });
+});
+
 app.get('/api/status', (req, res) => {
     res.json({ 
         connected: isConnected, 
@@ -200,7 +264,7 @@ app.get('/health', (req, res) => {
     res.json({ status: 'ok', message: 'Combined service is running' });
 });
 
-app.get('/api/qr', (req, res) => {
+app.get('/api/qr', authenticateToken, (req, res) => {
     if (isConnected) {
         return res.json({ connected: true, qr: null });
     }
@@ -213,60 +277,102 @@ app.get('/api/qr', (req, res) => {
 });
 
 // Proxy PDF generation and conversion requests to Python service on port 8081
-app.all(['/api/generate-*path', '/api/convert-pdf-to-html', '/api/generated-documents/*path'], async (req, res) => {
+const proxyHandler = async (req, res) => {
     try {
         const pythonUrl = `http://127.0.0.1:8081${req.originalUrl}`;
         console.log(`🔀 Proxying ${req.method} request to: ${pythonUrl}`);
         
+        // Prepare headers, removing problematic ones
+        const headers = { ...req.headers };
+        delete headers.host;
+        delete headers.connection;
+        delete headers['content-length']; // Let axios recalculate
+
         const axiosConfig = {
             method: req.method,
             url: pythonUrl,
-            data: req.body,
-            headers: {
-                'Content-Type': req.headers['content-type'] || 'application/json'
-            }
+            headers: headers,
+            maxContentLength: Infinity,
+            maxBodyLength: Infinity,
+            validateStatus: () => true,
+            responseType: 'stream'
         };
 
-        if (req.method === 'GET' && req.originalUrl.includes('generate')) {
-            axiosConfig.responseType = 'stream';
+        // For POST/PUT/PATCH, we need to handle the body
+        if (['POST', 'PUT', 'PATCH'].includes(req.method)) {
+            // If it's multipart/form-data, we pipe the raw request stream
+            if (req.headers['content-type']?.includes('multipart/form-data')) {
+                axiosConfig.data = req;
+            } else {
+                // For JSON/URLencoded, use the already parsed body
+                axiosConfig.data = req.body;
+                axiosConfig.responseType = 'json';
+            }
         }
 
         const response = await axios(axiosConfig);
-        
+
+        // Forward status code
+        res.status(response.status);
+
         // Forward headers
-        if (response.headers['content-type']) {
-            res.setHeader('Content-Type', response.headers['content-type']);
+        Object.entries(response.headers).forEach(([key, value]) => {
+            const lowerKey = key.toLowerCase();
+            // Don't forward hop-by-hop headers or CORS headers from Python (Node handles CORS)
+            if (!['transfer-encoding', 'connection', 'access-control-allow-origin', 'content-length'].includes(lowerKey)) {
+                res.setHeader(key, value);
+            }
+        });
+
+        // If Python returned an error as JSON but we expected a stream, handle it
+        if (response.status >= 400 && response.headers['content-type']?.includes('application/json')) {
+            let errorData = '';
+            for await (const chunk of response.data) {
+                errorData += chunk;
+            }
+            try {
+                res.send(JSON.parse(errorData));
+            } catch {
+                res.send(errorData);
+            }
+            return;
         }
 
-        if (axiosConfig.responseType === 'stream') {
-            response.data.pipe(res);
-        } else {
-            res.status(response.status).json(response.data);
-        }
+        response.data.pipe(res);
     } catch (error) {
         console.error('❌ Proxy Error:', error.message);
-        
-        // Don't try to stringify the whole error object, it may contain circular structures
         const status = error.response?.status || 500;
-        
-        // If the error response is a stream, we can't just pass it to res.json()
-        let errorDetails = error.message;
-        if (error.response?.data && typeof error.response.data.on === 'function') {
-            // It's a stream, we can't easily get the data here without consuming it
-            errorDetails = 'PDF Service Error (Stream Response)';
-        } else if (error.response?.data) {
-            errorDetails = error.response.data;
-        }
-
         res.status(status).json({ 
             error: 'PDF Service Error', 
-            details: errorDetails,
+            details: error.message,
             path: req.originalUrl
         });
     }
+};
+
+app.all(/^\/api\/generate/, authenticateToken, proxyHandler);
+app.all(/^\/api\/convert/, authenticateToken, proxyHandler);
+app.all(/^\/api\/direct/, authenticateToken, proxyHandler);
+app.all(/^\/api\/generated-documents/, authenticateToken, proxyHandler);
+
+app.post('/api/trigger-notification', authenticateToken, async (req, res) => {
+    try {
+        const { bookingId } = req.body;
+        if (!bookingId) {
+            return res.status(400).json({ success: false, error: 'bookingId is required' });
+        }
+        
+        console.log(`🚀 Manual trigger received for booking: ${bookingId}`);
+        // We don't await this so the API responds quickly, but the process continues
+        handleAutoNotification(bookingId);
+        
+        res.json({ success: true, message: 'Notification process triggered' });
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
 });
 
-app.post('/api/send-message', async (req, res) => {
+app.post('/api/send-message', authenticateToken, async (req, res) => {
     try {
         const { phone, message } = req.body;
         
@@ -293,7 +399,7 @@ app.post('/api/send-message', async (req, res) => {
     }
 });
 
-app.post('/api/send-whatsapp', async (req, res) => {
+app.post('/api/send-whatsapp', authenticateToken, async (req, res) => {
     try {
         const { phone, message, mediaUrls } = req.body;
         
@@ -356,8 +462,16 @@ app.post('/api/test-reminder', async (req, res) => {
             .or(`booking_id.eq.${bookingId},booking_reference.eq.${bookingId}`)
             .single();
 
-        if (bookingError || !booking) {
-            return res.status(404).json({ success: false, error: 'Booking not found' });
+        if (bookingError) {
+            console.error('❌ Supabase Read Error during Test Reminder:', bookingError.message);
+            return res.status(500).json({ 
+                success: false, 
+                error: `Supabase Read Error: ${bookingError.message}. Fly.io might not be able to read your database tables.` 
+            });
+        }
+
+        if (!booking) {
+            return res.status(404).json({ success: false, error: 'Booking not found in Supabase' });
         }
 
         const message = `Reminder: your event is tomorrow.\n\n${formatBookingDetailsText(booking)}`;
@@ -368,18 +482,22 @@ app.post('/api/test-reminder', async (req, res) => {
     }
 });
 
-app.post('/api/soft-reconnect', async (req, res) => {
+app.post('/api/soft-reconnect', authenticateToken, async (req, res) => {
     try {
-        if (!isConnected) {
+        console.log('🔄 Soft reconnect triggered');
+        if (sock) {
+            sock.end();
+            setTimeout(connectToWhatsApp, 1000);
+        } else {
             connectToWhatsApp();
         }
-        res.json({ success: true, message: 'Reconnection initiated' });
+        res.json({ success: true, message: 'Reconnection triggered' });
     } catch (error) {
         res.status(500).json({ success: false, error: error.message });
     }
 });
 
-app.post('/api/reset-session', async (req, res) => {
+app.post('/api/reset-session', authenticateToken, async (req, res) => {
     try {
         console.log('🔄 Resetting session requested...');
         
@@ -474,8 +592,13 @@ async function processQueue() {
                 }
                 const chatId = `${cleanPhone}@s.whatsapp.net`;
 
+                // Clean message: replace <br> with \n and strip other HTML
+                let message = notif.message || '';
+                message = message.replace(/<br\s*\/?>/gi, '\n')
+                                 .replace(/<[^>]*>?/gm, '');
+
                 // Send text message
-                await sock.sendMessage(chatId, { text: notif.message });
+                await sock.sendMessage(chatId, { text: message });
 
                 // Send PDFs if exist
                 if (notif.media_urls && Array.isArray(notif.media_urls)) {
@@ -660,7 +783,8 @@ async function sendEmailFromBackend(booking, templateId, pdfUrls) {
             '{booking.payment_type}': booking.payment_type || '',
             '{booking.amount_to_pay}': booking.payment_type === 'deposit' ? `RM ${booking.deposit_amount || 0}` : `RM ${booking.total_amount || 0}`,
             '{booking.flight_date}': booking.flight_date || '',
-            '{booking.flight_time}': booking.flight_time || '',
+            '{booking.flight_time}': formatFlightTime(booking.flight_time),
+            '{booking.flight_slot}': formatFlightTime(booking.flight_slot),
             '{package.name}': booking.booking_items?.[0]?.package?.name || '',
             '{package.description}': booking.booking_items?.[0]?.package?.description || '',
             '{package.price}': `RM ${booking.booking_items?.[0]?.package?.price || 0}`,
@@ -674,6 +798,7 @@ async function sendEmailFromBackend(booking, templateId, pdfUrls) {
             '{paid_amount}': `RM ${booking.paid_amount || 0}`,
             '{deposit_amount}': `RM ${booking.deposit_amount || 0}`,
             '{payment_type}': booking.payment_type || '',
+            '{flight_time}': formatFlightTime(booking.flight_time),
             '{amount_to_pay}': booking.payment_type === 'deposit' ? `RM ${booking.deposit_amount || 0}` : `RM ${booking.total_amount || 0}`
         };
 
@@ -741,6 +866,10 @@ async function sendWhatsAppFromBackend(booking, templateMessage, pdfUrls) {
             message = message.split(k).join(v);
         });
 
+        // Strip HTML tags (like <br>, <div>) from WhatsApp messages to keep them as plain text
+        message = message.replace(/<br\s*\/?>/gi, '\n') // Replace <br> with newlines
+                        .replace(/<[^>]*>?/gm, '');     // Remove all other HTML tags
+
         let cleanPhone = booking.customer.phone.replace(/[\s\-\+]/g, '');
         if (!cleanPhone.startsWith('60') && cleanPhone.length < 11) {
             cleanPhone = '60' + cleanPhone;
@@ -774,6 +903,26 @@ function formatAmount(amount) {
     return `RM ${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
+function formatFlightTime(time) {
+  if (!time) return "TBD";
+  const timeStr = String(time);
+  if (timeStr.toLowerCase().includes('am') || timeStr.toLowerCase().includes('pm')) {
+    return timeStr.toUpperCase();
+  }
+  try {
+    if (!timeStr.includes(':')) return timeStr.toUpperCase();
+    const parts = timeStr.split(':');
+    const h = parseInt(parts[0], 10);
+    const m = parts[1] || '00';
+    if (isNaN(h)) return timeStr.toUpperCase();
+    const ampm = h >= 12 ? 'PM' : 'AM';
+    const h12 = h % 12 || 12;
+    return `${h12}:${m.substring(0, 2).padStart(2, '0')} ${ampm}`;
+  } catch (error) {
+    return timeStr.toUpperCase();
+  }
+}
+
 function formatBookingDetailsText(booking) {
     const items = (booking.booking_items || [])
         .map((item) => {
@@ -790,7 +939,7 @@ function formatBookingDetailsText(booking) {
         `Name: ${booking.customer?.name || ''}`,
         `Phone: ${booking.customer?.phone || ''}`,
         `Date: ${booking.flight_date || ''}`,
-        `Time: ${booking.flight_time || ''}`,
+        `Time: ${formatFlightTime(booking.flight_time)}`,
         `Payment Type: ${booking.payment_type || ''}`,
         `Amount: ${formatAmount(amountToPay)}`
     ];
@@ -912,7 +1061,7 @@ async function handleReminderNotifications() {
 function setupRealtimeListener() {
     if (!supabase) return;
 
-    console.log('📡 Setting up Supabase Realtime listener for bookings...');
+    console.log('📡 Setting up Database Realtime listener (DB-LISTENER) for bookings...');
 
     if (realtimeChannel) {
         try {
@@ -925,6 +1074,11 @@ function setupRealtimeListener() {
     if (realtimeRetryTimeout) {
         clearTimeout(realtimeRetryTimeout);
         realtimeRetryTimeout = null;
+    }
+    
+    if (realtimeHeartbeatInterval) {
+        clearInterval(realtimeHeartbeatInterval);
+        realtimeHeartbeatInterval = null;
     }
 
     realtimeChannel = supabase
@@ -952,17 +1106,45 @@ function setupRealtimeListener() {
 
     realtimeChannel.subscribe((status, err) => {
         console.log(`[REALTIME] 📡 Subscription status: ${status}`);
-        if (err) console.error(`[REALTIME] ❌ Subscription error:`, err.message);
+        if (err) {
+            console.error(`[REALTIME] ❌ Subscription error:`, err.message);
+            console.error(`[REALTIME] 🔍 Error details:`, JSON.stringify(err));
+        }
 
         if (status === 'SUBSCRIBED') {
-            realtimeRetryDelay = 30000;
+            console.log('✅ Supabase Realtime Subscribed successfully');
+            realtimeRetryDelay = 10000; // Reset to 10s on success
+            
+            // Set up a heartbeat to keep the WebSocket connection alive on Fly.io
+            if (!realtimeHeartbeatInterval) {
+                realtimeHeartbeatInterval = setInterval(() => {
+                    if (realtimeChannel && status === 'SUBSCRIBED') {
+                        realtimeChannel.send({
+                            type: 'broadcast',
+                            event: 'heartbeat',
+                            payload: { ts: Date.now() }
+                        }).catch(e => console.warn('[REALTIME] Heartbeat send failed:', e.message));
+                    }
+                }, 25000); // Every 25s
+            }
         }
 
         if (status === 'TIMED_OUT' || status === 'CHANNEL_ERROR' || status === 'CLOSED') {
-            console.log(`[REALTIME] ⏳ Retrying in ${Math.floor(realtimeRetryDelay / 1000)} seconds...`);
+            const nextRetry = Math.floor(realtimeRetryDelay / 1000);
+            console.log(`[DB-LISTENER] ⚠️ Connection ${status}. Retrying in ${nextRetry} seconds...`);
+            console.log(`[DB-LISTENER] 💡 Note: WhatsApp is still ${isConnected ? 'CONNECTED' : 'DISCONNECTED'}. Bot can still send messages via API.`);
+            
+            if (realtimeHeartbeatInterval) {
+                clearInterval(realtimeHeartbeatInterval);
+                realtimeHeartbeatInterval = null;
+            }
+
             const delay = realtimeRetryDelay;
-            realtimeRetryDelay = Math.min(realtimeRetryDelay * 2, 300000);
+            // Cap retry at 120 seconds for DB listener to avoid spamming
+            realtimeRetryDelay = Math.min(realtimeRetryDelay * 1.5, 120000); 
+            
             realtimeRetryTimeout = setTimeout(() => {
+                console.log('[DB-LISTENER] 🔄 Executing scheduled retry for database updates...');
                 setupRealtimeListener();
             }, delay);
         }
@@ -978,13 +1160,43 @@ process.on('unhandledRejection', (reason, promise) => {
     console.error('💥 UNHANDLED REJECTION at:', promise, 'reason:', reason);
 });
 
+async function cancelExpiredBookings() {
+    if (!supabase) return;
+    try {
+        // Find pending bookings older than 15 minutes
+        const fifteenMinsAgo = new Date(Date.now() - 15 * 60 * 1000).toISOString();
+        
+        const { data, error } = await supabase
+            .from('bookings')
+            .update({ status: 'cancelled' })
+            .in('status', ['pending', 'pending_verification'])
+            .eq('payment_status', 'unpaid')
+            .neq('payment_method', 'qr_pay') // Exclude manual QR Pay from auto-cancellation
+            .lt('created_at', fifteenMinsAgo)
+            .select('booking_id');
+            
+        if (error) {
+            console.error('Error auto-cancelling bookings:', error);
+        } else if (data && data.length > 0) {
+            console.log(`Auto-cancelled ${data.length} expired bookings.`);
+        }
+    } catch (e) {
+        console.error('Failed to run cancelExpiredBookings:', e);
+    }
+}
+
 // Run queue every 30 seconds
 setInterval(processQueue, 30000);
 setInterval(handleReminderNotifications, 3600000);
+setInterval(cancelExpiredBookings, 60000); // Check every minute
 
 // Start server
-app.listen(PORT, '0.0.0.0', () => {
-    console.log(`🚀 Server running on port ${PORT}`);
+console.log('🏁 Starting Combined Node.js + WhatsApp Service...');
+console.log('PORT:', PORT);
+console.log('SUPABASE_URL:', SUPABASE_URL ? 'PRESENT' : 'MISSING');
+
+httpServer.listen(PORT, '0.0.0.0', () => {
+    console.log(`🚀 Node.js server listening on 0.0.0.0:${PORT} with Socket.io enabled`);
     connectToWhatsApp();
     setupRealtimeListener();
     handleReminderNotifications();

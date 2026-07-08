@@ -8,6 +8,25 @@ const corsHeaders = {
   'Access-Control-Max-Age': '86400',
 };
 
+const formatFlightTime = (time: string | null | undefined) => {
+  if (!time) return "TBD";
+  if (time.toLowerCase().includes('am') || time.toLowerCase().includes('pm')) {
+    return time.toUpperCase();
+  }
+  try {
+    if (!time.includes(':')) return time.toUpperCase();
+    const parts = time.split(':');
+    const h = parseInt(parts[0], 10);
+    const m = parts[1] || '00';
+    if (isNaN(h)) return time.toUpperCase();
+    const ampm = h >= 12 ? 'PM' : 'AM';
+    const h12 = h % 12 || 12;
+    return `${h12}:${m.substring(0, 2).padStart(2, '0')} ${ampm}`;
+  } catch (error) {
+    return time.toUpperCase();
+  }
+};
+
 serve(async (req: Request) => {
   console.log(`Incoming ${req.method} request to send-booking-notification`);
   
@@ -20,6 +39,16 @@ serve(async (req: Request) => {
   }
 
   try {
+    const authHeader = req.headers.get('Authorization');
+    const apiToken = Deno.env.get('API_AUTH_TOKEN');
+    
+    if (apiToken && (!authHeader || authHeader !== `Bearer ${apiToken}`)) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL')!,
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
@@ -99,7 +128,10 @@ serve(async (req: Request) => {
       
       message += `\n*Booking Details:*\n`;
       message += `Flight Date: ${booking.flight_date || 'N/A'}\n`;
-      message += `Time: ${booking.flight_time || 'N/A'}\n`;
+      message += `Time: ${formatFlightTime(booking.flight_time)}\n`;
+      if (booking.flight_slot) {
+        message += `Slot: ${formatFlightTime(booking.flight_slot)}\n`;
+      }
       
       if (booking.items && booking.items.length > 0) {
         message += `\n*Packages & Add-ons:*\n`;

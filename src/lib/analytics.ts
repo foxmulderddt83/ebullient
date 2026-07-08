@@ -2,10 +2,11 @@ import { supabase } from './supabase';
 
 export interface AnalyticsEvent {
   action_type: 'click' | 'view' | 'session_start' | 'session_end' | 'custom';
-  entity_type: 'video' | 'experience' | 'hero_slide' | 'feature' | 'page' | 'dynamic_panel' | 'custom';
+  entity_type: 'video' | 'experience' | 'hero_slide' | 'feature' | 'page' | 'dynamic_panel' | 'custom' | 'booking_step' | 'package' | 'service';
   entity_id: string;
   entity_name?: string;
   details?: any;
+  source?: 'BookingWizard' | 'FlightPackagesSection' | 'Checkout' | 'AddonsSelection' | 'ServicesSection';
 }
 
 // Simple device detection
@@ -36,6 +37,12 @@ const getBrowser = () => {
 let sessionInitialized = false;
 
 export const trackEvent = async (event: AnalyticsEvent) => {
+  // Only track events from allowed sources or session events
+  const allowedSources = ['BookingWizard', 'FlightPackagesSection', 'Checkout', 'AddonsSelection', 'ServicesSection'];
+  if (event.action_type !== 'session_start' && event.action_type !== 'session_end' && (!event.source || !allowedSources.includes(event.source))) {
+    return;
+  }
+
   try {
     // Get or create session ID
     let sessionId = sessionStorage.getItem('analytics_session_id');
@@ -59,16 +66,20 @@ export const trackEvent = async (event: AnalyticsEvent) => {
 
     // Get IP and Location info (only once per session ideally, but for simplicity we fetch or cache)
     let ipData = JSON.parse(sessionStorage.getItem('analytics_ip_data') || '{}');
+    const fetchFailed = sessionStorage.getItem('analytics_ip_fetch_failed') === 'true';
     
-    if (!ipData.ip) {
+    if (!ipData.ip && !fetchFailed) {
       try {
         const response = await fetch('https://ipapi.co/json/');
         if (response.ok) {
           ipData = await response.json();
           sessionStorage.setItem('analytics_ip_data', JSON.stringify(ipData));
+        } else {
+          sessionStorage.setItem('analytics_ip_fetch_failed', 'true');
         }
       } catch (e) {
         console.warn('Failed to fetch IP data', e);
+        sessionStorage.setItem('analytics_ip_fetch_failed', 'true');
       }
     }
 
@@ -80,6 +91,7 @@ export const trackEvent = async (event: AnalyticsEvent) => {
       entity_name: event.entity_name || event.entity_id,
       ip_address: ipData.ip || 'unknown',
       country: ipData.country_name || 'unknown',
+      region: ipData.region || 'unknown',
       city: ipData.city || 'unknown',
       device_type: getDeviceType(),
       browser: getBrowser(),

@@ -6,7 +6,6 @@ import { ShoppingCart, Trash2, Plus, Minus, CornerDownRight } from "lucide-react
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useNavigate, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { trackEvent } from "@/lib/analytics";
 
 export const FloatingCart = () => {
   const { items, removeItem, updateQuantity, total, isOpen, setIsOpen } = useCart();
@@ -62,32 +61,32 @@ export const FloatingCart = () => {
   if (items.length === 0 || location.pathname !== "/") return null;
 
   return (
-    <div className="fixed bottom-20 right-6 z-50">
+    <div className="fixed bottom-24 right-6 z-50">
       <Sheet open={isOpen} onOpenChange={setIsOpen}>
         <SheetTrigger asChild>
           <Button 
             size="lg" 
-            className="rounded-full h-12 w-12 transition-all duration-300 hover:scale-110 active:scale-95 group border border-black bg-primary hover:bg-primary/90 shadow-[0_0_20px_rgba(var(--primary-rgb),0.5),0_0_40px_rgba(var(--primary-rgb),0.2)]"
+            className="rounded-full h-9 w-9 md:h-12 md:w-12 transition-all duration-300 hover:scale-110 active:scale-95 group border border-black bg-primary hover:bg-primary/90 shadow-[0_0_20px_rgba(var(--primary-rgb),0.5),0_0_40px_rgba(var(--primary-rgb),0.2)]"
           >
-            <ShoppingCart className="w-6 h-6 text-primary-foreground group-hover:rotate-12 transition-transform" />
-            <span className="absolute -top-1 -right-1 bg-destructive text-destructive-foreground rounded-full w-5 h-5 flex items-center justify-center text-[10px] font-bold border-2 border-background shadow-lg z-10">
+            <ShoppingCart className="w-4 h-4 md:w-6 md:h-6 text-primary-foreground group-hover:rotate-12 transition-transform" />
+            <span className="absolute -top-0.5 -right-0.5 bg-destructive text-destructive-foreground rounded-full w-3.5 h-3.5 md:w-5 md:h-5 flex items-center justify-center text-[8px] md:text-[10px] font-bold border-2 border-background shadow-lg z-10">
               {items.reduce((acc, item) => acc + item.quantity, 0)}
             </span>
-            <span className="absolute -top-0.5 -right-0.5 flex h-3 w-3 z-20">
+            <span className="absolute -top-0.5 -right-0.5 flex h-2.5 w-2.5 z-20">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-3 w-3 bg-white border-2 border-primary"></span>
+              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-white border-2 border-primary"></span>
             </span>
             <span className="absolute inset-0 rounded-full border-2 border-white/30 animate-pulse pointer-events-none" />
           </Button>
         </SheetTrigger>
-        <SheetContent className="w-full sm:w-[400px] flex flex-col">
-          <SheetHeader>
-            <SheetTitle className="flex items-center gap-2">
-              <ShoppingCart className="w-5 h-5" /> Your Cart
+        <SheetContent className="w-[300px] sm:w-[400px] flex flex-col p-4 md:p-6">
+          <SheetHeader className="mb-2 md:mb-4">
+            <SheetTitle className="flex items-center gap-2 text-base md:text-lg">
+              <ShoppingCart className="w-4 h-4 md:w-5 md:h-5" /> Your Cart
             </SheetTitle>
           </SheetHeader>
           
-          <ScrollArea className="flex-1 -mx-6 px-6 my-4">
+          <ScrollArea className="flex-1 -mx-4 px-4 md:-mx-6 md:px-6 my-2 md:my-4">
             <div className="space-y-4">
               <AnimatePresence>
                 {allDisplayItems.map((rootItem) => (
@@ -106,22 +105,23 @@ export const FloatingCart = () => {
                           animate={{ scale: 1 }}
                           src={rootItem.image_url} 
                           alt={rootItem.name} 
-                          className="w-16 h-16 object-cover rounded-md" 
+                          className="w-16 h-16 sm:w-24 sm:h-24 object-cover rounded-md" 
                         />
                       )}
                       <div className="flex-1">
-                        <h4 className="font-bold text-sm line-clamp-2 uppercase">{rootItem.name}</h4>
-                        <p className="text-sm font-bold text-primary mt-1">RM {rootItem.price}</p>
+                        <div className="text-[8px] md:text-[9px] font-black uppercase tracking-widest text-[#CC1F1F]/60 mb-0.5">{rootItem.category_name || "Package"}</div>
+                        <h4 className="font-bold text-xs md:text-sm line-clamp-2 uppercase">{rootItem.name}</h4>
+                        <p className="text-xs md:text-sm font-bold text-primary mt-1">RM {rootItem.price}</p>
                         <div className="flex items-center gap-2 mt-2">
-                          <Button variant="secondary" size="icon" className="h-6 w-6 border-slate-200 shadow-sm" onClick={() => updateQuantity(rootItem.id, rootItem.quantity - 1, rootItem.sort_order)}>
-                            <Minus className="w-3 h-3" />
+                          <Button variant="secondary" size="icon" className="h-5 w-5 md:h-6 md:w-6 border-slate-200 shadow-sm" onClick={() => updateQuantity(rootItem.id, rootItem.quantity - 1, rootItem.sort_order)}>
+                            <Minus className="w-2.5 h-2.5 md:w-3 md:h-3" />
                           </Button>
-                          <span className="text-sm w-4 text-center">{rootItem.quantity}</span>
-                          <Button variant="secondary" size="icon" className="h-6 w-6 border-slate-200 shadow-sm" onClick={() => updateQuantity(rootItem.id, rootItem.quantity + 1, rootItem.sort_order)}>
-                            <Plus className="w-3 h-3" />
+                          <span className="text-xs md:text-sm w-4 text-center">{rootItem.quantity}</span>
+                          <Button variant="secondary" size="icon" className="h-5 w-5 md:h-6 md:w-6 border-slate-200 shadow-sm" onClick={() => updateQuantity(rootItem.id, rootItem.quantity + 1, rootItem.sort_order)}>
+                            <Plus className="w-2.5 h-2.5 md:w-3 md:h-3" />
                           </Button>
-                          <Button variant="ghost" size="icon" className="h-6 w-6 ml-auto text-muted-foreground hover:text-destructive" onClick={() => removeItem(rootItem.id, rootItem.sort_order)}>
-                            <Trash2 className="w-3 h-3" />
+                          <Button variant="ghost" size="icon" className="h-5 w-5 md:h-6 md:w-6 ml-auto text-muted-foreground hover:text-destructive" onClick={() => removeItem(rootItem.id, rootItem.sort_order)}>
+                            <Trash2 className="w-2.5 h-2.5 md:w-3 md:h-3" />
                           </Button>
                         </div>
                       </div>
@@ -137,7 +137,17 @@ export const FloatingCart = () => {
                           className="flex gap-3 py-2 pl-8 border-b border-dashed border-black bg-slate-50/50"
                         >
                           <CornerDownRight className="w-4 h-4 text-slate-400 mt-1 shrink-0" />
+                          {addon.image_url && (
+                            <motion.img 
+                              initial={{ scale: 0.8 }}
+                              animate={{ scale: 1 }}
+                              src={addon.image_url} 
+                              alt={addon.name} 
+                              className="w-12 h-12 sm:w-16 sm:h-16 object-cover rounded-md shrink-0" 
+                            />
+                          )}
                           <div className="flex-1">
+                            <div className="text-[8px] font-black uppercase tracking-widest text-slate-400 mb-0.5">{addon.category_name || "Add-on"}</div>
                             <h5 className="text-xs font-medium text-slate-600">{addon.name}</h5>
                             <div className="flex items-center justify-between mt-1">
                               <p className="text-xs font-bold text-primary">RM {addon.price}</p>

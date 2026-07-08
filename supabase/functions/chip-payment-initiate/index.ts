@@ -388,6 +388,8 @@ serve(async (req: Request) => {
           total: amountInCents,
           currency: 'MYR',
           products: products,
+          due_strict: true,
+          due: Math.floor(Date.now() / 1000) + (15 * 60) // 15 minutes from now
         },
         reference: referenceId,
         webhook_url: `${apiUrl}/functions/v1/chip-webhook`,

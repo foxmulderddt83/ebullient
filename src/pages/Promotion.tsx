@@ -21,62 +21,95 @@ type PromotionItem = {
   offer_percentage?: number;
 };
 
+const resolveImageUrl = (url: string | null | undefined) => {
+  if (!url) return "";
+  if (url.startsWith("http") || url.startsWith("/") || url.startsWith("data:")) {
+    return url;
+  }
+  if (!supabase) return url;
+  return supabase.storage.from("media").getPublicUrl(url).data.publicUrl;
+};
+
 const Promotion = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const type = searchParams.get("type"); // 'package', 'event', 'category'
   const id = searchParams.get("id");
   const [item, setItem] = useState<PromotionItem | null>(null);
+  const [eventLinkId, setEventLinkId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [timeLeft, setTimeLeft] = useState<string>("");
 
   useEffect(() => {
     const fetchPromotion = async () => {
-      if (!id || !type) return;
+      if (!id || !type) {
+        setLoading(false);
+        return;
+      }
 
-      let data;
+      if (!supabase) {
+        setLoading(false);
+        return;
+      }
+
       let promotionItem: PromotionItem | null = null;
 
-      if (type === 'package') {
+      if (type === "package") {
         const { data: pkg } = await supabase
-          .from('packages')
-          .select('*')
-          .eq('id', id)
-          .single();
-        
+          .from("packages")
+          .select("*")
+          .eq("id", id)
+          .maybeSingle();
+
         if (pkg) {
           promotionItem = {
             id: pkg.id,
-            type: 'package',
+            type: "package",
             name: pkg.name,
             description: pkg.description,
             price: pkg.price,
             promotion_price: pkg.promotion_price,
             promotion_start_at: pkg.promotion_start_at,
             promotion_end_at: pkg.promotion_end_at,
-            image_url: pkg.image_url,
-            original_price: pkg.price
+            image_url: resolveImageUrl(pkg.image_url),
+            original_price: pkg.price,
           };
         }
-      } else if (type === 'event') {
-        const { data: evt } = await supabase
-          .from('events')
-          .select('*')
-          .eq('id', id)
-          .single();
-          
+      } else if (type === "event") {
+        let evt = null;
+        const { data: byManualId } = await supabase
+          .from("events")
+          .select("*")
+          .eq("event_id", id)
+          .maybeSingle();
+
+        if (byManualId) {
+          evt = byManualId;
+        } else {
+          const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+          if (isUuid) {
+            const { data: byUuid } = await supabase
+              .from("events")
+              .select("*")
+              .eq("id", id)
+              .maybeSingle();
+            evt = byUuid;
+          }
+        }
+
         if (evt) {
+          setEventLinkId(evt.event_id || evt.id);
           promotionItem = {
             id: evt.id,
-            type: 'event',
+            type: "event",
             name: evt.name,
             description: evt.event_description,
             price: evt.price,
             promotion_price: evt.promotion_price,
             promotion_start_at: evt.promotion_start_at,
             promotion_end_at: evt.promotion_end_at,
-            image_url: evt.event_image_url,
-            original_price: evt.price
+            image_url: resolveImageUrl(evt.event_image_url),
+            original_price: evt.price,
           };
         }
       }
@@ -125,14 +158,14 @@ const Promotion = () => {
     <div className="min-h-screen bg-slate-50">
       <Header />
       <main className="pt-24 pb-12 px-4">
-          <div className="container mx-auto max-w-4xl">
-            {/* Space for fixed button */}
-            <div className="h-16 mb-6"></div>
+        <div className="container mx-auto max-w-4xl">
+          {/* Space for fixed button */}
+          <div className="h-16 mb-6"></div>
           {/* Back Button */}
           <div className="fixed top-20 left-4 z-40 md:top-24 md:left-8">
             <Link to="/">
-              <Button 
-                variant="outline" 
+              <Button
+                variant="outline"
                 className="gap-2 px-4 py-3 sm:px-6 sm:py-6 rounded-2xl border-2 border-slate-900 text-slate-900 hover:bg-slate-900 hover:text-white transition-all duration-300 font-black uppercase tracking-tighter shadow-lg active:scale-95 group bg-white/80 backdrop-blur-md"
               >
                 <ArrowLeft className="h-4 w-4 sm:h-5 sm:w-5 transition-transform group-hover:-translate-x-2" />
@@ -142,17 +175,17 @@ const Promotion = () => {
           </div>
 
           <div className="bg-white rounded-[2.5rem] shadow-xl overflow-hidden border border-black/5">
-            <div className="relative h-64 sm:h-96">
-              <img 
-                src={item.image_url || "/placeholder.svg"} 
+            <div className="relative h-80 sm:h-[30rem]">
+              <img
+                src={item.image_url || "/placeholder.svg"}
                 alt={item.name}
                 className="w-full h-full object-cover"
               />
               <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
               <div className="absolute bottom-0 left-0 p-6 sm:p-10 text-white">
-                <div className="inline-flex items-center gap-2 bg-primary px-3 py-1 rounded-full mb-3 shadow-lg shadow-primary/20">
-                  <Clock className="w-3.5 h-3.5" />
-                  <span className="text-[10px] font-black uppercase tracking-widest">Limited Time Offer</span>
+                <div className="inline-flex items-center gap-2 bg-primary px-4 py-2 rounded-full mb-3 shadow-lg shadow-primary/20">
+                  <Clock className="w-5 h-5" />
+                  <span className="text-[12px] font-black uppercase tracking-widest">Limited Time Offer</span>
                 </div>
                 <h1 className="text-3xl sm:text-5xl font-black uppercase tracking-tight mb-2">{item.name}</h1>
                 <p className="text-white/90 font-medium max-w-xl">{item.description}</p>
@@ -186,23 +219,23 @@ const Promotion = () => {
                 <div className="prose prose-sm">
                   <h3 className="text-xs font-black uppercase tracking-widest text-slate-900 mb-4">About this Deal</h3>
                   <p className="text-slate-600 leading-relaxed">
-                    Grab this exclusive offer now! Book before the timer runs out to secure this special rate. 
+                    Grab this exclusive offer now! Book before the timer runs out to secure this special rate.
                     Terms and conditions apply.
                   </p>
                 </div>
 
-                <Button 
+                <Button
                   size="lg"
                   className="w-full h-14 text-sm font-black uppercase tracking-widest rounded-xl bg-primary hover:bg-primary/90 shadow-xl shadow-primary/20 transition-all active:scale-[0.98]"
                   onClick={() => {
-                     if (item.type === 'package') {
-                       // Logic to add to trip or view package
-                       // For now, redirect to booking wizard or home with package selected?
-                       // User said "add to trip" - maybe just go to home and open wizard?
-                       navigate(`/?package=${item.id}`);
-                     } else {
-                       navigate(`/event?eid=${item.id}`);
-                     }
+                    if (item.type === 'package') {
+                      // Logic to add to trip or view package
+                      // For now, redirect to booking wizard or home with package selected?
+                      // User said "add to trip" - maybe just go to home and open wizard?
+                      navigate(`/?package=${item.id}`);
+                    } else {
+                      navigate(`/event?eid=${eventLinkId || item.id}`);
+                    }
                   }}
                 >
                   <ShoppingBag className="w-4 h-4 mr-2" /> Book Now

@@ -70,27 +70,24 @@ export const EventTemplateBuilder = ({ initialData, onSave, basePrice, promoPric
   // Sync external prices to payment_amount
   useEffect(() => {
     if (basePrice !== undefined || promoPrice !== undefined) {
-      setConfig(prev => {
-        const pReq = prev.fieldsConfig['payment_required'];
-        if (pReq) {
-          const newAmount = (promoPrice && promoPrice > 0) ? promoPrice : (basePrice || 0);
-          if (pReq.payment_amount !== newAmount) {
-            const newConfig = {
-              ...prev,
-              fieldsConfig: {
-                ...prev.fieldsConfig,
-                'payment_required': {
-                  ...pReq,
-                  payment_amount: newAmount
-                }
+      const pReq = config.fieldsConfig['payment_required'];
+      if (pReq) {
+        const newAmount = (promoPrice && promoPrice > 0) ? promoPrice : (basePrice || 0);
+        if (pReq.payment_amount !== newAmount) {
+          const newConfig = {
+            ...config,
+            fieldsConfig: {
+              ...config.fieldsConfig,
+              'payment_required': {
+                ...pReq,
+                payment_amount: newAmount
               }
-            };
-            onSave(JSON.stringify(newConfig));
-            return newConfig;
-          }
+            }
+          };
+          setConfig(newConfig);
+          onSave(JSON.stringify(newConfig));
         }
-        return prev;
-      });
+      }
     }
   }, [basePrice, promoPrice, onSave]);
 
@@ -199,11 +196,11 @@ export const EventTemplateBuilder = ({ initialData, onSave, basePrice, promoPric
   };
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-6 font-sans">
       <Tabs defaultValue="editor" className="w-full lg:hidden">
-        <TabsList className="grid w-full grid-cols-2 mb-6 border border-black p-1 h-11 bg-white/50 backdrop-blur-md rounded-xl shadow-xl shadow-primary/5">
-          <TabsTrigger value="editor" className="data-[state=active]:bg-white data-[state=active]:text-primary data-[state=active]:shadow-lg rounded-xl flex items-center justify-center gap-2 font-black text-[11px] sm:text-xs uppercase tracking-widest transition-all h-11">Editor</TabsTrigger>
-          <TabsTrigger value="preview" className="data-[state=active]:bg-white data-[state=active]:text-primary data-[state=active]:shadow-lg rounded-xl flex items-center justify-center gap-2 font-black text-[11px] sm:text-xs uppercase tracking-widest transition-all h-11">Live Preview</TabsTrigger>
+        <TabsList className="grid w-full grid-cols-2 mb-6 border border-black p-1 h-11 bg-white/50 backdrop-blur-md rounded-xl shadow-xl shadow-slate-200/50">
+          <TabsTrigger value="editor" className="data-[state=active]:bg-white data-[state=active]:text-slate-600 data-[state=active]:shadow-lg rounded-xl flex items-center justify-center gap-2 font-bold font-sans text-[11px] sm:text-xs uppercase tracking-tight transition-all h-11">Editor</TabsTrigger>
+          <TabsTrigger value="preview" className="data-[state=active]:bg-white data-[state=active]:text-slate-600 data-[state=active]:shadow-lg rounded-xl flex items-center justify-center gap-2 font-bold font-sans text-[11px] sm:text-xs uppercase tracking-tight transition-all h-11">Live Preview</TabsTrigger>
         </TabsList>
         <TabsContent value="editor" className="mt-4 space-y-4">
           <EditorSection 
@@ -278,8 +275,8 @@ const EditorSection = ({
 }: SectionProps) => (
   <Tabs defaultValue="structure" className="flex-1 flex flex-col overflow-hidden">
     <TabsList className="w-full justify-start overflow-x-auto bg-slate-100/50 p-1.5 rounded-xl border border-black h-11 shrink-0">
-      <TabsTrigger value="structure" className="rounded-xl px-4 py-2 text-[11px] sm:text-xs font-bold uppercase tracking-wider data-[state=active]:bg-white data-[state=active]:text-primary data-[state=active]:shadow-sm transition-all h-full">Steps & Fields</TabsTrigger>
-      <TabsTrigger value="labels" className="rounded-xl px-4 py-2 text-[11px] sm:text-xs font-bold uppercase tracking-wider data-[state=active]:bg-primary data-[state=active]:text-white data-[state=active]:shadow-md transition-all h-full">Labels & Config</TabsTrigger>
+      <TabsTrigger value="structure" className="rounded-xl px-4 py-2 text-[11px] sm:text-xs font-bold uppercase tracking-tight data-[state=active]:bg-white data-[state=active]:text-slate-600 data-[state=active]:shadow-sm transition-all h-full">Steps & Fields</TabsTrigger>
+      <TabsTrigger value="labels" className="rounded-xl px-4 py-2 text-[11px] sm:text-xs font-bold uppercase tracking-tight data-[state=active]:bg-slate-700 data-[state=active]:text-white data-[state=active]:shadow-md transition-all h-full">Labels & Config</TabsTrigger>
     </TabsList>
     
     <TabsContent value="structure" className="flex-1 lg:overflow-y-auto pr-0 lg:pr-2 space-y-5 mt-4 pb-6">
@@ -290,7 +287,7 @@ const EditorSection = ({
               <Button 
                 variant="ghost" 
                 size="icon" 
-                className="h-12 w-12 md:h-10 md:w-10 bg-white border border-black rounded-2xl hover:text-primary hover:bg-primary/5 shadow-sm" 
+                className="h-12 w-12 md:h-10 md:w-10 bg-white border border-black rounded-2xl hover:text-slate-600 hover:bg-slate-50 shadow-sm" 
                 onClick={() => moveStep(index, 'up')} 
                 disabled={index === 0}
               >
@@ -299,7 +296,7 @@ const EditorSection = ({
               <Button 
                 variant="ghost" 
                 size="icon" 
-                className="h-12 w-12 md:h-10 md:w-10 bg-white border border-black rounded-2xl hover:text-primary hover:bg-primary/5 shadow-sm" 
+                className="h-12 w-12 md:h-10 md:w-10 bg-white border border-black rounded-2xl hover:text-slate-600 hover:bg-slate-50 shadow-sm" 
                 onClick={() => moveStep(index, 'down')} 
                 disabled={index === config.steps.length - 1}
               >
@@ -307,11 +304,11 @@ const EditorSection = ({
               </Button>
             </div>
             <div className="flex-1 space-y-1.5">
-              <label className="text-[11px] sm:text-xs font-bold uppercase tracking-wider text-slate-900 ml-1">Step {index + 1} Title</label>
+              <label className="text-[11px] sm:text-xs font-bold uppercase tracking-tight text-slate-900 ml-1">Step {index + 1} Title</label>
               <Input 
                 value={step.title} 
                 onChange={(e) => updateStep(index, "title", e.target.value)}
-                className="h-16 sm:h-14 text-sm border-black rounded-2xl focus:ring-2 focus:ring-primary bg-white"
+                className="h-16 sm:h-14 text-sm border-black rounded-2xl focus:ring-2 focus:ring-indigo-100 bg-white"
                 placeholder="e.g. Personal Details"
               />
             </div>
@@ -325,24 +322,24 @@ const EditorSection = ({
             </Button>
           </CardHeader>
           <CardContent className="p-6 pt-6">
-            <label className="text-[11px] sm:text-xs font-bold uppercase tracking-wider text-slate-900 mb-4 block ml-1">Included Fields</label>
+            <label className="text-[11px] sm:text-xs font-bold uppercase tracking-tight text-slate-900 mb-4 block ml-1">Included Fields</label>
             <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-2 gap-4">
               {AVAILABLE_FIELDS.map(field => (
                 <div 
                   key={field.id} 
-                  className={`flex items-center space-x-3 p-4 rounded-2xl transition-all cursor-pointer ${step.fields.includes(field.id) ? 'bg-primary/5/50 shadow-sm' : 'bg-white hover:bg-slate-50'}`}
+                  className={`flex items-center space-x-3 p-4 rounded-2xl transition-all cursor-pointer ${step.fields.includes(field.id) ? 'bg-slate-50/50 shadow-sm' : 'bg-white hover:bg-slate-50'}`}
                   onClick={() => toggleField(index, field.id)}
                 >
                   <Checkbox 
                       id={`step-${step.id}-${field.id}`} 
                       checked={step.fields.includes(field.id)}
                       onCheckedChange={() => toggleField(index, field.id)}
-                      className="h-6 w-6 border-black data-[state=checked]:bg-primary data-[state=checked]:border-primary rounded-md"
+                      className="h-6 w-6 border-black data-[state=checked]:bg-slate-700 data-[state=checked]:border-slate-700 rounded-md"
                       onClick={(e) => e.stopPropagation()}
                     />
                   <label 
                     htmlFor={`step-${step.id}-${field.id}`}
-                    className={`text-[11px] sm:text-xs leading-none cursor-pointer flex-1 font-bold ${step.fields.includes(field.id) ? 'text-primary/90' : 'text-slate-900'}`}
+                    className={`text-[11px] sm:text-xs leading-none cursor-pointer flex-1 font-bold ${step.fields.includes(field.id) ? 'text-slate-600/90' : 'text-slate-900'}`}
                   >
                     {config.fieldsConfig[field.id]?.label || field.label}
                   </label>
@@ -357,7 +354,7 @@ const EditorSection = ({
       <Button 
         onClick={addStep} 
         variant="outline" 
-        className="w-full border-2 border-dashed border-primary/20 bg-primary/5/30 text-primary hover:bg-primary/10 hover:border-primary/30 h-16 sm:h-14 rounded-2xl font-bold transition-all shadow-sm"
+        className="w-full border-2 border-dashed border-slate-200 bg-slate-50/30 text-slate-600 hover:bg-slate-700/10 hover:border-slate-700/30 h-16 sm:h-14 rounded-2xl font-bold transition-all shadow-sm"
       >
         <Plus className="h-5 w-5 mr-2" /> Add Registration Step
       </Button>
@@ -367,27 +364,27 @@ const EditorSection = ({
       <Card className="border-black rounded-[2.5rem] overflow-hidden shadow-sm">
         <CardHeader className="p-6 bg-slate-50/80 border-b border-black">
           <div className="flex items-center gap-2">
-            <div className="w-1 h-5 bg-primary rounded-full" />
-            <CardTitle className="text-base sm:text-lg font-bold uppercase tracking-wider text-slate-950">Button Labels</CardTitle>
+            <div className="w-1 h-5 bg-slate-700 rounded-full" />
+            <CardTitle className="text-base sm:text-lg font-bold uppercase tracking-tight text-slate-950">Button Labels</CardTitle>
           </div>
         </CardHeader>
         <CardContent className="space-y-6 p-6">
           <div className="space-y-1.5">
-            <Label className="text-[11px] sm:text-xs font-bold uppercase tracking-wider text-slate-900 ml-1">Continue Button</Label>
+            <Label className="text-[11px] sm:text-xs font-bold uppercase tracking-tight text-slate-900 ml-1">Continue Button</Label>
             <Input 
               value={config.labels.continue_button || ""} 
               onChange={(e) => updateLabel("continue_button", e.target.value)}
               placeholder="Next Step"
-              className="h-16 sm:h-14 border-black rounded-2xl focus:ring-2 focus:ring-primary"
+              className="h-16 sm:h-14 border-black rounded-2xl focus:ring-2 focus:ring-indigo-100"
             />
           </div>
           <div className="space-y-1.5">
-            <Label className="text-[11px] sm:text-xs font-bold uppercase tracking-wider text-slate-900 ml-1">Submit Button</Label>
+            <Label className="text-[11px] sm:text-xs font-bold uppercase tracking-tight text-slate-900 ml-1">Submit Button</Label>
             <Input 
               value={config.labels.submit_button || ""} 
               onChange={(e) => updateLabel("submit_button", e.target.value)}
               placeholder="Submit Registration"
-              className="h-16 sm:h-14 border-black rounded-2xl focus:ring-2 focus:ring-primary"
+              className="h-16 sm:h-14 border-black rounded-2xl focus:ring-2 focus:ring-indigo-100"
             />
           </div>
         </CardContent>
@@ -396,17 +393,17 @@ const EditorSection = ({
       <Card className="border-black rounded-[2.5rem] overflow-hidden shadow-sm">
         <CardHeader className="p-6 bg-slate-50/80 border-b border-black">
           <div className="flex items-center gap-2">
-            <div className="w-1 h-5 bg-primary rounded-full" />
-            <CardTitle className="text-base sm:text-lg font-bold uppercase tracking-wider text-slate-950">Field Settings</CardTitle>
+            <div className="w-1 h-5 bg-slate-700 rounded-full" />
+            <CardTitle className="text-base sm:text-lg font-bold uppercase tracking-tight text-slate-950">Field Settings</CardTitle>
           </div>
         </CardHeader>
         <CardContent className="space-y-5 p-6">
           {AVAILABLE_FIELDS.map(field => (
-            <div key={field.id} className="space-y-5 p-5 rounded-[2rem] bg-primary/5/30 transition-all hover:bg-primary/5/50">
+            <div key={field.id} className="space-y-5 p-5 rounded-[2rem] bg-slate-50/30 transition-all hover:bg-slate-50/50">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <div className="p-2 bg-primary/10 rounded-xl">
-                    <GripVertical className="w-4 h-4 text-primary" />
+                  <div className="p-2 bg-slate-700/10 rounded-xl">
+                    <GripVertical className="w-4 h-4 text-slate-600" />
                   </div>
                   <Label className="font-bold text-slate-900 text-[11px] sm:text-xs">{field.label}</Label>
                 </div>
@@ -465,10 +462,10 @@ const EditorSection = ({
                     onCheckedChange={() => {
                       // Handled by parent div onClick for better mobile touch target
                     }}
-                    className="h-6 w-6 border-black data-[state=checked]:bg-primary data-[state=checked]:border-primary rounded-md"
+                    className="h-6 w-6 border-black data-[state=checked]:bg-slate-700 data-[state=checked]:border-slate-700 rounded-md"
                     onClick={(e) => e.stopPropagation()}
                   />
-                  <Label htmlFor={`req-${field.id}`} className="text-[11px] sm:text-xs font-bold cursor-pointer text-primary">REQUIRED</Label>
+                  <Label htmlFor={`req-${field.id}`} className="text-[11px] sm:text-xs font-bold cursor-pointer text-slate-600">REQUIRED</Label>
                 </div>
               </div>
               <div className="space-y-1.5">
@@ -477,7 +474,7 @@ const EditorSection = ({
                   value={config.fieldsConfig[field.id]?.label || ""}
                   onChange={(e) => updateFieldConfig(field.id, { label: e.target.value })}
                   placeholder={field.label}
-                  className="h-16 sm:h-14 text-sm border-black rounded-2xl focus-visible:ring-primary bg-white"
+                  className="h-16 sm:h-14 text-sm border-black rounded-2xl focus-visible:ring-indigo-100 bg-white"
                 />
               </div>
 
@@ -491,7 +488,7 @@ const EditorSection = ({
                       onChange={(e) => updateFieldConfig(field.id, { payment_amount: parseFloat(e.target.value) || 0 })}
                       placeholder="0.00"
                       disabled={basePrice !== undefined || promoPrice !== undefined}
-                      className="h-14 text-sm border-black rounded-2xl focus-visible:ring-primary bg-slate-100/50 cursor-not-allowed text-slate-500"
+                      className="h-14 text-sm border-black rounded-2xl focus-visible:ring-indigo-100 bg-slate-100/50 cursor-not-allowed text-slate-500"
                     />
                     <p className="text-[10px] text-slate-500 ml-1 mt-1 font-medium">This amount automatically syncs with the Base Price / Promo Price set above.</p>
                   </div>
@@ -502,7 +499,7 @@ const EditorSection = ({
                       value={config.fieldsConfig[field.id]?.deposit_amount || ""}
                       onChange={(e) => updateFieldConfig(field.id, { deposit_amount: parseFloat(e.target.value) || 0 })}
                       placeholder="0.00"
-                      className="h-14 text-sm border-black rounded-2xl focus-visible:ring-primary bg-white"
+                      className="h-14 text-sm border-black rounded-2xl focus-visible:ring-indigo-100 bg-white"
                     />
                   </div>
                   <div className="space-y-1.5">
@@ -511,7 +508,7 @@ const EditorSection = ({
                       value={config.fieldsConfig[field.id]?.payment_description || ""}
                       onChange={(e) => updateFieldConfig(field.id, { payment_description: e.target.value })}
                       placeholder="e.g. Deposit for event..."
-                      className="h-14 text-sm border-black rounded-2xl focus-visible:ring-primary bg-white"
+                      className="h-14 text-sm border-black rounded-2xl focus-visible:ring-indigo-100 bg-white"
                     />
                   </div>
                 </div>
@@ -562,7 +559,7 @@ const PreviewSection = ({ config }: { config: TemplateConfig }) => {
           {/* Mock Progress */}
           <div className="px-4 py-2 flex gap-1 shrink-0">
             {config.steps.map((_, i) => (
-              <div key={i} className={`h-1 flex-1 rounded-full ${i <= currentStep ? 'bg-primary' : 'bg-muted'}`} />
+              <div key={i} className={`h-1 flex-1 rounded-full ${i <= currentStep ? 'bg-slate-700' : 'bg-muted'}`} />
             ))}
           </div>
 
@@ -596,8 +593,8 @@ const PreviewSection = ({ config }: { config: TemplateConfig }) => {
                     if (fieldId === 'document') return (
                       <div key={fieldId} className="space-y-1">
                         <Label className="text-[11px] sm:text-xs font-bold">{fieldConfig.label} {fieldConfig.required && '*'}</Label>
-                        <div className="h-32 bg-primary/5/50 rounded-lg border-2 border-dashed border-primary/20 flex items-center justify-center text-primary text-[10px] flex-col gap-2 transition-colors">
-                          <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
+                        <div className="h-32 bg-slate-50/50 rounded-lg border-2 border-dashed border-slate-200 flex items-center justify-center text-slate-600 text-[10px] flex-col gap-2 transition-colors">
+                          <div className="w-8 h-8 rounded-full bg-slate-700/10 flex items-center justify-center">
                             <Plus className="w-4 h-4" />
                           </div>
                           <span className="font-semibold">Upload Area</span>
@@ -608,7 +605,7 @@ const PreviewSection = ({ config }: { config: TemplateConfig }) => {
                     if (fieldId === 'payment_required') return (
                       <div key={fieldId} className="space-y-1">
                         <Label className="text-[11px] sm:text-xs font-bold">{fieldConfig.label} {fieldConfig.required && '*'}</Label>
-                        <div className="p-4 bg-primary/5/50 rounded-lg border-2 border-dashed border-primary/20 flex items-center justify-center text-primary text-[10px] flex-col gap-2 transition-colors">
+                        <div className="p-4 bg-slate-50/50 rounded-lg border-2 border-dashed border-slate-200 flex items-center justify-center text-slate-600 text-[10px] flex-col gap-2 transition-colors">
                           <div className="flex flex-col items-center gap-1">
                             <span className="font-bold">Total: RM {fieldConfig.payment_amount?.toFixed(2) || '0.00'}</span>
                             {fieldConfig.deposit_amount ? (
@@ -634,7 +631,7 @@ const PreviewSection = ({ config }: { config: TemplateConfig }) => {
                     if (fieldId === 'enable_chip_payment') return (
                       <div key={fieldId} className="space-y-2 p-3 bg-blue-50/50 rounded-xl border border-blue-100 flex items-center gap-3">
                         <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center">
-                          <ShieldCheck className="w-4 h-4 text-blue-600" />
+                          <ShieldCheck className="w-4 h-4 text-indigo-600" />
                         </div>
                         <div className="flex-1">
                           <p className="text-[10px] font-bold text-blue-900 uppercase">{fieldConfig.label}</p>
@@ -667,9 +664,9 @@ const PreviewSection = ({ config }: { config: TemplateConfig }) => {
                   {currentStep === config.steps.length - 1 && 
                    config.fieldsConfig['payment_required']?.required && 
                    !config.steps.some(s => s.fields.includes('payment_required')) && (
-                    <div className="mt-6 pt-4 border-t border-dashed border-primary/20">
-                      <Label className="text-[11px] sm:text-xs font-bold text-primary mb-2 block uppercase tracking-wider">Payment Summary (Automatic)</Label>
-                      <div className="p-4 bg-primary/5 rounded-xl border border-primary/10 flex items-center justify-center text-primary text-[10px] flex-col gap-2">
+                    <div className="mt-6 pt-4 border-t border-dashed border-slate-200">
+                      <Label className="text-[11px] sm:text-xs font-bold text-slate-600 mb-2 block uppercase tracking-tight">Payment Summary (Automatic)</Label>
+                      <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-center text-slate-600 text-[10px] flex-col gap-2">
                         <div className="flex flex-col items-center gap-1">
                           <span className="font-bold">Total: RM {config.fieldsConfig['payment_required'].payment_amount?.toFixed(2) || '0.00'}</span>
                           {config.fieldsConfig['payment_required'].deposit_amount ? (
@@ -701,7 +698,7 @@ const PreviewSection = ({ config }: { config: TemplateConfig }) => {
           {/* Mock Footer */}
           <div className="p-4 border-t bg-background/80 backdrop-blur shrink-0">
             <Button 
-              className="w-full bg-primary hover:bg-primary/90 text-white text-sm h-11 rounded-xl"
+              className="w-full bg-slate-700 hover:bg-slate-700/90 text-white text-sm h-11 rounded-xl"
               onClick={() => {
                 if (currentStep < config.steps.length - 1) {
                   setCurrentStep(currentStep + 1);

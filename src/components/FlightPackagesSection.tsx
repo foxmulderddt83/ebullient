@@ -1,14 +1,24 @@
 import { useState, useEffect, useRef } from "react";
-import { createPortal } from "react-dom";
-import { motion, useAnimation, useInView, AnimatePresence } from "framer-motion";
+import { cn } from "@/lib/utils";
+import { motion, useInView } from "framer-motion";
 import { supabase } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
-import { Check, Clock, User, Shield, Route, Video, Shirt, Briefcase, Plane, ChevronLeft, ChevronRight } from "lucide-react";
-import { BackgroundParticles } from "./ui/BackgroundParticles";
+import { Check, Clock, User, Shield, Route, Video, Shirt, Briefcase, Plane, ChevronLeft, ChevronRight, RotateCcw } from "lucide-react";
+import confetti from 'canvas-confetti';
 import { useCart } from "@/context/CartContext";
 import { toast } from "sonner";
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
 import { trackEvent } from "@/lib/analytics";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 interface FlightPackage {
   id: string;
@@ -23,6 +33,8 @@ interface FlightPackage {
   image_url?: string;
   category_id: string;
   sort_order: number;
+  is_main_default?: boolean;
+  bg_opacity?: number;
 }
 
 interface CategoryGroup {
@@ -43,47 +55,6 @@ interface FlightPackagesSectionProps {
   isCompact?: boolean;
 }
 
-const Confetti = () => {
-  const colors = ["#ff0000", "#00ff00", "#0000ff", "#ffff00", "#ff00ff", "#00ffff"];
-  
-  if (typeof document === 'undefined') return null;
-
-  return createPortal(
-    <div className="fixed inset-0 pointer-events-none z-[40] overflow-hidden">
-      {Array.from({ length: 30 }).map((_, i) => (
-        <motion.div
-          key={i}
-          initial={{
-            y: -20,
-            x: Math.random() * window.innerWidth,
-            opacity: 1,
-            rotate: 0
-          }}
-          animate={{
-            y: window.innerHeight + 20,
-            rotate: 360 + Math.random() * 360,
-          }}
-          transition={{
-            duration: 2 + Math.random() * 2,
-            ease: "linear",
-            delay: Math.random() * 2,
-            repeat: Infinity,
-            repeatDelay: Math.random() * 2
-          }}
-          style={{
-            position: "absolute",
-            width: 10 + Math.random() * 10,
-            height: 10 + Math.random() * 10,
-            backgroundColor: colors[Math.floor(Math.random() * colors.length)],
-            borderRadius: Math.random() > 0.5 ? "50%" : "0%"
-          }}
-        />
-      ))}
-    </div>,
-    document.body
-  );
-};
-
 export const FlightPackagesSection = ({ 
   onPackageSelect, 
   onSelect, 
@@ -97,16 +68,34 @@ export const FlightPackagesSection = ({
 }: FlightPackagesSectionProps) => {
   const [categoryGroups, setCategoryGroups] = useState<CategoryGroup[]>([]);
   const [loading, setLoading] = useState(true);
-  const [celebratingPackageId, setCelebratingPackageId] = useState<string | null>(null);
+  const [loadStartTime] = useState(Date.now());
+  const [showSlowLoading, setShowSlowLoading] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
+
+  useEffect(() => {
+    if (loading) {
+      const timer = setTimeout(() => {
+        if (loading) setShowSlowLoading(true);
+      }, 5000);
+      return () => clearTimeout(timer);
+    } else {
+      setShowSlowLoading(false);
+    }
+  }, [loading]);
   const [bgGradient, setBgGradient] = useState<string>("");
   const [promotionBannerUrl, setPromotionBannerUrl] = useState<string>("");
   const [isGlobalPaused, setIsGlobalPaused] = useState(false);
   const [sharedPackageId, setSharedPackageId] = useState<string | null>(null);
-  const { addItem, items } = useCart();
+  const [hoveredPackageByGroup, setHoveredPackageByGroup] = useState<Record<string, string | null>>({});
+  const lastExternalRefreshRef = useRef(0);
+  const { addItem, items, setIsOpen } = useCart();
   const scrollRef = useRef<HTMLDivElement>(null);
-  const controls = useAnimation();
   const isInView = useInView(scrollRef);
   const [currentTime, setCurrentTime] = useState(new Date());
+  const [showLimitDialog, setShowLimitDialog] = useState(false);
+  const [isSelecting, setIsSelecting] = useState(false);
+
+  const basePackageInCart = items.find(i => i.sort_order === 0);
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000); // Update every second for countdown
@@ -121,22 +110,77 @@ export const FlightPackagesSection = ({
   }, []);
 
   useEffect(() => {
+    if (!supabase) return;
+    const channel = supabase
+      .channel('public:site-updates')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'packages' },
+        () => setRetryCount(prev => prev + 1)
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'categories' },
+        () => setRetryCount(prev => prev + 1)
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'site_settings' },
+        () => setRetryCount(prev => prev + 1)
+      )
+      .subscribe();
+
+    return () => {
+      try {
+        supabase.removeChannel(channel);
+      } catch {}
+    };
+  }, [supabase]);
+
+  useEffect(() => {
     const handleToggle = (e: Event) => {
       const detail = (e as CustomEvent).detail;
       if (detail && typeof detail.paused === 'boolean') {
         setIsGlobalPaused(detail.paused);
       }
     };
+
+    const handleDataUpdate = () => {
+      setRetryCount(prev => prev + 1);
+    };
+
     window.addEventListener('toggle-animation-freeze', handleToggle);
-    return () => window.removeEventListener('toggle-animation-freeze', handleToggle);
+    window.addEventListener('oneday:mainpage-update', handleDataUpdate);
+    window.addEventListener('storage', (e) => {
+      if (e.key === 'oneday:mainpage-update') handleDataUpdate();
+    });
+    
+    const channel = new BroadcastChannel('oneday:mainpage-update');
+    channel.onmessage = handleDataUpdate;
+
+    return () => {
+      window.removeEventListener('toggle-animation-freeze', handleToggle);
+      window.removeEventListener('oneday:mainpage-update', handleDataUpdate);
+      channel.close();
+    };
   }, []);
 
-  const handleSelect = (pkg: FlightPackage, e?: React.MouseEvent) => {
+  const handleSelect = (pkg: FlightPackage, e?: React.MouseEvent, overrideImage?: string) => {
     if (e) e.stopPropagation();
+    if (isSelecting) return;
 
-    // Check if adding a sort_order=1 item requires a sort_order=0 item in cart
-    if (pkg.sort_order === 1) {
-      // Use category_id as the matching ID between sort_order 0 and 1
+    // block from other packages once already selected because at one booking only one sort_order = 0 can have
+    if (pkg.sort_order === 0) {
+      const existingBase = items.find(i => i.sort_order === 0);
+      if (existingBase && existingBase.id !== pkg.id) {
+        setShowLimitDialog(true);
+        return;
+      }
+    }
+
+    // Check if adding a sort_order > 0 item requires a sort_order=0 item in cart
+    if (pkg.sort_order > 0) {
+      // Find any item in the cart from the SAME category with sort_order=0
       const hasBase = items.some(i => i.category_id === pkg.category_id && i.sort_order === 0);
       if (!hasBase) {
         toast.error("Please add the main package first");
@@ -155,6 +199,9 @@ export const FlightPackagesSection = ({
     
     const finalPrice = isPromotionActive && pkg.promotion_price ? Number(pkg.promotion_price) : Number(pkg.price);
 
+    const group = categoryGroups.find(g => g.id === pkg.category_id);
+    const categoryName = group ? group.name : "";
+
     // Add to cart immediately
     addItem({
       id: pkg.id, // Use actual package ID for booking_items.package_id
@@ -162,9 +209,10 @@ export const FlightPackagesSection = ({
       price: finalPrice,
       original_price: Number(pkg.price),
       promotion_end_at: isPromotionActive && pkg.promotion_end_at ? pkg.promotion_end_at : undefined,
-      image_url: pkg.image_url,
+      image_url: overrideImage || pkg.image_url,
       sort_order: pkg.sort_order,
-      category_id: pkg.category_id
+      category_id: pkg.category_id,
+      category_name: categoryName
     });
 
     // Track selection
@@ -172,22 +220,56 @@ export const FlightPackagesSection = ({
       action_type: 'click',
       entity_type: 'video', // Flight packages are often categorized as 'video' or 'experience' in this app's existing tracking
       entity_id: pkg.id,
-      entity_name: `Package Selected: ${pkg.name}`
+      entity_name: `Package Selected: ${pkg.name}`,
+      source: 'FlightPackagesSection'
     });
 
     toast.success(`Added ${pkg.name} to cart`);
 
-    // Trigger celebration
-    setCelebratingPackageId(pkg.id);
+    // Party effect (confetti) for main packages only (sort_order 0)
+    if (pkg.sort_order === 0) {
+      if (typeof window !== 'undefined' && 'caches' in window) {
+        window.caches.keys().then((names) => {
+          names.forEach((name) => {
+            window.caches.delete(name);
+          });
+        }).catch((err) => {
+          console.error("Failed to clear cache storage:", err);
+        });
+      }
+      setIsSelecting(true);
+      const duration = 2 * 1000;
+      const animationEnd = Date.now() + duration;
+      const defaults = { startVelocity: 30, spread: 360, ticks: 60, zIndex: 10000 };
 
-    // Delay navigation/callbacks by 2 seconds
-    setTimeout(() => {
-      setCelebratingPackageId(null);
-      // Restore automatic navigation/callbacks
+      const randomInRange = (min: number, max: number) => Math.random() * (max - min) + min;
+
+      const interval: any = setInterval(function() {
+        const timeLeft = animationEnd - Date.now();
+
+        if (timeLeft <= 0) {
+          return clearInterval(interval);
+        }
+
+        const particleCount = 50 * (timeLeft / duration);
+        // since particles fall down, start them a bit higher than random
+        confetti({ ...defaults, particleCount, origin: { x: randomInRange(0.1, 0.3), y: Math.random() - 0.2 } });
+        confetti({ ...defaults, particleCount, origin: { x: randomInRange(0.7, 0.9), y: Math.random() - 0.2 } });
+      }, 250);
+
+      // Wait for 2 seconds before proceeding
+      setTimeout(() => {
+        setIsSelecting(false);
+        if (onPackageSelect) onPackageSelect(pkg.category_id, pkg.sort_order, pkg.id);
+        if (onSelect) onSelect();
+        if (onCategorySelect) onCategorySelect(pkg.category_id, pkg.sort_order + 1);
+      }, 2000);
+    } else {
+      // Restore automatic navigation/callbacks immediately for add-ons
       if (onPackageSelect) onPackageSelect(pkg.category_id, pkg.sort_order, pkg.id);
       if (onSelect) onSelect();
-      if (onCategorySelect) onCategorySelect(pkg.category_id, pkg.sort_order);
-    }, 2000);
+      if (onCategorySelect) onCategorySelect(pkg.category_id, pkg.sort_order + 1);
+    }
   };
 
   const buildShareUrl = (packageId: string) => {
@@ -208,12 +290,23 @@ export const FlightPackagesSection = ({
     }
   };
 
+  const getActivePrice = (pkg: FlightPackage) => {
+    const start = pkg.promotion_start_at ? new Date(pkg.promotion_start_at) : null;
+    const end = pkg.promotion_end_at ? new Date(pkg.promotion_end_at) : null;
+    const isPromotionActive = !!(pkg.promotion_price && (!start || start <= currentTime) && (!end || end > currentTime));
+    const displayPrice = isPromotionActive && pkg.promotion_price ? Number(pkg.promotion_price) : Number(pkg.price);
+    return { isPromotionActive, displayPrice };
+  };
+
   const handleManualScroll = (direction: 'left' | 'right') => {
     if (scrollRef.current) {
       setIsHovered(true); // Stop auto-scroll when manually interacting
       
       const container = scrollRef.current;
-      const scrollAmount = direction === 'left' ? -400 : 400;
+      const isMobile = window.innerWidth < 768;
+      const itemWidth = isMobile ? 260 : 420;
+      const gap = 3;
+      const scrollAmount = direction === 'left' ? -(itemWidth + gap) : (itemWidth + gap);
       
       // If clicking left and already near the start, scroll to absolute 0
       if (direction === 'left' && container.scrollLeft < 50) {
@@ -230,7 +323,7 @@ export const FlightPackagesSection = ({
       
       // Resume auto-scroll after a delay if not hovered
       setTimeout(() => {
-        if (!scrollRef.current?.matches(':hover')) {
+        if (window.innerWidth < 768 || !scrollRef.current?.matches(':hover')) {
           setIsHovered(false);
         }
       }, 3000);
@@ -240,50 +333,134 @@ export const FlightPackagesSection = ({
   const allPackages = categoryGroups.flatMap(group => group.packages);
 
   const [isHovered, setIsHovered] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
+  const [startX, setStartX] = useState(0);
+  const [scrollLeftState, setScrollLeftState] = useState(0);
+
+  const handleDragStart = (e: React.MouseEvent) => {
+    // Only allow drag with left mouse button
+    if (e.button !== 0) return;
+    
+    if (!scrollRef.current) return;
+    
+    // Check if the click target is a button or link
+    const target = e.target as HTMLElement;
+    if (target.closest('button') || target.closest('a')) {
+      return;
+    }
+
+    setIsDragging(true);
+    setIsHovered(true);
+    setStartX(e.pageX - scrollRef.current.offsetLeft);
+    setScrollLeftState(scrollRef.current.scrollLeft);
+    
+    // Prevent text selection during drag
+    document.body.style.userSelect = 'none';
+    // Prevent image dragging interference
+    const images = scrollRef.current.querySelectorAll('img');
+    images.forEach(img => img.setAttribute('draggable', 'false'));
+  };
+
+  const handleDragEnd = () => {
+    if (isDragging) {
+      setIsDragging(false);
+      document.body.style.userSelect = '';
+    }
+  };
+
+  const handleDragMove = (e: React.MouseEvent) => {
+    if (!isDragging || !scrollRef.current) return;
+    
+    e.preventDefault();
+    const x = e.pageX - scrollRef.current.offsetLeft;
+    const walk = (x - startX) * 2; // Drag sensitivity
+    scrollRef.current.scrollLeft = scrollLeftState - walk;
+    exactScrollRef.current = scrollRef.current.scrollLeft;
+  };
+
+  const isReversingRef = useRef(false);
+  const animationFrameRef = useRef<number>();
+  const lastTimeRef = useRef<number>(0);
+  const exactScrollRef = useRef<number>(0);
 
   useEffect(() => {
-    const startAnimation = async () => {
-      if (isInView && !loading && allPackages.length > 0 && !isGlobalPaused && !isHovered) {
-        const scrollWidth = scrollRef.current?.scrollWidth || 0;
-        const clientWidth = scrollRef.current?.clientWidth || 0;
-        const maxScroll = scrollWidth - clientWidth;
+    const animateScroll = (time: number) => {
+      if (!lastTimeRef.current) lastTimeRef.current = time;
+      const deltaTime = time - lastTimeRef.current;
+      lastTimeRef.current = time;
+
+      if (isInView && !loading && allPackages.length > 0 && !isGlobalPaused && !isHovered && scrollRef.current) {
+        const container = scrollRef.current;
+        const maxScroll = container.scrollWidth - container.clientWidth;
 
         if (maxScroll > 0) {
-          controls.start({
-            x: [null, -maxScroll],
-            transition: {
-              x: {
-                repeat: Infinity,
-                repeatType: "reverse",
-                duration: 30,
-                ease: "linear",
-              },
-            },
-          });
+          // Adjust speed as needed (pixels per second)
+          const speed = (50 * deltaTime) / 1000;
+          
+          if (isReversingRef.current) {
+            exactScrollRef.current -= speed;
+            if (exactScrollRef.current <= 0) {
+              exactScrollRef.current = 0;
+              isReversingRef.current = false;
+            }
+          } else {
+            exactScrollRef.current += speed;
+            if (exactScrollRef.current >= maxScroll) {
+              exactScrollRef.current = maxScroll;
+              isReversingRef.current = true;
+            }
+          }
+          
+          // Apply to container
+          container.scrollLeft = exactScrollRef.current;
+          
+          // Sync back in case of user manual scroll during this time
+          if (Math.abs(container.scrollLeft - exactScrollRef.current) > 2) {
+             exactScrollRef.current = container.scrollLeft;
+          }
         }
-      } else {
-        controls.stop();
       }
+      
+      animationFrameRef.current = requestAnimationFrame(animateScroll);
     };
 
-    startAnimation();
-  }, [isInView, loading, allPackages.length, controls, isGlobalPaused, isHovered]);
+    if (isInView && !loading && allPackages.length > 0 && !isGlobalPaused && !isHovered) {
+      lastTimeRef.current = performance.now();
+      if (scrollRef.current) {
+        exactScrollRef.current = scrollRef.current.scrollLeft;
+      }
+      animationFrameRef.current = requestAnimationFrame(animateScroll);
+    }
+
+    return () => {
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+      }
+    };
+  }, [isInView, loading, allPackages.length, isGlobalPaused, isHovered]);
 
   useEffect(() => {
-    const fetchPackages = async () => {
+    const fetchPackages = async (attempt = 1) => {
       if (!supabase) {
         setLoading(false);
         return;
       }
       
       try {
-        // Fetch background gradient - Use booking wizard gradient as requested
-        const { data: settingsData } = await supabase
+        setLoading(true);
+        
+        // Add a small delay on mobile to avoid race conditions with session restoration
+        if (window.innerWidth < 768 && attempt === 1) {
+          await new Promise(resolve => setTimeout(resolve, 300));
+        }
+
+        // Fetch background gradient and other settings
+        const { data: settingsData, error: settingsError } = await supabase
           .from('site_settings')
           .select('key, value')
           .in('key', ['bg_gradient_booking_wizard', 'promotion_image_banner']);
         
-        if (settingsData) {
+        if (!settingsError && settingsData) {
           const gradientSetting = settingsData.find(s => s.key === 'bg_gradient_booking_wizard');
           if (gradientSetting) setBgGradient(gradientSetting.value);
 
@@ -292,6 +469,7 @@ export const FlightPackagesSection = ({
         }
 
         if (sharedPackageId && sortOrder === 0) {
+          // ... (keep shared package logic, but add error handling)
           const { data: sharedPkg, error: sharedError } = await supabase
             .from('packages')
             .select('*')
@@ -299,57 +477,75 @@ export const FlightPackagesSection = ({
             .eq('is_active', true)
             .single();
 
-          if (sharedError || !sharedPkg || sharedPkg.sort_order !== 0) {
+          if (sharedError) throw sharedError;
+          if (!sharedPkg || sharedPkg.sort_order !== 0) {
             setCategoryGroups([]);
+            setLoading(false);
             return;
           }
 
-          const { data: sharedCategory } = await supabase
+          const { data: relatedPackages, error: relatedError } = await supabase
+            .from('packages')
+            .select('*')
+            .eq('category_id', sharedPkg.category_id)
+            .eq('sort_order', 0)
+            .eq('is_active', true)
+            .order('name', { ascending: true });
+
+          if (relatedError) throw relatedError;
+
+          const { data: sharedCategory, error: catError } = await supabase
             .from('categories')
             .select('id, name')
             .eq('id', sharedPkg.category_id)
             .single();
+          
+          if (catError) throw catError;
 
-          const lines = sharedPkg.description ? sharedPkg.description.split(/\r?\n/).filter((f: string) => f.trim() !== '') : [];
-          const subtitle = lines.length > 0 ? lines[0] : "";
-          const features = lines.length > 1 ? lines.slice(1) : [];
+          const mappedPackages = (relatedPackages || []).map(pkg => {
+            const lines = pkg.description ? pkg.description.split(/\r?\n/).filter((f: string) => f.trim() !== '') : [];
+            const subtitle = lines.length > 0 ? lines[0] : "";
+            const features = lines.length > 1 ? lines.slice(1) : [];
+            
+            return {
+              id: pkg.id,
+              name: pkg.name,
+              price: typeof pkg.price === 'string' ? parseFloat(pkg.price) : pkg.price,
+              promotion_price: pkg.promotion_price ? (typeof pkg.promotion_price === 'string' ? parseFloat(pkg.promotion_price) : pkg.promotion_price) : null,
+              promotion_start_at: pkg.promotion_start_at,
+              promotion_end_at: pkg.promotion_end_at,
+              subtitle: subtitle,
+              features: features,
+              is_popular: pkg.name.toLowerCase().includes('business'),
+              image_url: pkg.image_url,
+              category_id: pkg.category_id,
+              sort_order: pkg.sort_order,
+              bg_opacity: pkg.bg_opacity,
+              is_main_default: pkg.id === sharedPackageId
+            };
+          });
 
           setCategoryGroups([{
             id: sharedCategory?.id || sharedPkg.category_id,
-            name: sharedCategory?.name || "Shared Package",
-            packages: [{
-              id: sharedPkg.id,
-              name: sharedPkg.name,
-              price: typeof sharedPkg.price === 'string' ? parseFloat(sharedPkg.price) : sharedPkg.price,
-              promotion_price: sharedPkg.promotion_price ? (typeof sharedPkg.promotion_price === 'string' ? parseFloat(sharedPkg.promotion_price) : sharedPkg.promotion_price) : null,
-              promotion_start_at: sharedPkg.promotion_start_at,
-              promotion_end_at: sharedPkg.promotion_end_at,
-              subtitle: subtitle,
-              features: features,
-              is_popular: sharedPkg.name.toLowerCase().includes('business'),
-              image_url: sharedPkg.image_url,
-              category_id: sharedPkg.category_id,
-              sort_order: sharedPkg.sort_order
-            }]
+            name: sharedCategory?.name || "Shared Category",
+            packages: mappedPackages
           }]);
+          setLoading(false);
           return;
         }
 
         let finalCategories: { id: string, name: string }[] = [];
 
         if (categoryId) {
-          // If a specific category is requested, just fetch that one
           const { data: catData, error: catError } = await supabase
             .from('categories')
             .select('id, name')
-            .eq('id', categoryId)
+            .eq('id', categoryId) 
             .single();
           
-          if (!catError && catData) {
-            finalCategories = [catData];
-          }
+          if (catError) throw catError;
+          if (catData) finalCategories = [catData];
         } else {
-          // 1. Fetch categories that should be shown on main page
           const { data: categories, error: catError } = await supabase
             .from('categories')
             .select('id, name')
@@ -357,172 +553,299 @@ export const FlightPackagesSection = ({
             .eq('is_active', true)
             .order('sort_order', { ascending: true });
 
-          console.log("Main page categories found:", categories);
-
-          if (catError) {
-             console.error("Error fetching main page categories:", catError);
-          }
-
+          if (catError) throw catError;
           finalCategories = categories || [];
         }
 
         const categoryIds = finalCategories.map(c => c.id);
 
-      // 2. Fetch packages
-      if (categoryIds.length === 0) {
-        setCategoryGroups([]);
+        if (categoryIds.length === 0) {
+          setCategoryGroups([]);
+          setLoading(false);
+          return;
+        }
+
+        const { data, error } = await supabase
+          .from('packages')
+          .select('*')
+          .eq('is_active', true)
+          .eq('sort_order', sortOrder)
+          .in('category_id', categoryIds)
+          .order('sort_order', { ascending: true })
+          .order('name', { ascending: true });
+
+        if (error) throw error;
+
+        if (data) {
+          const groups: CategoryGroup[] = finalCategories.map(cat => {
+            const catPackages = data
+              .filter(pkg => pkg.category_id === cat.id)
+              .map(pkg => {
+                const lines = pkg.description ? pkg.description.split(/\r?\n/).filter(f => f.trim() !== '') : [];
+                const subtitle = lines.length > 0 ? lines[0] : "";
+                const features = lines.length > 1 ? lines.slice(1) : [];
+                
+                return {
+                  id: pkg.id,
+                  name: pkg.name,
+                  price: typeof pkg.price === 'string' ? parseFloat(pkg.price) : pkg.price,
+                  promotion_price: pkg.promotion_price ? (typeof pkg.promotion_price === 'string' ? parseFloat(pkg.promotion_price) : pkg.promotion_price) : null,
+                  promotion_start_at: pkg.promotion_start_at,
+                  promotion_end_at: pkg.promotion_end_at,
+                  subtitle: subtitle,
+                  features: features,
+                  is_popular: pkg.name.toLowerCase().includes('business'),
+                  image_url: pkg.image_url,
+                  category_id: pkg.category_id,
+                  sort_order: pkg.sort_order,
+                  bg_opacity: pkg.bg_opacity
+                };
+              });
+
+            return {
+              id: cat.id,
+              name: cat.name,
+              packages: catPackages
+            };
+          }).filter(g => g.packages.length > 0);
+
+          setCategoryGroups(groups);
+        }
         setLoading(false);
-        return;
+      } catch (err: any) {
+        console.error(`Fetch attempt ${attempt} failed:`, err);
+        
+        // Retry logic with exponential backoff (max 3 attempts)
+        if (attempt < 3) {
+          const delay = Math.pow(2, attempt) * 500;
+          setTimeout(() => fetchPackages(attempt + 1), delay);
+        } else {
+          setLoading(false);
+          // toast.error("Failed to load packages. Please check your connection.");
+        }
       }
-
-      const query = supabase
-        .from('packages')
-        .select('*')
-        .eq('is_active', true)
-        .eq('sort_order', sortOrder)
-        .in('category_id', categoryIds);
-
-      const { data, error } = await query
-        .order('sort_order', { ascending: true })
-        .order('name', { ascending: true });
-
-      if (!error && data) {
-        const groups: CategoryGroup[] = finalCategories.map(cat => {
-          const catPackages = data
-            .filter(pkg => pkg.category_id === cat.id)
-            .map(pkg => {
-              // Parse description: Line 1 is subtitle, rest are features
-              const lines = pkg.description ? pkg.description.split(/\r?\n/).filter(f => f.trim() !== '') : [];
-              const subtitle = lines.length > 0 ? lines[0] : "";
-              const features = lines.length > 1 ? lines.slice(1) : [];
-              
-              return {
-                id: pkg.id,
-                name: pkg.name,
-                price: typeof pkg.price === 'string' ? parseFloat(pkg.price) : pkg.price,
-                promotion_price: pkg.promotion_price ? (typeof pkg.promotion_price === 'string' ? parseFloat(pkg.promotion_price) : pkg.promotion_price) : null,
-                promotion_start_at: pkg.promotion_start_at,
-                promotion_end_at: pkg.promotion_end_at,
-                subtitle: subtitle,
-                features: features,
-                is_popular: pkg.name.toLowerCase().includes('business'),
-                image_url: pkg.image_url,
-                category_id: pkg.category_id,
-                sort_order: pkg.sort_order
-              };
-            });
-          
-          return {
-            id: cat.id,
-            name: cat.name,
-            packages: catPackages
-          };
-        }).filter(group => group.packages.length > 0);
-
-        setCategoryGroups(groups);
-      }
-    } catch (error) {
-      console.error("Failed to fetch flight packages", error);
-    } finally {
-      setLoading(false);
-    }
-  };
+    };
 
     fetchPackages();
-  }, [sortOrder, categoryId, sharedPackageId]);
+  }, [supabase, retryCount, categoryId, sortOrder, sharedPackageId]);
 
   const getIconForFeature = (feature: string) => {
     const lower = feature.toLowerCase();
-    if (lower.includes("min flight")) return <Clock className="w-4 h-4 mr-2 shrink-0" />;
-    if (lower.includes("pax")) return <User className="w-4 h-4 mr-2 shrink-0" />;
-    if (lower.includes("insurance")) return <Shield className="w-4 h-4 mr-2 shrink-0" />;
-    if (lower.includes("route")) return <Route className="w-4 h-4 mr-2 shrink-0" />;
-    if (lower.includes("uniform")) return <Shirt className="w-4 h-4 mr-2 shrink-0" />;
-    if (lower.includes("video") || lower.includes("reel")) return <Video className="w-4 h-4 mr-2 shrink-0" />;
-    if (lower.includes("briefing") || lower.includes("assistance")) return <Briefcase className="w-4 h-4 mr-2 shrink-0" />;
-    return <Check className="w-4 h-4 mr-2 shrink-0" />;
+    if (lower.includes("min flight")) return <Clock className="w-4 h-4 mr-3 shrink-0 text-[#CD5C5C]" />;
+    if (lower.includes("pax")) return <User className="w-4 h-4 mr-3 shrink-0 text-[#CD5C5C]" />;
+    if (lower.includes("insurance")) return <Shield className="w-4 h-4 mr-3 shrink-0 text-[#CD5C5C]" />;
+    if (lower.includes("route")) return <Route className="w-4 h-4 mr-3 shrink-0 text-[#CD5C5C]" />;
+    if (lower.includes("uniform")) return <Shirt className="w-4 h-4 mr-3 shrink-0 text-[#CD5C5C]" />;
+    if (lower.includes("video") || lower.includes("reel")) return <Video className="w-4 h-4 mr-3 shrink-0 text-[#CD5C5C]" />;
+    if (lower.includes("briefing") || lower.includes("assistance")) return <Briefcase className="w-4 h-4 mr-3 shrink-0 text-[#CD5C5C]" />;
+    return <Check className="w-4 h-4 mr-3 shrink-0 text-[#CD5C5C]" />;
   };
 
-  if (loading) {
-    return (
-      <div className="py-20 text-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-        <p className="text-muted-foreground">Loading flight packages...</p>
+  if (categoryGroups.length === 0) {
+    if (loading) return (
+      <div className="py-20 text-center flex flex-col items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#CD5C5C] mb-4"></div>
+        <p className="text-muted-foreground font-medium">Loading flight packages...</p>
+        {showSlowLoading && (
+          <div className="mt-6 animate-in fade-in duration-500">
+            <p className="text-xs text-slate-400 mb-4 max-w-xs mx-auto">This is taking longer than usual. It might be due to a slow connection or temporary issue.</p>
+            <Button 
+              onClick={() => {
+                setLoading(true);
+                setRetryCount(prev => prev + 1);
+              }}
+              variant="outline"
+              size="sm"
+              className="gap-2 border-slate-200"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              Force Refresh
+            </Button>
+          </div>
+        )}
       </div>
     );
-  }
-
-  if (categoryGroups.length === 0) {
-    return null;
+    
+    return (
+      <div className="py-20 text-center">
+        <p className="text-muted-foreground mb-4">No flight packages found for this section.</p>
+        <Button 
+          variant="outline" 
+          onClick={() => {
+            setLoading(true);
+            setRetryCount(prev => prev + 1);
+          }}
+          className="mx-auto"
+        >
+          <RotateCcw className="w-4 h-4 mr-2" />
+          Refresh Packages
+        </Button>
+      </div>
+    );
   }
 
   return (
     <section 
       className={`${hidePadding ? "" : "section-padding"} relative overflow-hidden`}
-      style={bgGradient && !hidePadding ? { background: bgGradient } : { background: "#06091a" }}
+      style={bgGradient && !hidePadding ? { background: bgGradient } : { background: hidePadding ? "transparent" : "linear-gradient(135deg, #FFFFFF 0%, #FFF5F5 60%, #F8F8F8 100%)" }}
     >
-      <BackgroundParticles variant="dark" count={15} isPaused={isGlobalPaused} />
-      <div className="absolute top-0 right-0 h-px w-1/3 bg-gradient-to-l from-[#ea580c] to-transparent" />
-      <div className="absolute bottom-0 left-0 h-px w-1/2 bg-gradient-to-r from-[#ea580c] via-[#facc15]/50 to-transparent" />
-      <div className={`${hidePadding ? "" : "container mx-auto px-4 relative z-10"}`}>
+      {/* Light theme - no dark particle background needed */}
+      <div className="absolute top-0 right-0 h-[3px] w-1/3 bg-gradient-to-l from-[#CD5C5C] to-transparent" />
+      <div className="absolute bottom-0 left-0 h-px w-1/2 bg-gradient-to-r from-[#CD5C5C] via-[#CD5C5C]/50 to-transparent" />
+      <div className={`${hidePadding ? "" : "w-full relative z-10"}`}>
         <div className="space-y-8">
           {showTitle && (
             <div className="text-center mb-8">
               <div className="mb-4 flex items-center justify-center gap-3">
-                <div className="h-[2px] w-10 bg-[#ea580c]" />
-                <span
-                  className="text-[10px] font-black uppercase tracking-[0.35em] text-[#ea580c]"
-                  style={{ fontFamily: "'Barlow Condensed', sans-serif" }}
-                >
+                <div className="h-[2px] w-10 bg-[#CD5C5C]" />
+                <span className="text-xs font-black uppercase tracking-[0.35em] text-[#CD5C5C] font-condensed">
                   Flight Packages
                 </span>
-                <div className="h-[2px] w-10 bg-[#ea580c]" />
+                <div className="h-[2px] w-10 bg-[#CD5C5C]" />
               </div>
-              <h2
-                className="text-4xl uppercase leading-none text-white md:text-6xl"
-                style={{ fontFamily: "'Bebas Neue', sans-serif", letterSpacing: "0.05em", textShadow: "0 8px 24px rgba(0,0,0,0.45)" }}
-              >
-                Choose Your Flight Package
+              <h2 className="text-4xl uppercase leading-none text-slate-900 md:text-7xl font-title tracking-[0.05em]">
+                Select Your Flight
               </h2>
-              <p
-                className="mx-auto mt-3 max-w-2xl text-sm font-semibold uppercase tracking-[0.18em] text-white/65 md:text-base"
-                style={{ fontFamily: "'Barlow Condensed', sans-serif" }}
-              >
-                Start by selecting your main flight experience.
-              </p>
             </div>
           )}
           
           <div className="relative group/scroll-container">
-            {/* Left Scroll Button */}
-            <button
-              onClick={() => handleManualScroll('left')}
-              className="absolute left-2 top-1/2 -translate-y-1/2 z-40 bg-black/30 hover:bg-black/50 backdrop-blur-sm text-white p-2 rounded-full transition-all duration-300 opacity-0 group-hover/scroll-container:opacity-100 flex items-center justify-center border border-white/20 shadow-lg"
-              aria-label="Scroll left"
-            >
-              <ChevronLeft className="w-5 h-5 md:w-6 md:h-6" />
-            </button>
-
-            {/* Right Scroll Button */}
-            <button
-              onClick={() => handleManualScroll('right')}
-              className="absolute right-2 top-1/2 -translate-y-1/2 z-40 bg-black/30 hover:bg-black/50 backdrop-blur-sm text-white p-2 rounded-full transition-all duration-300 opacity-0 group-hover/scroll-container:opacity-100 flex items-center justify-center border border-white/20 shadow-lg"
-              aria-label="Scroll right"
-            >
-              <ChevronRight className="w-5 h-5 md:w-6 md:h-6" />
-            </button>
-
             <div 
-              className="overflow-x-auto pb-6 no-scrollbar touch-auto"
+              className={cn(
+                "overflow-x-auto pb-6 no-scrollbar touch-auto relative",
+                isDragging ? "cursor-grabbing" : "cursor-grab"
+              )}
               ref={scrollRef}
+              onMouseDown={handleDragStart}
+              onMouseMove={handleDragMove}
+              onMouseUp={handleDragEnd}
+              onMouseLeave={() => {
+                handleDragEnd();
+                setIsHovered(false);
+              }}
+              onMouseEnter={() => setIsHovered(true)}
             >
-              <motion.div 
-                animate={controls}
-                className="flex gap-6 min-w-max px-4"
-                onHoverStart={() => setIsHovered(true)}
-                onHoverEnd={() => setIsHovered(false)}
+              {/* Invisible overlay to capture drag events without interference from children */}
+              {isDragging && (
+                <div 
+                  className="fixed inset-0 z-[9999] cursor-grabbing" 
+                  onMouseMove={handleDragMove}
+                  onMouseUp={handleDragEnd}
+                />
+              )}
+              
+              <div 
+                className="flex gap-[3px] min-w-max px-0 mx-auto w-fit select-none"
+                onPointerEnter={(e) => { if (e.pointerType === 'mouse') setIsHovered(true) }}
+                onPointerLeave={(e) => { if (e.pointerType === 'mouse') setIsHovered(false) }}
+                onTouchStart={() => setIsHovered(true)}
+                onTouchEnd={() => setIsHovered(false)}
+                onTouchCancel={() => setIsHovered(false)}
               >
-                {allPackages.map((pkg, idx) => {
+                {sortOrder === 0 && (sharedPackageId || categoryGroups.some(g => g.packages.length > 1)) ? (
+                  <>
+                    {categoryGroups.map((group, groupIdx) => (
+                      (() => {
+                        const defaultPkg = group.packages.find(p => p.is_main_default) || group.packages[0];
+                        const hoveredId = hoveredPackageByGroup[group.id];
+                        const hoveredPkg = hoveredId ? group.packages.find(p => p.id === hoveredId) : undefined;
+                        const displayPkg = hoveredPkg || defaultPkg;
+                        const { displayPrice } = displayPkg ? getActivePrice(displayPkg) : { displayPrice: undefined as number | undefined };
+
+                        return (
+                          <motion.div
+                            key={`${group.id}-${groupIdx}`}
+                            initial={{ opacity: 0, y: 20 }}
+                            whileInView={{ opacity: 1, y: 0 }}
+                            viewport={{ once: true }}
+                            className="group relative flex h-full w-[260px] min-h-[380px] shrink-0 flex-col overflow-hidden border border-white/10 bg-zinc-800/40 backdrop-blur-md transition-all duration-300 hover:-translate-y-1 hover:border-[#CD5C5C]/55 hover:bg-zinc-700/60 md:w-[420px] md:min-h-[420px] shadow-none rounded-3xl"
+                          >
+                            {defaultPkg?.image_url ? (
+                              <div className="absolute inset-0 z-0">
+                                <img
+                                  src={defaultPkg.image_url}
+                                  alt={defaultPkg.name}
+                                  className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
+                                  style={{ 
+                                    opacity: defaultPkg.bg_opacity ?? 1.0,
+                                  }}
+                                />
+                              </div>
+                            ) : (
+                              <div className="absolute inset-0 z-0 opacity-20">
+                                <div className="absolute inset-0 bg-gradient-to-br from-zinc-900 via-zinc-800 to-zinc-900" />
+                              </div>
+                            )}
+
+                            <div className="relative p-4 pt-6 md:p-6 md:pt-10 flex flex-col items-center justify-end text-center z-10 min-h-[120px] md:min-h-[140px]">
+                              {/* Share Button in Main Panel */}
+                              <div className="absolute top-3 right-3 md:top-4 md:right-4 z-20">
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <button
+                                      type="button"
+                                      onClick={(e) => displayPkg && handleShare(displayPkg, e)}
+                                      className="h-8 w-8 md:h-10 md:w-10 flex items-center justify-center rounded-xl border border-white/20 bg-white/10 backdrop-blur-sm text-white transition-all hover:bg-white/20 active:scale-[0.98]"
+                                      aria-label="Copy share link"
+                                    >
+                                      <img src="/share-icon.svg" alt="Share" className="w-4 h-4 md:w-5 md:h-5" />
+                                    </button>
+                                  </TooltipTrigger>
+                                  <TooltipContent>
+                                    create the share link
+                                  </TooltipContent>
+                                </Tooltip>
+                              </div>
+
+                              <h4 className="text-2xl md:text-3xl uppercase leading-none text-white relative z-10 font-title tracking-[0.04em]">
+                                {group.name}
+                              </h4>
+                              {typeof displayPrice === "number" && (
+                                <div className="mt-1.5 md:mt-2 relative px-3 py-1 md:px-4 md:py-1.5 rounded-2xl overflow-hidden group/price">
+                                  {/* Localized background for price visibility */}
+                                  <div className="absolute inset-0 bg-black/40 backdrop-blur-md z-[-1] border border-white/5" />
+                                  <p className="text-lg md:text-xl font-bold uppercase tracking-[0.15em] text-[#CD5C5C] font-condensed">
+                                    RM {displayPrice.toLocaleString()}
+                                  </p>
+                                </div>
+                              )}
+                            </div>
+
+                            <div className="p-3 pt-1 md:p-4 md:pt-2 flex-1 flex flex-col justify-end relative z-10">
+                              <div className="grid gap-2 md:gap-3">
+                                {group.packages.map((pkg) => (
+                                  <div key={pkg.id} className="flex items-center gap-2">
+                                    <Button
+                                      type="button"
+                                      disabled={isSelecting}
+                                      className={cn(
+                                        "h-10 md:h-12 flex-1 rounded-xl border font-black uppercase tracking-[0.18em] transition-all active:scale-[0.98] flex items-center justify-center gap-2 font-condensed text-xs md:text-sm",
+                                        displayPkg?.id === pkg.id 
+                                          ? "bg-[#CD5C5C] text-white border-white/50 shadow-[0_0_20px_rgba(205,92,92,0.5)] scale-[1.02]" 
+                                          : (basePackageInCart && basePackageInCart.id !== pkg.id && pkg.sort_order === 0)
+                                            ? "bg-slate-800/50 border-white/10 text-white/30 cursor-not-allowed"
+                                            : "bg-slate-800/80 border-white/50 text-white hover:bg-slate-700/90"
+                                      )}
+                                      onPointerEnter={() => setHoveredPackageByGroup(prev => ({ ...prev, [group.id]: pkg.id }))}
+                                      onFocus={() => setHoveredPackageByGroup(prev => ({ ...prev, [group.id]: pkg.id }))}
+                                      onClick={(e) => {
+                                        setHoveredPackageByGroup(prev => ({ ...prev, [group.id]: pkg.id }));
+                                        handleSelect(pkg, e, defaultPkg?.image_url);
+                                      }}
+                                    >
+                                      {displayPkg?.id === pkg.id && <Check className="w-5 h-5" />}
+                                      {pkg.name}
+                                    </Button>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          </motion.div>
+                        );
+                      })()
+                    ))}
+                  </>
+                ) : allPackages.map((pkg, idx) => {
                   const start = pkg.promotion_start_at ? new Date(pkg.promotion_start_at) : null;
                   const end = pkg.promotion_end_at ? new Date(pkg.promotion_end_at) : null;
                   
@@ -530,7 +853,8 @@ export const FlightPackagesSection = ({
                      (!start || start <= currentTime) &&
                      (!end || end > currentTime);
 
-                  const shareEligible = pkg.sort_order === 0;
+                  const isSelected = items.some(i => i.id === pkg.id);
+                   const shareEligible = pkg.sort_order === 0;
  
                    let timeLeft = "";
                    if (isPromotionActive && end) {
@@ -549,142 +873,173 @@ export const FlightPackagesSection = ({
                       initial={{ opacity: 0, y: 20 }}
                       whileInView={{ opacity: 1, y: 0 }}
                       viewport={{ once: true }}
-                      onClick={(e) => {
-                        if (celebratingPackageId) return; // Prevent double clicks during celebration
-                        handleSelect(pkg, e);
-                      }}
-                      className={`group relative flex h-full w-[280px] shrink-0 cursor-pointer flex-col overflow-hidden border border-white/10 bg-white/[0.04] backdrop-blur-md transition-all duration-300 hover:-translate-y-2 hover:border-[#ea580c]/55 hover:bg-white/[0.07] hover:shadow-[0_28px_80px_-30px_rgba(234,88,12,0.45)] md:w-[320px] ${
-                        pkg.is_popular ? "shadow-[0_24px_70px_-32px_rgba(234,88,12,0.25)]" : "shadow-[0_20px_60px_-30px_rgba(0,0,0,0.65)]"
-                      }`}
-                      style={{ clipPath: "polygon(0 0, calc(100% - 18px) 0, 100% 18px, 100% 100%, 18px 100%, 0 calc(100% - 18px))" }}
+                      className={`group relative flex h-full w-[260px] min-h-[350px] shrink-0 flex-col overflow-hidden border border-white/10 bg-zinc-800/40 backdrop-blur-md transition-all duration-300 hover:-translate-y-2 hover:border-[#CD5C5C]/55 hover:bg-zinc-700/60 md:w-[420px] md:min-h-[500px] shadow-none rounded-3xl ${!pkg.image_url ? 'bg-gradient-to-br from-zinc-900 via-zinc-800 to-zinc-900 border-zinc-700/50' : ''}`}
+                      style={{}}
                     >
 
                     
-                    {pkg.image_url && (
+                    {pkg.image_url ? (
                       <div className="absolute inset-0 z-0">
                         <img 
+                          loading="lazy"
                           src={pkg.image_url} 
                           alt={pkg.name} 
-                          className="w-full h-full object-cover opacity-40 group-hover:scale-105 transition-transform duration-500" 
+                          decoding="async"
+                          width={420}
+                          height={500}
+                          className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" 
+                          style={{ 
+                            opacity: pkg.bg_opacity ?? 1.0,
+                          }}
                         />
+                      </div>
+                    ) : (
+                      <div className="absolute inset-0 z-0 opacity-20">
+                        <div className="absolute inset-0 bg-[linear-gradient(45deg,transparent_25%,rgba(255,255,255,0.05)_50%,transparent_75%,transparent_100%)] bg-[length:20px_20px]" />
                       </div>
                     )}
 
                     {pkg.is_popular && (
-                      <div
-                        className={`absolute top-2 ${shareEligible ? "right-12" : "right-2"} z-20 border border-[#ea580c]/40 bg-[#ea580c] text-white ${isCompact ? "px-2 py-0.5 text-[9px]" : "px-2.5 py-1 text-[10px]"} font-black uppercase tracking-[0.22em] shadow-[0_16px_40px_-18px_rgba(234,88,12,0.7)]`}
-                        style={{ fontFamily: "'Barlow Condensed', sans-serif", clipPath: "polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 10px 100%, 0 calc(100% - 10px))" }}
-                      >
+                      <div className={`absolute top-2 ${shareEligible ? "right-14" : "right-2"} z-20 border border-[#CD5C5C]/40 bg-[#CD5C5C] text-white ${isCompact ? "px-2 py-0.5 text-[10px]" : "px-2.5 py-1 text-xs"} font-black uppercase tracking-[0.22em] shadow-[0_10px_25px_-5px_rgba(205,92,92,0.8)] rounded-lg font-condensed`}>
                         Popular
                       </div>
                     )}
 
                     {shareEligible && (
-                      <button
-                        type="button"
-                        onClick={(e) => handleShare(pkg, e)}
-                        className="absolute top-2 right-2 z-30 h-8 w-8 flex items-center justify-center transition-all hover:scale-110 active:scale-95 drop-shadow-md"
-                        aria-label="Copy share link"
-                      >
-                        <img src="/share-icon.svg" alt="Share" className="w-full h-full" />
-                      </button>
+                      <div className="absolute top-4 right-4 z-30">
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <button
+                              type="button"
+                              onClick={(e) => handleShare(pkg, e)}
+                              className="h-10 w-10 flex items-center justify-center rounded-xl border border-white/20 bg-white/10 backdrop-blur-sm text-white transition-all hover:bg-white/20 active:scale-[0.98]"
+                              aria-label="Copy share link"
+                            >
+                              <img src="/share-icon.svg" alt="Share" className="w-5 h-5" />
+                            </button>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            create the share link
+                          </TooltipContent>
+                        </Tooltip>
+                      </div>
                     )}
                     
-                    <div className={`${isCompact ? "p-3" : "p-5"} relative z-10 border-b border-white/10 bg-black/10 text-center backdrop-blur-[2px]`}>
-                      <h3
-                        className={`${isCompact ? "text-xl" : "text-2xl"} uppercase leading-none text-white`}
-                        style={{ fontFamily: "'Bebas Neue', sans-serif", letterSpacing: "0.04em" }}
-                      >
-                        {pkg.name}
-                      </h3>
-                      {pkg.subtitle && (
-                        <p
-                          className={`mt-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-white/60 ${isCompact ? "" : "mb-2"}`}
-                          style={{ fontFamily: "'Barlow Condensed', sans-serif" }}
+                    <div className={`${isCompact ? "p-2 md:p-3" : "p-3 md:p-4"} relative z-10 text-center backdrop-blur-[1px]`}>
+                      <div className="relative px-3 py-1.5 md:px-4 md:py-2 rounded-2xl overflow-hidden mb-1 md:mb-2 inline-block">
+                        <div className="absolute inset-0 bg-black/40 backdrop-blur-md z-[-1] border border-white/5" />
+                        <h4 
+                          className={`${isCompact ? "text-3xl md:text-4xl" : "text-4xl md:text-5xl"} uppercase leading-none font-title tracking-[0.04em]`}
+                          style={{ 
+                            color: "whitesmoke",
+                            textShadow: "0 2px 10px rgba(0,0,0,0.5)"
+                          }}
                         >
+                          {pkg.name}
+                        </h4>
+                      </div>
+                      {pkg.subtitle && (
+                        <p className={`mt-0.5 md:mt-1 text-base md:text-lg font-bold uppercase tracking-[0.16em] text-white ${isCompact ? "" : "mb-0.5 md:mb-1"} font-condensed`}>
                           {pkg.subtitle}
                         </p>
                       )}
                       
-                      <div className="flex flex-col items-center justify-center">
+                      <div className="flex flex-col items-center justify-center mt-1.5 md:mt-2">
                         {isPromotionActive && pkg.promotion_price ? (
-                          <>
-                            <div className={`${isCompact ? "text-2xl" : "text-3xl"} flex items-center gap-2 text-[#ea580c]`} style={{ fontFamily: "'Bebas Neue', sans-serif", letterSpacing: "0.04em" }}>
+                          <div className="relative px-4 py-1.5 md:px-5 md:py-2 rounded-2xl overflow-hidden group/price">
+                            {/* Localized background for price visibility */}
+                            <div className="absolute inset-0 bg-black/40 backdrop-blur-md z-[-1] border border-white/5" />
+                            <div className={`${isCompact ? "text-2xl md:text-3xl" : "text-3xl md:text-4xl"} flex items-center gap-2 text-[#CD5C5C] font-title tracking-[0.04em]`} style={{ textShadow: "none" }}>
                               RM {pkg.promotion_price.toLocaleString()}
                             </div>
-                            <div className="text-xs font-bold text-white/50 line-through">
+                            <div className="text-xs md:text-sm font-bold text-white/50 line-through text-center">
                               RM {pkg.price.toLocaleString()}
                             </div>
                             {timeLeft && (
-                              <div className="mt-2 text-[11px] font-black uppercase tracking-[0.18em] text-[#ea580c] animate-pulse drop-shadow-sm" style={{ fontFamily: "'Barlow Condensed', sans-serif" }}>
-                                Ends in: {timeLeft}
+                              <div className="mt-0.5 md:mt-1 text-sm md:text-base font-black uppercase tracking-[0.18em] text-[#CD5C5C] animate-pulse text-center font-condensed" style={{ textShadow: "0 0 15px rgba(205,92,92,0.5)" }}>
+                                {timeLeft}
                               </div>
                             )}
-                          </>
+                          </div>
                         ) : (
-                          <div className={`${isCompact ? "text-2xl" : "text-3xl"} text-[#ea580c]`} style={{ fontFamily: "'Bebas Neue', sans-serif", letterSpacing: "0.04em" }}>
-                            RM {pkg.price.toLocaleString()}
+                          <div className="relative px-4 py-1.5 md:px-5 md:py-2 rounded-2xl overflow-hidden group/price">
+                            {/* Localized background for price visibility */}
+                            <div className="absolute inset-0 bg-black/40 backdrop-blur-md z-[-1] border border-white/5" />
+                            <div className={`${isCompact ? "text-2xl md:text-3xl" : "text-3xl md:text-4xl"} text-[#CD5C5C] font-title tracking-[0.04em]`} style={{ textShadow: "none" }}>
+                              RM {pkg.price.toLocaleString()}
+                            </div>
                           </div>
                         )}
                       </div>
                     </div>
 
-                    <div className={`${isCompact ? "p-3" : "p-5"} flex-1 relative z-10`}>
-                      <ul className={`${isCompact ? "space-y-1" : "space-y-2"}`}>
+                    <div className={`${isCompact ? "p-2 md:p-3" : "p-3 md:p-4"} flex-1 relative z-10`}>
+                      <ul className={`${isCompact ? "space-y-1 md:space-y-1.5" : "space-y-1.5 md:space-y-2.5"}`}>
                         {pkg.features.map((feature, idx) => (
-                          <li key={idx} className="flex items-start text-[11px] font-medium text-white/70">
+                          <li key={idx} className="flex items-start text-sm md:text-base font-bold text-white font-jakarta">
                             {getIconForFeature(feature)}
-                            <span className="ml-2">{feature}</span>
+                            <span>{feature}</span>
                           </li>
                         ))}
                       </ul>
                     </div>
 
-                    <div className={`${isCompact ? "p-3" : "p-5"} pt-0 relative z-10 mt-auto`}>
+                    <div className={`${isCompact ? "p-2 md:p-3" : "p-3 md:p-4"} pt-0 relative z-10 mt-auto`}>
                       <Button 
-                        className="relative z-20 h-11 w-full rounded-none text-[11px] font-black uppercase tracking-[0.22em] text-white shadow-[0_18px_50px_-18px_rgba(234,88,12,0.6)] transition-all duration-300 active:scale-[0.98]"
+                        type="button"
+                        disabled={isSelecting}
+                        className={cn(
+                          "relative z-20 h-9 w-full rounded-xl text-sm font-black uppercase tracking-wider transition-all duration-300 active:scale-[0.98] font-condensed flex items-center justify-center gap-2 border",
+                          (basePackageInCart && basePackageInCart.id !== pkg.id && pkg.sort_order === 0)
+                              ? "bg-slate-800/50 border-white/10 text-white/30 cursor-not-allowed"
+                              : isSelected
+                                ? "bg-[#CD5C5C] text-white border-white/50 shadow-[0_4px_12px_rgba(205,92,92,0.4)]"
+                                : "bg-slate-800/80 border-white/50 text-white hover:bg-slate-700/90"
+                        )}
                         size="sm"
-                        style={{
-                          fontFamily: "'Barlow Condensed', sans-serif",
-                          background: "#ea580c",
-                          clipPath: "polygon(0 0, calc(100% - 14px) 0, 100% 14px, 100% 100%, 14px 100%, 0 calc(100% - 14px))",
-                        }}
                         onClick={(e) => {
-                          if (celebratingPackageId) return; // Prevent double clicks during celebration
                           handleSelect(pkg, e);
                         }}
                       >
+                        {isSelected && <Check className="w-4 h-4" />}
                         {buttonText || (onPackageSelect ? "Select" : "Book")}
                       </Button>
                     </div>
-
-                    <AnimatePresence>
-                      {celebratingPackageId === pkg.id && (
-                        <>
-                          {/* Floating Emoji */}
-                          <motion.div
-                            initial={{ opacity: 0, scale: 0.5, x: 20 }}
-                            animate={{ opacity: 1, scale: 1.2, x: 0 }}
-                            exit={{ opacity: 0, scale: 0.8, x: 20 }}
-                            transition={{ type: "spring", stiffness: 300, damping: 20 }}
-                            className="absolute right-4 bottom-20 z-50 text-4xl pointer-events-none"
-                          >
-                            🎉
-                          </motion.div>
-                          
-                          {/* Full Screen Confetti */}
-                          <Confetti />
-                        </>
-                      )}
-                    </AnimatePresence>
                   </motion.div>
                 );
               })}
-            </motion.div>
+            </div>
             </div>
           </div>
         </div>
       </div>
+
+      <AlertDialog open={showLimitDialog} onOpenChange={setShowLimitDialog}>
+        <AlertDialogContent className="max-w-[400px] rounded-3xl border-white/10 bg-slate-900/95 backdrop-blur-xl text-white">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-xl font-black uppercase tracking-wider font-condensed flex items-center gap-2">
+              <div className="w-8 h-8 rounded-full bg-[#CD5C5C] flex items-center justify-center text-white">
+                <RotateCcw className="w-4 h-4" />
+              </div>
+              Selection Limit
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-slate-300 font-medium">
+              Only one main flight package can be selected per booking. Please remove your current selection before choosing another.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogAction 
+              onClick={() => {
+                setShowLimitDialog(false);
+                setIsOpen(true);
+              }}
+              className="bg-[#CD5C5C] hover:bg-[#A14A4A] text-white font-bold uppercase tracking-widest rounded-xl h-11 px-8"
+            >
+              OK
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </section>
   );
 };

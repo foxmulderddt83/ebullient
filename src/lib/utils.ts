@@ -33,9 +33,13 @@ export async function generateBookingReference(flightDate?: string | Date): Prom
   if (error) {
     console.error("Error generating booking reference:", error);
     // Fallback if query fails
-    return `BK-${dateStr}-${Math.floor(Math.random() * 1000).toString().padStart(3, '0')}`;
+    const randomStr = Math.random().toString(36).substring(2, 5).toUpperCase();
+    return `BK-${dateStr}-${randomStr}`;
   }
 
+  // To avoid collisions when multiple people book at the exact same time,
+  // we add a small random component even if the query succeeds.
   const runningNumber = (count || 0) + 1;
-  return `BK-${dateStr}-${runningNumber.toString().padStart(3, '0')}`;
+  const randomSuffix = Math.random().toString(36).substring(2, 4).toUpperCase();
+  return `BK-${dateStr}-${runningNumber.toString().padStart(3, '0')}-${randomSuffix}`;
 }
