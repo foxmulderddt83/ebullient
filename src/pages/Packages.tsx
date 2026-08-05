@@ -32,42 +32,6 @@ import { Link } from "react-router-dom";
 const WHATSAPP =
   "https://wa.me/601165127889?text=Hi%20OneDayPilot%0A%0AInterested%20Package%3A%0APreferred%20Date%3A%0ANumber%20of%20Pax%3A";
 
-const PACKAGES = [
-  {
-    minutes: "30",
-    price: "RM699",
-    featured: false,
-    points: [
-      "Introductory Flight Experience",
-      "Perfect For First Timers",
-      "Scenic Route",
-      "Professional Pilot Guidance",
-    ],
-  },
-  {
-    minutes: "45",
-    price: "RM999",
-    featured: true,
-    points: [
-      "Extended Flight Experience",
-      "More Route Coverage",
-      "Most Popular Choice",
-      "Perfect For Couples",
-    ],
-  },
-  {
-    minutes: "60",
-    price: "RM1299",
-    featured: false,
-    points: [
-      "Ultimate Flight Experience",
-      "Maximum Flying Time",
-      "Explore More Landmarks",
-      "Premium Aviation Package",
-    ],
-  },
-];
-
 const TRUST_STRIP = [
   "✈️ 5000+ Flight Experiences",
   "👨‍✈️ Certified Pilots",
@@ -444,7 +408,7 @@ export default function Packages() {
                 transition={{ duration: 0.7, delay: 1.6 }}
                 className="mt-9 flex flex-wrap gap-4"
               >
-                <ActionLink href="#packages">View Packages</ActionLink>
+                <ActionLink href="#book-now">Book Your Flight</ActionLink>
                 <ActionLink href={WHATSAPP} variant="secondary" external>
                   Book via WhatsApp
                 </ActionLink>
@@ -467,71 +431,6 @@ export default function Packages() {
                 </div>
               ))}
             </motion.div>
-          </div>
-        </section>
-
-        {/* ── PACKAGES ── */}
-        <section id="packages" className="scroll-mt-24 py-20 md:py-28">
-          <div className="container mx-auto max-w-[1400px] px-5 lg:px-8">
-            <SectionTitle subtitle="Choose your preferred introductory flight experience package.">
-              Our Most Popular Packages
-            </SectionTitle>
-
-            <div className="grid gap-6 md:grid-cols-3 md:gap-8">
-              {PACKAGES.map((pkg, i) => (
-                <Reveal key={pkg.minutes} delay={i * 0.12}>
-                  <GlassCard
-                    patterned
-                    className={`h-full p-8 text-center ${
-                      pkg.featured ? "border-[#CD5C5C]/40 md:-translate-y-4 md:scale-[1.04]" : ""
-                    }`}
-                  >
-                    {pkg.featured && (
-                      <div
-                        className="absolute right-0 top-6 rounded-l-full px-4 py-1.5 text-[10px] font-black uppercase tracking-[0.18em] text-white"
-                        style={{ background: THEME.accent, fontFamily: THEME.condensed }}
-                      >
-                        Most Booked ⭐
-                      </div>
-                    )}
-                    <div
-                      className="text-6xl md:text-7xl leading-none"
-                      style={{ fontFamily: THEME.display, color: pkg.featured ? THEME.accent : "#fff" }}
-                    >
-                      {pkg.minutes}
-                    </div>
-                    <div
-                      className="mt-1 text-[11px] font-black uppercase tracking-[0.28em] text-gray-400"
-                      style={{ fontFamily: THEME.condensed }}
-                    >
-                      Minutes Experience
-                    </div>
-                    <div className="my-6 h-px w-full bg-gradient-to-r from-transparent via-white/15 to-transparent" />
-                    <div className="text-4xl text-white" style={{ fontFamily: THEME.display }}>
-                      {pkg.price}
-                    </div>
-                    <ul className="mt-7 space-y-3 text-left">
-                      {pkg.points.map(point => (
-                        <li key={point} className="flex items-start gap-3 text-sm text-gray-300">
-                          <span
-                            className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full"
-                            style={{ background: THEME.accent }}
-                          />
-                          {point}
-                        </li>
-                      ))}
-                    </ul>
-                    <div className="mt-8">
-                      {/* Goes to the real booking wizard below rather than WhatsApp,
-                          so the flow matches the main page. */}
-                      <ActionLink href="#book-now" variant={pkg.featured ? "primary" : "secondary"}>
-                        Reserve Slot
-                      </ActionLink>
-                    </div>
-                  </GlassCard>
-                </Reveal>
-              ))}
-            </div>
           </div>
         </section>
 
@@ -891,7 +790,7 @@ export default function Packages() {
                 OneDayPilot offers an unforgettable introduction to aviation.
               </p>
               <div className="mt-9 flex flex-wrap justify-center gap-4">
-                <ActionLink href="#packages">View Packages</ActionLink>
+                <ActionLink href="#book-now">Book Your Flight</ActionLink>
                 <ActionLink href={WHATSAPP} variant="secondary" external>
                   Book Instantly via WhatsApp
                 </ActionLink>
