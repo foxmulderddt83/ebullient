@@ -58,7 +58,9 @@ export const FloatingCart = () => {
     };
   }, [items]);
 
-  if (items.length === 0 || location.pathname !== "/") return null;
+  // Pages that embed the booking wizard, and so need the cart alongside it.
+  const CART_ROUTES = ["/", "/packages"];
+  if (items.length === 0 || !CART_ROUTES.includes(location.pathname)) return null;
 
   return (
     <div className="fixed bottom-24 right-6 z-50">

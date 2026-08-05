@@ -1,7 +1,13 @@
-import { useState } from "react";
+import { useState, lazy, Suspense } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
+
+// Same lazy shape the home page uses, so the wizard is only pulled in when this
+// page is actually visited.
+const BookingWizard = lazy(() =>
+  import("@/components/BookingWizard").then(m => ({ default: m.BookingWizard }))
+);
 import {
   PageShell,
   PageTransition,
@@ -516,7 +522,9 @@ export default function Packages() {
                       ))}
                     </ul>
                     <div className="mt-8">
-                      <ActionLink href={WHATSAPP} external variant={pkg.featured ? "primary" : "secondary"}>
+                      {/* Goes to the real booking wizard below rather than WhatsApp,
+                          so the flow matches the main page. */}
+                      <ActionLink href="#book-now" variant={pkg.featured ? "primary" : "secondary"}>
                         Reserve Slot
                       </ActionLink>
                     </div>
@@ -525,6 +533,30 @@ export default function Packages() {
               ))}
             </div>
           </div>
+        </section>
+
+        {/* ── BOOKING WIZARD ──
+            The same component the home page renders at #booking. It brings its
+            own light background and its own id="booking", so the wrapper carries
+            a distinct id to anchor against without duplicating that one, and
+            scroll-mt-20 keeps the fixed header from covering its top. */}
+        <section id="book-now" className="scroll-mt-20">
+          <Suspense
+            fallback={
+              <div className="flex min-h-[420px] items-center justify-center">
+                <motion.div
+                  animate={{ opacity: [0.35, 1, 0.35] }}
+                  transition={{ duration: 1.4, repeat: Infinity, ease: "easeInOut" }}
+                  className="text-sm font-bold uppercase tracking-[0.25em] text-gray-400"
+                  style={{ fontFamily: THEME.condensed }}
+                >
+                  Loading booking…
+                </motion.div>
+              </div>
+            }
+          >
+            <BookingWizard />
+          </Suspense>
         </section>
 
         {/* ── MEETING POINT ── */}
@@ -885,7 +917,9 @@ export default function Packages() {
         transition={{ type: "spring", stiffness: 220, damping: 18, delay: 2 }}
         whileHover={{ scale: 1.1 }}
         whileTap={{ scale: 0.94 }}
-        className="fixed bottom-6 left-6 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-[#25D366] text-white shadow-[0_12px_40px_-8px_rgba(37,211,102,0.7)]"
+        // Bottom-right with clearance from the edge. FloatingCart sits at
+        // bottom-24 right-6, so this stays below it without overlapping.
+        className="fixed bottom-8 right-6 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-[#25D366] text-white shadow-[0_12px_40px_-8px_rgba(37,211,102,0.7)]"
       >
         <span className="absolute inset-0 animate-ping rounded-full bg-[#25D366] opacity-25" />
         <svg viewBox="0 0 448 512" width="28" height="28" fill="currentColor" className="relative z-10">
