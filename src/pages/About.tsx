@@ -276,27 +276,6 @@ const SectionRenderer = ({ section, onImageClick, index }: { section: AboutSecti
   const imageData = section.additional_data?.image_data || [];
   const isEven = index % 2 === 0;
 
-  const sectionVariants = {
-    hidden: {
-      opacity: 0,
-      y: 40,
-      scale: 0.98,
-      filter: "blur(10px)",
-    },
-    show: {
-      opacity: 1,
-      y: 0,
-      scale: 1,
-      filter: "blur(0px)",
-      transition: {
-        type: "spring" as const,
-        stiffness: 50,
-        damping: 20,
-        duration: 0.8,
-      },
-    },
-  };
-
   const textVariants = {
     hidden: { opacity: 0, y: 20, filter: "blur(5px)" },
     show: {
