@@ -28,6 +28,8 @@ const About = lazy(() => import("./pages/About"));
 const Offers = lazy(() => import("./pages/Offers"));
 const Promotion = lazy(() => import("./pages/Promotion"));
 const PdfRender = lazy(() => import("./pages/PdfRender"));
+const Packages = lazy(() => import("./pages/Packages"));
+const FlightInformation = lazy(() => import("./pages/FlightInformation"));
 
 const queryClient = new QueryClient();
 
@@ -117,6 +119,8 @@ const App = () => {
                 <Route path="/offers" element={<Offers />} />
                 <Route path="/promotion" element={<Promotion />} />
                 <Route path="/about" element={<About />} />
+                <Route path="/packages" element={<Packages />} />
+                <Route path="/flight-information" element={<FlightInformation />} />
                 <Route path="/pdf-render" element={<PdfRender />} />
                 {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
                 <Route path="*" element={<NotFound />} />

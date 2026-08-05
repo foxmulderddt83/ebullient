@@ -709,13 +709,13 @@ export const Footer = () => {
                       <span className="w-0.5 h-0.5 md:w-1 md:h-1 rounded-full bg-white/20"></span>
                       Refund Policy
                     </button>
-                    <a 
-                      href="/flight-information.html"
+                    <Link
+                      to="/flight-information"
                       className="text-left text-gray-400 hover:text-[#CD5C5C] text-xs md:text-sm transition-colors flex items-center gap-2"
                     >
                       <span className="w-0.5 h-0.5 md:w-1 md:h-1 rounded-full bg-white/20"></span>
                       Flight Information
-                    </a>
+                    </Link>
                   </div>
                 </div>
               </div>

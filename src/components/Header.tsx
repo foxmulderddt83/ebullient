@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useLocation } from "react-router-dom";
+import { useLocation, Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/lib/supabase";
 import { motion, AnimatePresence, useScroll, useSpring } from "framer-motion";
@@ -7,13 +7,26 @@ import { Menu, X, Phone, Mail, ChevronRight, Plane, Home, Briefcase, Compass, Ap
 
 const DEFAULT_NAV_ITEMS = [
   { name: "Home", href: "/#home", icon: Home },
-  { name: "Packages", href: "/OneDayPilot Main.html", icon: Briefcase },
+  // Was "/OneDayPilot Main.html" — a static file outside the SPA, so opening it
+  // dropped the header and footer entirely. It is a real route now.
+  { name: "Packages", href: "/packages", icon: Briefcase },
   { name: "Gallery", href: "/#sky", icon: Aperture },
   { name: "Services", href: "/#services", icon: ShieldCheck },
   { name: "Contact", href: "/#contact", icon: MessageSquare },
   { name: "Events", href: "/events", icon: Calendar },
   { name: "About", href: "/about", icon: Award },
 ];
+
+// Hoisted: motion(Link) called during render would return a fresh component type
+// every pass, remounting the nav item and restarting its entrance animation.
+const MotionLink = motion(Link);
+
+/**
+ * True for in-app routes ("/about"), false for same-page anchors ("/#home"),
+ * absolute URLs and any leftover static file links.
+ */
+const isRouteLink = (href: string) =>
+  href.startsWith("/") && !href.startsWith("/#") && !href.includes(".html") && !href.startsWith("//");
 
 export const Header = () => {
   const location = useLocation();
@@ -176,10 +189,15 @@ export const Header = () => {
                 ? activeHash === item.href.substring(1)
                 : location.pathname === item.href;
 
+              // Route links go through the router so the destination page can play
+              // its entrance transition; a plain <a> would hard-reload and lose it.
+              const Tag: any = isRouteLink(item.href) ? Link : "a";
+              const linkProps = isRouteLink(item.href) ? { to: item.href } : { href: item.href };
+
               return (
-                <a
+                <Tag
                   key={item.name}
-                  href={item.href}
+                  {...linkProps}
                   className="relative px-4 py-2 text-[11px] font-bold tracking-[0.16em] uppercase transition-all duration-300 group rounded-full flex items-center gap-2.5"
                   style={{
                     fontFamily: "'Barlow Condensed', sans-serif",
@@ -195,7 +213,7 @@ export const Header = () => {
                   {!isActive && (
                     <span className="absolute inset-x-3 bottom-1 h-px bg-[#CD5C5C] origin-left scale-x-0 group-hover:scale-x-100 transition-transform duration-300" />
                   )}
-                </a>
+                </Tag>
               );
             })}
           </nav>
@@ -279,10 +297,12 @@ export const Header = () => {
                   const isActive = isHashLink
                     ? activeHash === item.href.substring(1)
                     : location.pathname === item.href;
+                  const MotionTag: any = isRouteLink(item.href) ? MotionLink : motion.a;
+                  const linkProps = isRouteLink(item.href) ? { to: item.href } : { href: item.href };
                   return (
-                    <motion.a
+                    <MotionTag
                       key={item.name}
-                      href={item.href}
+                      {...linkProps}
                       initial={{ x: -16, opacity: 0 }}
                       animate={{ x: 0, opacity: 1 }}
                       transition={{ delay: i * 0.04 }}
@@ -300,7 +320,7 @@ export const Header = () => {
                         {item.name}
                       </span>
                       <ChevronRight className="w-4 h-4 opacity-30" />
-                    </motion.a>
+                    </MotionTag>
                   );
                 })}
 
