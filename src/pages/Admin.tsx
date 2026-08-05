@@ -411,6 +411,7 @@ interface Pilot {
   full_name: string;
   email: string;
   phone: string;
+  nric?: string | null;
   caam_license_no?: string | null;
   license_type?: string | null;
   license_expiry_date?: string | null;
@@ -443,6 +444,7 @@ interface GroundCrew {
   full_name: string;
   email: string;
   phone: string;
+  nric?: string | null;
   crew_role: string;
   airport_pass_expiry_date?: string | null;
   adp_expiry_date?: string | null;
@@ -5066,6 +5068,7 @@ export default function Admin() {
         full_name: editingItem.full_name || '',
         email: editingItem.email || '',
         phone: editingItem.phone || '',
+        nric: editingItem.nric?.trim() || null,
         caam_license_no: editingItem.caam_license_no || null,
         license_type: editingItem.license_type || null,
         license_expiry_date: editingItem.license_expiry_date || null,
@@ -5097,6 +5100,7 @@ export default function Admin() {
         full_name: editingItem.full_name || '',
         email: editingItem.email || '',
         phone: editingItem.phone || '',
+        nric: editingItem.nric?.trim() || null,
         crew_role: editingItem.crew_role || null,
         airport_pass_expiry_date: editingItem.airport_pass_expiry_date || null,
         adp_expiry_date: editingItem.adp_expiry_date || null,
@@ -6839,6 +6843,10 @@ export default function Admin() {
                                               <p className="text-[10px] font-bold uppercase tracking-tight text-slate-500 opacity-60">License</p>
                                               <p className="mt-1 text-[11px] sm:text-xs font-bold text-slate-700">{item.caam_license_no || '-'}</p>
                                             </div>
+                                            <div className="rounded-2xl bg-slate-50 border border-black/5 px-4 py-3">
+                                              <p className="text-[10px] font-bold uppercase tracking-tight text-slate-500 opacity-60">NRIC</p>
+                                              <p className="mt-1 text-[11px] sm:text-xs font-bold text-slate-700">{item.nric || '-'}</p>
+                                            </div>
                                           </>
                                         )}
                                         {activeTab === 'aircraft' && (
@@ -6862,6 +6870,10 @@ export default function Admin() {
                                             <div className="rounded-2xl bg-slate-50 border border-black/5 px-4 py-3">
                                               <p className="text-[10px] font-bold uppercase tracking-tight text-slate-500 opacity-60">Role</p>
                                               <p className="mt-1 text-[11px] sm:text-xs font-bold text-slate-700">{item.crew_role || '-'}</p>
+                                            </div>
+                                            <div className="rounded-2xl bg-slate-50 border border-black/5 px-4 py-3">
+                                              <p className="text-[10px] font-bold uppercase tracking-tight text-slate-500 opacity-60">NRIC</p>
+                                              <p className="mt-1 text-[11px] sm:text-xs font-bold text-slate-700">{item.nric || '-'}</p>
                                             </div>
                                           </>
                                         )}
@@ -14352,6 +14364,15 @@ export default function Admin() {
                                           placeholder={formTab === 'pilots' ? 'PPL / CPL / ATPL' : 'Dispatcher / Marshaller / Crew'}
                                         />
                                       </div>
+                                    </div>
+                                    <div className="space-y-2">
+                                      <label className="text-[11px] sm:text-xs font-bold uppercase tracking-tight text-slate-900 ml-1">NRIC</label>
+                                      <Input
+                                        value={editingItem.nric || ''}
+                                        onChange={(e) => setEditingItem({ ...editingItem, nric: e.target.value })}
+                                        className="h-16 rounded-[2.5rem] border-black/10 bg-white/50 focus:bg-white transition-all shadow-sm focus:ring-2 focus:ring-indigo-100 px-8"
+                                        placeholder="e.g. 900101-14-5567"
+                                      />
                                     </div>
                                   </>
                                 )}

@@ -1,6 +1,7 @@
 # Supabase Database Schema Details
 
 Generated on: 2026-06-26
+Amended 2026-08-05: documented `pilots` and `ground_crew`, both gaining a `nric` column.
 
 # Schema: PUBLIC
 
@@ -58,6 +59,59 @@ Generated on: 2026-06-26
 - **Status**: ENABLED
 - **Public/Anon**: SELECT ONLY. Visible on website.
 - **Staff**: FULL ACCESS. Management via admin panel.
+
+---
+
+## Table: pilots
+**Description**: Pilot roster: profiles, contact details, licensing and currency
+
+### Security (RLS)
+- **Status**: ENABLED
+- **Public/Anon**: NO ACCESS. Anon SELECT returns an empty set — personnel records are never exposed to the website.
+- **Staff**: FULL ACCESS. Management via the admin panel Flight Ops section.
+
+### Columns:
+| Column | Type | Notes |
+| --- | --- | --- |
+| id | uuid | Primary key |
+| full_name | text | NOT NULL |
+| email | text | NOT NULL |
+| phone | text | NOT NULL |
+| nric | text | National identity number. Nullable — existing rows predate the column |
+| caam_license_no | text | |
+| license_type | text | PPL / CPL / ATPL |
+| license_expiry_date | date | |
+| medical_expiry_date | date | |
+| is_active | boolean | |
+| notes | text | |
+| user_id | uuid | Optional link to an auth user |
+| created_at | timestamptz | |
+
+---
+
+## Table: ground_crew
+**Description**: Ground crew roster: profiles, contact details and pass currency
+
+### Security (RLS)
+- **Status**: ENABLED
+- **Public/Anon**: NO ACCESS. Anon SELECT returns an empty set — personnel records are never exposed to the website.
+- **Staff**: FULL ACCESS. Management via the admin panel Flight Ops section.
+
+### Columns:
+| Column | Type | Notes |
+| --- | --- | --- |
+| id | uuid | Primary key |
+| full_name | text | NOT NULL |
+| email | text | NOT NULL |
+| phone | text | NOT NULL |
+| nric | text | National identity number. Nullable — existing rows predate the column |
+| crew_role | text | Dispatcher / Marshaller / Crew |
+| airport_pass_expiry_date | date | |
+| adp_expiry_date | date | |
+| is_active | boolean | |
+| notes | text | |
+| user_id | uuid | Optional link to an auth user |
+| created_at | timestamptz | |
 
 ---
 
