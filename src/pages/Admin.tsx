@@ -1267,7 +1267,71 @@ const AVAILABLE_ROLES = [
   'DEMO'
 ];
 
+/**
+ * Every value the bookings table accepts, with what it actually means.
+ * Colours match the badges rendered on the booking rows and cards, so the
+ * legend reads as a key to them rather than a separate colour scheme.
+ */
+const BOOKING_STATUS_LEGEND: { value: string; label: string; meaning: string; className: string }[] = [
+  { value: 'pending', label: 'Pending', meaning: 'Booking created, awaiting payment or confirmation.', className: 'bg-slate-100 text-slate-700 border-slate-200' },
+  { value: 'pending_verification', label: 'Pending Verification', meaning: 'Payment proof submitted by the customer, waiting on staff to verify it.', className: 'bg-orange-100 text-orange-700 border-orange-200' },
+  { value: 'confirmed', label: 'Confirmed', meaning: 'Verified and scheduled. Counts towards upcoming flights.', className: 'bg-emerald-100 text-emerald-700 border-emerald-200' },
+  { value: 'completed', label: 'Completed', meaning: 'The flight has been flown.', className: 'bg-blue-100 text-blue-700 border-blue-200' },
+  { value: 'cancelled', label: 'Cancelled', meaning: 'Called off. Cancelling from the panel also marks payment as Refunded.', className: 'bg-rose-100 text-rose-700 border-rose-200' },
+  { value: 'rescheduled', label: 'Rescheduled', meaning: 'Moved to a different date or time.', className: 'bg-violet-100 text-violet-700 border-violet-200' },
+];
 
+const PAYMENT_STATUS_LEGEND: { value: string; label: string; meaning: string; className: string }[] = [
+  { value: 'unpaid', label: 'Unpaid', meaning: 'No payment received yet.', className: 'bg-slate-100 text-slate-700 border-slate-200' },
+  { value: 'pending_verification', label: 'Pending Verification', meaning: 'Proof of payment uploaded, not yet checked by staff.', className: 'bg-orange-100 text-orange-700 border-orange-200' },
+  { value: 'partial', label: 'Partial', meaning: 'Deposit received; a balance is still outstanding.', className: 'bg-amber-100 text-amber-700 border-amber-200' },
+  { value: 'paid', label: 'Paid', meaning: 'Paid in full.', className: 'bg-emerald-100 text-emerald-700 border-emerald-200' },
+  { value: 'refunded', label: 'Refunded', meaning: 'Money returned to the customer, normally after a cancellation.', className: 'bg-rose-100 text-rose-700 border-rose-200' },
+];
+
+/** Collapsible key to the status badges, shown at the top of the Bookings tab. */
+const BookingStatusLegend = () => {
+  const [open, setOpen] = useState(false);
+
+  const renderGroup = (title: string, items: typeof BOOKING_STATUS_LEGEND) => (
+    <div className="space-y-1.5">
+      <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">{title}</p>
+      <div className="space-y-1.5">
+        {items.map(item => (
+          <div key={item.value} className="flex items-start gap-2">
+            <span className={`shrink-0 mt-0.5 inline-flex items-center px-2 py-0.5 rounded-full border text-[9px] font-bold uppercase tracking-tight ${item.className}`}>
+              {item.label}
+            </span>
+            <span className="text-[10px] sm:text-[11px] leading-snug text-slate-600 font-medium">{item.meaning}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="bg-white/60 backdrop-blur-md border border-black/5 rounded-xl shadow-sm overflow-hidden">
+      <button
+        type="button"
+        onClick={() => setOpen(v => !v)}
+        aria-expanded={open}
+        className="w-full flex items-center justify-between gap-3 px-3 py-2 text-left hover:bg-white/70 transition-colors"
+      >
+        <span className="flex items-center gap-2 text-[11px] sm:text-xs font-bold uppercase tracking-tight text-slate-900">
+          <Info className="w-3.5 h-3.5 text-slate-500" />
+          Status Legend
+        </span>
+        <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform duration-300 ${open ? 'rotate-180' : ''}`} />
+      </button>
+      {open && (
+        <div className="grid gap-5 sm:grid-cols-2 border-t border-black/5 px-3 py-3 animate-in fade-in slide-in-from-top-2 duration-300">
+          {renderGroup('Booking Status', BOOKING_STATUS_LEGEND)}
+          {renderGroup('Payment Status', PAYMENT_STATUS_LEGEND)}
+        </div>
+      )}
+    </div>
+  );
+};
 
 export default function Admin() {
   const bucketName = import.meta.env.VITE_SUPABASE_BUCKET || "media";
@@ -8494,6 +8558,7 @@ export default function Admin() {
                                 </p>
                               </div>
                             )}
+                            <BookingStatusLegend />
                             <div className="space-y-0.5 animate-in fade-in slide-in-from-bottom-2 duration-500">
                               <div className="hidden md:flex flex-col gap-0.5 mb-0.5 bg-white/40 backdrop-blur-md p-0.5 rounded-xl border border-black/5 shadow-xl shadow-slate-200/50">
                                 <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-0.5">

@@ -7,35 +7,44 @@
 --   23514  new row for relation "bookings" violates check constraint
 --          "bookings_payment_status_check"
 -- because the Payment Status dropdown offers values the constraint rejects.
+-- 'partial' and 'refunded' have never once been stored, which means the
+-- Cancel & Refund action (which writes payment_status: 'refunded') has been
+-- failing with the same error all along. 'rescheduled' is in the same position.
 --
--- Evidence: across every booking row, payment_status only ever holds
---   paid, unpaid, pending_verification
--- and status only ever holds
---   pending, pending_verification, confirmed, completed, cancelled
+-- Why NOT VALID
+-- -------------
+-- A first attempt at this failed with
+--   ERROR: 23514: check constraint "bookings_status_check" of relation
+--          "bookings" is violated by some row
+-- so at least one existing row holds a status outside the list below. Adding the
+-- constraint NOT VALID enforces it on every future insert and update — which is
+-- what unblocks the admin panel — without rejecting the legacy rows outright.
+-- Nothing is deleted or rewritten.
 --
--- So 'partial' and 'refunded' have never successfully been written — which means
--- the Cancel & Refund action (Admin.tsx, `.update({ status: 'cancelled',
--- payment_status: 'refunded' })`) has been failing with this same 23514 too.
--- Likewise 'rescheduled' has never been stored, so picking it in the Booking
--- Status dropdown would fail next.
---
--- The choice
--- ----------
--- Widen the database to match the app rather than stripping options out of the
--- UI: the refund and reschedule flows are intended features, and narrowing the
--- dropdown would remove them rather than fix them.
---
--- IMPORTANT — check the constraint names first
--- --------------------------------------------
--- 'bookings_payment_status_check' is confirmed by the error message. The status
--- constraint's name is assumed to follow the same convention. DROP ... IF EXISTS
--- is a no-op on a name that does not exist, so if the real name differs the old
--- restriction stays in place and 'rescheduled' will still be rejected. Run this
--- first and adjust the names below to match:
---
---   SELECT conname, pg_get_constraintdef(oid)
---   FROM pg_constraint
---   WHERE conrelid = 'public.bookings'::regclass AND contype = 'c';
+-- Run STEP 1 first: it names the offending rows. If their values are legitimate,
+-- add them to the lists in STEP 2 before running it. Once the data is clean,
+-- STEP 3 promotes the constraints to fully validated.
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- STEP 1 — find the rows that break the constraint, and confirm constraint names
+-- ─────────────────────────────────────────────────────────────────────────────
+
+SELECT status, payment_status, count(*) AS rows
+FROM public.bookings
+WHERE status IS NOT NULL AND status NOT IN
+        ('pending', 'pending_verification', 'confirmed', 'completed', 'cancelled', 'rescheduled')
+   OR payment_status IS NOT NULL AND payment_status NOT IN
+        ('unpaid', 'pending_verification', 'partial', 'paid', 'refunded')
+GROUP BY status, payment_status
+ORDER BY rows DESC;
+
+SELECT conname, pg_get_constraintdef(oid) AS definition
+FROM pg_constraint
+WHERE conrelid = 'public.bookings'::regclass AND contype = 'c';
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- STEP 2 — widen the constraints (safe to run with legacy rows present)
+-- ─────────────────────────────────────────────────────────────────────────────
 
 BEGIN;
 
@@ -47,7 +56,7 @@ ALTER TABLE public.bookings
   CHECK (
     payment_status IS NULL
     OR payment_status IN ('unpaid', 'pending_verification', 'partial', 'paid', 'refunded')
-  );
+  ) NOT VALID;
 
 ALTER TABLE public.bookings
   DROP CONSTRAINT IF EXISTS bookings_status_check;
@@ -57,10 +66,17 @@ ALTER TABLE public.bookings
   CHECK (
     status IS NULL
     OR status IN ('pending', 'pending_verification', 'confirmed', 'completed', 'cancelled', 'rescheduled')
-  );
+  ) NOT VALID;
 
 COMMIT;
 
--- NULL is permitted explicitly so the constraint does not turn an unset column
--- into a hard failure; a bare IN (...) already passes on NULL, this just makes
--- the intent obvious to the next reader.
+-- ─────────────────────────────────────────────────────────────────────────────
+-- STEP 3 — optional, once STEP 1 returns no rows: promote to fully validated
+-- ─────────────────────────────────────────────────────────────────────────────
+--
+-- ALTER TABLE public.bookings VALIDATE CONSTRAINT bookings_payment_status_check;
+-- ALTER TABLE public.bookings VALIDATE CONSTRAINT bookings_status_check;
+--
+-- If STEP 1's second query shows a differently-named status constraint, the
+-- DROP ... IF EXISTS above silently no-ops and the old restriction survives.
+-- Drop it by its real name and re-run STEP 2.
