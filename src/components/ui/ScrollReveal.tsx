@@ -1,5 +1,5 @@
-import { motion } from "framer-motion";
-import { ReactNode, useEffect, useRef, useState } from "react";
+import { motion, useReducedMotion } from "framer-motion";
+import { ReactNode, useEffect, useMemo, useRef, useState } from "react";
 
 interface ScrollRevealProps {
   children: ReactNode;
@@ -7,7 +7,20 @@ interface ScrollRevealProps {
   staggerChildren?: boolean;
   animationType?: "fade" | "slide" | "scale" | "blur";
   direction?: "up" | "down" | "left" | "right";
+  /**
+   * Replay the reveal every time the section re-enters the viewport.
+   * Defaults to true so scrolling the home page keeps its sense of motion;
+   * pass false to animate only on first sight.
+   */
+  repeat?: boolean;
 }
+
+// Matches the Reveal used on the Packages / Flight Information pages, so a
+// section entering on the home page moves exactly like one there.
+const REVEAL_TRANSITION = {
+  duration: 0.7,
+  ease: [0.16, 1, 0.3, 1] as const,
+};
 
 export const ScrollReveal = ({
   children,
@@ -15,29 +28,37 @@ export const ScrollReveal = ({
   staggerChildren = false,
   animationType = "fade",
   direction = "up",
+  repeat = true,
 }: ScrollRevealProps) => {
   const containerRef = useRef<HTMLDivElement>(null);
+  const reduceMotion = useReducedMotion();
   const [isInView, setIsInView] = useState(false);
 
   useEffect(() => {
     const el = containerRef.current;
-    if (!el) return;
+    if (!el || reduceMotion) return;
 
     const observer = new IntersectionObserver(
       ([entry]) => {
         if (entry.isIntersecting) {
           setIsInView(true);
-          observer.disconnect();
+        } else if (repeat) {
+          // Reset so the next entry replays the reveal.
+          setIsInView(false);
         }
       },
-      { threshold: 0.1, rootMargin: "-80px" }
+      // threshold 0 rather than a fraction: a section taller than the viewport
+      // can never expose a given percentage of itself, so a fractional
+      // threshold would leave it stuck hidden forever. The inset rootMargin is
+      // what delays the trigger until the section is properly on screen.
+      { threshold: 0, rootMargin: "-80px 0px -80px 0px" }
     );
 
     observer.observe(el);
     return () => observer.disconnect();
-  }, []);
+  }, [repeat, reduceMotion]);
 
-  const getInitialProps = () => {
+  const hiddenState = useMemo(() => {
     switch (animationType) {
       case "slide":
         return {
@@ -52,29 +73,35 @@ export const ScrollReveal = ({
       default:
         return { opacity: 0, y: 32 };
     }
-  };
+  }, [animationType, direction]);
 
-  // Matches the Reveal used on the Packages / Flight Information pages, so a
-  // section entering on the home page moves exactly like one there.
-  const REVEAL_TRANSITION = {
-    duration: 0.7,
-    ease: [0.16, 1, 0.3, 1] as const,
-  };
+  const shownState = { opacity: 1, x: 0, y: 0, scale: 1, filter: "blur(0px)" };
 
+  // Motion is skipped entirely for visitors who ask for reduced motion; the
+  // content still renders, it just never moves.
+  if (reduceMotion) {
+    return (
+      <div ref={containerRef} className="w-full">
+        {children}
+      </div>
+    );
+  }
+
+  // One persistent wrapper in both states. Swapping between two different
+  // element trees (the old approach) remounted the children on every reveal,
+  // which would reset the booking wizard's form and refire its data fetches
+  // each time the section scrolled back into view.
   if (!staggerChildren) {
     return (
       <div ref={containerRef} className="w-full">
-        {isInView ? (
-          <motion.div
-            initial={getInitialProps()}
-            animate={{ opacity: 1, x: 0, y: 0, scale: 1, filter: "blur(0px)" }}
-            transition={{ ...REVEAL_TRANSITION, delay }}
-          >
-            {children}
-          </motion.div>
-        ) : (
-          <div style={{ visibility: "hidden" }}>{children}</div>
-        )}
+        <motion.div
+          initial={false}
+          animate={isInView ? shownState : hiddenState}
+          transition={{ ...REVEAL_TRANSITION, delay: isInView ? delay : 0 }}
+          style={{ willChange: "transform, opacity" }}
+        >
+          {children}
+        </motion.div>
       </div>
     );
   }
@@ -89,31 +116,16 @@ export const ScrollReveal = ({
     },
   };
 
-  const childVariants = {
-    hidden: getInitialProps(),
-    show: {
-      opacity: 1,
-      x: 0,
-      y: 0,
-      scale: 1,
-      filter: "blur(0px)",
-      transition: REVEAL_TRANSITION,
-    },
-  };
-
   return (
     <div ref={containerRef} className="w-full">
-      {isInView ? (
-        <motion.div
-          variants={containerVariants}
-          initial="hidden"
-          animate="show"
-        >
-          {children}
-        </motion.div>
-      ) : (
-        <div style={{ visibility: "hidden" }}>{children}</div>
-      )}
+      <motion.div
+        variants={containerVariants}
+        initial={false}
+        animate={isInView ? "show" : "hidden"}
+        style={{ willChange: "transform, opacity" }}
+      >
+        {children}
+      </motion.div>
     </div>
   );
 };

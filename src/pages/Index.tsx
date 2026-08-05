@@ -34,7 +34,11 @@ const defaultOrder = [
 ];
 
 const componentMap: Record<string, React.ReactNode> = {
-  "hero": <HeroCarousel key="hero" />,
+  "hero": (
+    <ScrollReveal key="hero">
+      <HeroCarousel />
+    </ScrollReveal>
+  ),
   "starwars": (
     <Suspense key="starwars" fallback={<SectionLoader />}>
       <ScrollReveal>
