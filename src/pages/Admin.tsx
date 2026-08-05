@@ -1279,6 +1279,7 @@ const BOOKING_STATUS_LEGEND: { value: string; label: string; meaning: string; cl
   { value: 'completed', label: 'Completed', meaning: 'The flight has been flown.', className: 'bg-blue-100 text-blue-700 border-blue-200' },
   { value: 'cancelled', label: 'Cancelled', meaning: 'Called off. Cancelling from the panel also marks payment as Refunded.', className: 'bg-rose-100 text-rose-700 border-rose-200' },
   { value: 'rescheduled', label: 'Rescheduled', meaning: 'Moved to a different date or time.', className: 'bg-violet-100 text-violet-700 border-violet-200' },
+  { value: 'failed', label: 'Failed', meaning: 'Booking did not complete — payment gateway failure. Legacy value; nothing in the panel sets it.', className: 'bg-slate-100 text-slate-500 border-slate-200' },
 ];
 
 const PAYMENT_STATUS_LEGEND: { value: string; label: string; meaning: string; className: string }[] = [
@@ -1287,6 +1288,8 @@ const PAYMENT_STATUS_LEGEND: { value: string; label: string; meaning: string; cl
   { value: 'partial', label: 'Partial', meaning: 'Deposit received; a balance is still outstanding.', className: 'bg-amber-100 text-amber-700 border-amber-200' },
   { value: 'paid', label: 'Paid', meaning: 'Paid in full.', className: 'bg-emerald-100 text-emerald-700 border-emerald-200' },
   { value: 'refunded', label: 'Refunded', meaning: 'Money returned to the customer, normally after a cancellation.', className: 'bg-rose-100 text-rose-700 border-rose-200' },
+  { value: 'failed', label: 'Failed', meaning: 'Payment attempt was declined or errored.', className: 'bg-slate-100 text-slate-500 border-slate-200' },
+  { value: 'pending', label: 'Pending', meaning: 'Legacy value kept for older rows — use Unpaid or Pending Verification instead.', className: 'bg-slate-100 text-slate-400 border-slate-200' },
 ];
 
 /** Collapsible key to the status badges, shown at the top of the Bookings tab. */
@@ -15394,8 +15397,11 @@ export default function Admin() {
                             <option value="unpaid">Unpaid</option>
                             <option value="pending_verification">Pending Verification</option>
                             <option value="paid">Paid</option>
+                            {/* 'partial' requires the widened check constraint —
+                                see fix-bookings-status-constraints.sql. */}
                             <option value="partial">Partial</option>
                             <option value="refunded">Refunded</option>
+                            <option value="failed">Failed</option>
                           </select>
                         </div>
                         <div className="space-y-1">
