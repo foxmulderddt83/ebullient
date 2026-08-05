@@ -15309,6 +15309,10 @@ export default function Admin() {
                             className="flex h-9 w-full rounded-xl border border-black/10 bg-white px-3 py-1 text-[11px] sm:text-xs shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-indigo-100/80 disabled:cursor-not-allowed disabled:opacity-50 font-bold uppercase tracking-tight"
                           >
                             <option value="pending">Pending</option>
+                            {/* pending_verification is written by the payment-proof
+                                flow and filtered on elsewhere, but was missing here,
+                                so editing such a booking silently changed its status. */}
+                            <option value="pending_verification">Pending Verification</option>
                             <option value="confirmed">Confirmed</option>
                             <option value="completed">Completed</option>
                             <option value="cancelled">Cancelled</option>
@@ -15323,6 +15327,7 @@ export default function Admin() {
                             className="flex h-9 w-full rounded-xl border border-black/10 bg-white px-3 py-1 text-[11px] sm:text-xs shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-indigo-100/80 disabled:cursor-not-allowed disabled:opacity-50 font-bold uppercase tracking-tight"
                           >
                             <option value="unpaid">Unpaid</option>
+                            <option value="pending_verification">Pending Verification</option>
                             <option value="paid">Paid</option>
                             <option value="partial">Partial</option>
                             <option value="refunded">Refunded</option>
