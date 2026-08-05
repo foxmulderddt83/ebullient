@@ -5007,9 +5007,12 @@ export default function Admin() {
       const maxQuantity = parseInt(String(editingItem.max_quantity ?? ''));
 
       payload = {
-        category_id: editingItem.category_id,
-        name: editingItem.name,
-        description: editingItem.description,
+        // name/description are NOT NULL in the DB. An undefined key is dropped from
+        // the JSON body while still being listed in PostgREST's `columns`, so it
+        // lands as NULL and the insert fails with 23502. Coerce to "".
+        category_id: editingItem.category_id || null,
+        name: editingItem.name ?? "",
+        description: editingItem.description ?? "",
         price: isNaN(price) ? 0 : price,
         promotion_price: promotionPrice,
         promotion_start_at: editingItem.promotion_start_at || null,
@@ -5236,7 +5239,10 @@ export default function Admin() {
       ({ error } = await supabase.from(table).insert([{ id, ...payload }]));
     }
 
-    if (error) toast.error("Save failed");
+    if (error) {
+      console.error(`Save failed on ${table}:`, error);
+      toast.error(`Save failed: ${error.message}`);
+    }
     else {
       // Save Add-ons if activeTab is packages
       if (table === 'packages' && supabase) {
