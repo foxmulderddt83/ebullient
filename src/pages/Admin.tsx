@@ -1762,6 +1762,7 @@ export default function Admin() {
   const [editBookingData, setEditBookingData] = useState<Partial<Booking> & { customer?: { name: string; email: string; phone?: string } }>({});
   const [selectedRegistration, setSelectedRegistration] = useState<Registration | null>(null);
   const [reviewServiceFilter, setReviewServiceFilter] = useState<string>("all");
+  const [reviewSearch, setReviewSearch] = useState("");
 
   const [services, setServices] = useState<Service[]>([]);
   const [heroSlides, setHeroSlides] = useState<HeroSlide[]>([]);
@@ -1855,7 +1856,23 @@ export default function Admin() {
   const isPoliciesActive = ['policy_terms', 'policy_privacy', 'policy_refund', 'policy_cancellation', 'policy_rules'].includes(activeTab);
   const isEventActive = ['registrations', 'event_template'].includes(activeTab);
   const isConfigActive = ['email_config', 'whatsapp_config', 'payments', 'hours_config', 'logs', 'doc_templates', 'watermark_config', 'storage_manager'].includes(activeTab);
-  const filteredReviews = reviewServiceFilter === "all" ? reviews : reviews.filter(review => review.service_id === reviewServiceFilter);
+  // Service filter and keyword search compose: the search narrows whatever the
+  // service dropdown already selected. Keywords match independently, so
+  // "amir petrel" finds a review whose author and service between them mention both.
+  const reviewKeywords = reviewSearch.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  const filteredReviews = (reviewServiceFilter === "all" ? reviews : reviews.filter(review => review.service_id === reviewServiceFilter))
+    .filter(review => {
+      if (reviewKeywords.length === 0) return true;
+      const haystack = [
+        review.customer_name,
+        review.comment,
+        review.phone_number,
+        review.service?.title ?? services.find(s => s.id === review.service_id)?.title,
+        `${review.rating} star`,
+        review.is_approved ? "approved" : "pending"
+      ].filter(Boolean).join(" ").toLowerCase();
+      return reviewKeywords.every(kw => haystack.includes(kw));
+    });
 
   // Refs
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -8283,27 +8300,51 @@ export default function Admin() {
                       else if (activeTab === 'reviews') {
                         return (
                           <div className="max-w-4xl mx-auto space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-500">
-                            <div className="flex flex-col sm:flex-row items-center sm:items-center justify-between text-center sm:text-left gap-3 bg-white/40 backdrop-blur-md p-4 rounded-2xl border border-black/5 shadow-xl shadow-slate-200/50">
+                            <div className="flex flex-col sm:flex-row flex-wrap items-center sm:items-center justify-between text-center sm:text-left gap-3 bg-white/40 backdrop-blur-md p-4 rounded-2xl border border-black/5 shadow-xl shadow-slate-200/50">
                               <div className="space-y-0.5">
                                 <h3 className="font-bold text-[11px] sm:text-xs uppercase tracking-tight">Reviews Management</h3>
                                 <p className="text-[11px] sm:text-xs font-bold uppercase tracking-tight text-slate-900">
                                   Showing {filteredReviews.length} of {reviews.length} total reviews
                                 </p>
                               </div>
-                              <div className="w-full sm:w-auto flex flex-col items-center sm:items-end">
-                                <label className="text-[11px] sm:text-xs font-bold uppercase tracking-tight text-slate-900 mb-2 block text-center sm:text-right w-full">Filter by service</label>
-                                <div className="flex flex-wrap gap-2 w-full justify-center sm:justify-end">
-                                  <Select value={reviewServiceFilter} onValueChange={setReviewServiceFilter}>
-                                    <SelectTrigger className="w-full sm:w-[240px] border-black/10 shadow-sm h-10 bg-white/50 backdrop-blur-sm rounded-xl font-bold text-[11px] sm:text-xs uppercase tracking-tight hover:bg-white transition-all px-4">
-                                      <SelectValue placeholder="FILTER BY SERVICE" />
-                                    </SelectTrigger>
-                                    <SelectContent className="rounded-xl border-black/10 shadow-2xl backdrop-blur-xl bg-white/95">
-                                      <SelectItem value="all" className="font-bold text-[11px] sm:text-xs uppercase tracking-tight py-2 rounded-lg">ALL SERVICES</SelectItem>
-                                      {services.map(service => (
-                                        <SelectItem key={service.id} value={service.id} className="font-bold text-[11px] sm:text-xs uppercase tracking-tight py-2 rounded-lg">{service.title}</SelectItem>
-                                      ))}
-                                    </SelectContent>
-                                  </Select>
+                              <div className="w-full sm:w-auto flex flex-col sm:flex-row items-center sm:items-end gap-3 sm:gap-4">
+                                <div className="w-full sm:w-auto flex flex-col items-center sm:items-start">
+                                  <label className="text-[11px] sm:text-xs font-bold uppercase tracking-tight text-slate-900 mb-2 block text-center sm:text-left w-full">Search by keyword</label>
+                                  <div className="relative w-full sm:w-[260px]">
+                                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+                                    <Input
+                                      value={reviewSearch}
+                                      onChange={(e) => setReviewSearch(e.target.value)}
+                                      placeholder="Name, comment, rating..."
+                                      className="h-10 pl-11 pr-10 rounded-xl border-black/10 bg-white/50 backdrop-blur-sm focus:bg-white transition-all font-bold text-[11px] sm:text-xs placeholder:text-slate-400 placeholder:normal-case"
+                                    />
+                                    {reviewSearch && (
+                                      <button
+                                        type="button"
+                                        onClick={() => setReviewSearch("")}
+                                        className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-900 transition-colors"
+                                        aria-label="Clear review search"
+                                      >
+                                        <X className="w-4 h-4" />
+                                      </button>
+                                    )}
+                                  </div>
+                                </div>
+                                <div className="w-full sm:w-auto flex flex-col items-center sm:items-end">
+                                  <label className="text-[11px] sm:text-xs font-bold uppercase tracking-tight text-slate-900 mb-2 block text-center sm:text-right w-full">Filter by service</label>
+                                  <div className="flex flex-wrap gap-2 w-full justify-center sm:justify-end">
+                                    <Select value={reviewServiceFilter} onValueChange={setReviewServiceFilter}>
+                                      <SelectTrigger className="w-full sm:w-[240px] border-black/10 shadow-sm h-10 bg-white/50 backdrop-blur-sm rounded-xl font-bold text-[11px] sm:text-xs uppercase tracking-tight hover:bg-white transition-all px-4">
+                                        <SelectValue placeholder="FILTER BY SERVICE" />
+                                      </SelectTrigger>
+                                      <SelectContent className="rounded-xl border-black/10 shadow-2xl backdrop-blur-xl bg-white/95">
+                                        <SelectItem value="all" className="font-bold text-[11px] sm:text-xs uppercase tracking-tight py-2 rounded-lg">ALL SERVICES</SelectItem>
+                                        {services.map(service => (
+                                          <SelectItem key={service.id} value={service.id} className="font-bold text-[11px] sm:text-xs uppercase tracking-tight py-2 rounded-lg">{service.title}</SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
                                 </div>
                               </div>
                             </div>
@@ -8315,9 +8356,22 @@ export default function Admin() {
                               </div>
                             ) : filteredReviews.length === 0 ? (
                               <div className="flex flex-col items-center justify-center py-16 bg-white/30 backdrop-blur-sm rounded-[2.5rem] border border-black/5 shadow-sm">
-                                <Filter className="w-12 h-12 text-slate-900 mb-4" />
-                                <p className="text-[11px] sm:text-xs font-bold uppercase tracking-tight text-slate-900">No reviews for this service</p>
-                                <p className="text-[11px] sm:text-xs text-slate-900 mt-1 font-bold uppercase tracking-tight">Try a different service filter.</p>
+                                {reviewKeywords.length > 0 ? <Search className="w-12 h-12 text-slate-900 mb-4" /> : <Filter className="w-12 h-12 text-slate-900 mb-4" />}
+                                <p className="text-[11px] sm:text-xs font-bold uppercase tracking-tight text-slate-900">
+                                  {reviewKeywords.length > 0 ? `No reviews match "${reviewSearch.trim()}"` : "No reviews for this service"}
+                                </p>
+                                <p className="text-[11px] sm:text-xs text-slate-900 mt-1 font-bold uppercase tracking-tight">
+                                  {reviewKeywords.length > 0 ? "Try different keywords or clear the search." : "Try a different service filter."}
+                                </p>
+                                {reviewKeywords.length > 0 && (
+                                  <Button
+                                    variant="ghost"
+                                    onClick={() => setReviewSearch("")}
+                                    className="mt-3 h-8 text-[11px] sm:text-xs font-bold uppercase tracking-tight text-slate-600 hover:text-slate-900"
+                                  >
+                                    Clear search
+                                  </Button>
+                                )}
                               </div>
                             ) : (
                               <div className="grid grid-cols-1 gap-4 sm:gap-6">
