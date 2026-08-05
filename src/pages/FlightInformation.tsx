@@ -302,8 +302,12 @@ export default function FlightInformation() {
             animate={{ scale: 1, opacity: 1 }}
             transition={{ duration: 1.8, ease: [0.16, 1, 0.3, 1], delay: 0.55 }}
             style={{
-              // Daylight wash rather than the old near-black scrim.
-              backgroundImage: `linear-gradient(rgba(255,255,255,.66), rgba(248,250,252,.95)), url('${STORAGE}/backgrounds/1782178026136_SubangAP-overview.jpg')`,
+              // Daylight wash rather than a near-black scrim. Light at the top so
+              // the airport photograph actually reads, then thickening downward:
+              // the heading and body sit over the lower half, and slate text needs
+              // the extra cover there to stay legible. It also lets the hero blend
+              // into the page background instead of ending on a hard edge.
+              backgroundImage: `linear-gradient(rgba(255,255,255,.20) 0%, rgba(255,255,255,.52) 45%, rgba(248,250,252,.92) 100%), url('${STORAGE}/backgrounds/1782178026136_SubangAP-overview.jpg')`,
               backgroundSize: "cover",
               backgroundPosition: "center",
             }}
