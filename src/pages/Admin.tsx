@@ -5005,6 +5005,8 @@ export default function Admin() {
       const price = parseFloat(String(editingItem.price));
       const promotionPrice = editingItem.promotion_price ? parseFloat(String(editingItem.promotion_price)) : null;
       const maxQuantity = parseInt(String(editingItem.max_quantity ?? ''));
+      const parsedSortOrder = parseInt(String(editingItem.sort_order ?? ''));
+      const sortOrder = isNaN(parsedSortOrder) ? 0 : parsedSortOrder;
 
       payload = {
         category_id: editingItem.category_id,
@@ -5017,13 +5019,16 @@ export default function Admin() {
         is_active: editingItem.is_active !== false,
         image_url: image_url || null,
         image_path: image_path || null,
-        sort_order: editingItem.sort_order ?? 0,
+        sort_order: sortOrder,
         google_maps_link: editingItem.google_maps_link || null,
-        is_main_default: (editingItem.sort_order ?? 0) === 0 && editingItem.is_main_default === true,
+        is_main_default: sortOrder === 0 && editingItem.is_main_default === true,
         max_quantity: isNaN(maxQuantity) ? 0 : maxQuantity
       };
 
-      if (editingItem.sort_order === 0) {
+      // Stage 0 is the default for a package that never touched the Sort Order
+      // select, and the form shows the route field in that case too — so key off
+      // the normalized value or a typed route is silently dropped on insert.
+      if (sortOrder === 0) {
         payload.route = editingItem.route || null;
       }
     } else if (table === 'events') {
@@ -5151,7 +5156,19 @@ export default function Admin() {
     }
 
     // Handle new category creation if category_id is a name instead of UUID
-    if (table === 'packages' && payload.category_id) {
+    if (table === 'packages') {
+      // The category field is a free-text combobox, so it can hold "" when it is
+      // cleared or when no category existed yet. Sending "" for a uuid column makes
+      // PostgREST reject the whole insert with a 400 (22P02), so stop here instead.
+      payload.category_id = typeof payload.category_id === 'string'
+        ? payload.category_id.trim()
+        : payload.category_id;
+
+      if (!payload.category_id) {
+        toast.error("Please pick a category or type a new one before saving");
+        return;
+      }
+
       const existingCategory = categories.find(c => c.id === payload.category_id);
       if (!existingCategory) {
         // Check if a category with this name already exists (case insensitive)
@@ -5236,7 +5253,10 @@ export default function Admin() {
       ({ error } = await supabase.from(table).insert([{ id, ...payload }]));
     }
 
-    if (error) toast.error("Save failed");
+    if (error) {
+      console.error(`Save failed for ${table}:`, error);
+      toast.error(error.message ? `Save failed: ${error.message}` : "Save failed");
+    }
     else {
       // Save Add-ons if activeTab is packages
       if (table === 'packages' && supabase) {
