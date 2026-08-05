@@ -10,6 +10,7 @@ import { SocialProofPopup } from "@/components/SocialProofPopup";
 import { usePageTracking } from "@/lib/analytics";
 import { lazy, Suspense, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { BrandLoader } from "@/components/page/PageChrome";
 import Index from "./pages/Index";
 
 // Lazy load heavy pages
@@ -34,10 +35,11 @@ const FlightInformation = lazy(() => import("./pages/FlightInformation"));
 const queryClient = new QueryClient();
 
 // Loading component for Suspense and Initial Session
+// Uses the shared BrandLoader so the first paint, the home page's section
+// fallbacks and the marketing pages all show the same loading treatment.
 const PageLoader = () => (
   <div className="flex flex-col items-center justify-center min-h-screen bg-white">
-    <div className="w-12 h-12 border-4 border-[#CD5C5C] border-t-transparent rounded-full animate-spin mb-4"></div>
-    <p className="text-[#CD5C5C] font-medium tracking-widest uppercase text-[10px]" style={{ fontFamily: "'Barlow Condensed', sans-serif" }}>One Day Pilot</p>
+    <BrandLoader label="One Day Pilot" />
   </div>
 );
 

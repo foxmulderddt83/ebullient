@@ -4,6 +4,7 @@ import { supabase } from "@/lib/supabase";
 import { Header } from "@/components/Header";
 import { HeroCarousel } from "@/components/HeroCarousel";
 import { MobileScrollToTop } from "@/components/ui/MobileScrollToTop";
+import { BrandLoader, PageTransition } from "@/components/page/PageChrome";
 
 // Lazy load sections below the fold
 const StarWarsSection = lazy(() => import("@/components/StarWarsSection").then(m => ({ default: m.StarWarsSection })));
@@ -14,10 +15,12 @@ const AdventureSection = lazy(() => import("@/components/AdventureSection").then
 const Footer = lazy(() => import("@/components/Footer").then(m => ({ default: m.Footer })));
 const ScrollReveal = lazy(() => import("@/components/ui/ScrollReveal").then(m => ({ default: m.ScrollReveal })));
 
-// Loading placeholder for sections
+// Loading placeholder for sections. Uses the same BrandLoader the Packages page
+// and the page curtain use, so every wait on the site looks like one product
+// rather than a different spinner per surface.
 const SectionLoader = () => (
-  <div className="w-full h-32 flex items-center justify-center bg-slate-50/50">
-    <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin"></div>
+  <div className="w-full flex items-center justify-center bg-slate-50/50">
+    <BrandLoader compact label="One Day Pilot" />
   </div>
 );
 
@@ -34,7 +37,9 @@ const componentMap: Record<string, React.ReactNode> = {
   "hero": <HeroCarousel key="hero" />,
   "starwars": (
     <Suspense key="starwars" fallback={<SectionLoader />}>
-      <StarWarsSection />
+      <ScrollReveal>
+        <StarWarsSection />
+      </ScrollReveal>
     </Suspense>
   ),
   "adventure": (
@@ -71,7 +76,9 @@ const componentMap: Record<string, React.ReactNode> = {
   ),
   "footer": (
     <Suspense key="footer" fallback={<SectionLoader />}>
-      <Footer />
+      <ScrollReveal>
+        <Footer />
+      </ScrollReveal>
     </Suspense>
   )
 };
@@ -120,6 +127,9 @@ const Index = () => {
 
   return (
     <>
+      {/* Same arrival curtain the Packages page uses, so entering the site and
+          moving between its pages feel like one piece. */}
+      <PageTransition label="One Day Pilot" />
       <Header />
       <div className="min-h-screen safari-blur-fix">
         <main>

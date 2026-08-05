@@ -3,27 +3,81 @@ import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { Plane } from "lucide-react";
 
 /**
- * Shared chrome for the standalone marketing pages (Packages, Flight Information).
+ * Shared chrome for the standalone marketing pages (Packages, Flight Information)
+ * and the home page's loading states.
  *
  * These pages used to be static HTML files in /public, which meant navigating to
  * them dropped the visitor out of the SPA entirely — no header, no footer, no
  * transition. They are React routes now, so everything here exists to make that
  * arrival feel deliberate rather than like a page load.
+ *
+ * The palette is daytime on purpose: flights only operate in daylight, so a
+ * near-black page misrepresented the product. Colours follow the site header —
+ * white glass over a near-white base, slate-900 text, #CD5C5C accent — with the
+ * footer's panel and hexagon-weave language kept intact.
  */
 
-/** Site palette, kept in one place so both pages stay in step with the footer. */
+/** Site palette, kept in one place so both pages stay in step with the header. */
 export const THEME = {
   accent: "#CD5C5C",
+  accentDeep: "#8B3A3A",
   gold: "#D4AF37",
   goldBright: "#FFD700",
-  ink: "#0D0D0D",
+  /** Body/heading text — the same slate the header nav uses. */
+  ink: "#0f172a",
+  /** Page base. */
+  paper: "#F8FAFC",
   display: "'Bebas Neue', sans-serif",
   condensed: "'Barlow Condensed', sans-serif",
 } as const;
 
-/** Faint hexagon weave reused from the footer panels. */
+/**
+ * Faint hexagon weave, echoing the footer panels. Dark-on-light here — the
+ * footer's version is white-on-dark, which is invisible over a pale page.
+ */
 export const HEX_PATTERN =
-  `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='28' height='49' viewBox='0 0 28 49'%3E%3Cpath fill='%23ffffff' fill-opacity='0.03' d='M13.99 9.25l13 7.5v15l-13 7.5L1 31.75v-15l12.99-7.5zM3 17.89v12.72l11 6.35 11-6.35V17.89l-11-6.35-11 6.35z'/%3E%3C/svg%3E")`;
+  `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='28' height='49' viewBox='0 0 28 49'%3E%3Cpath fill='%230f172a' fill-opacity='0.04' d='M13.99 9.25l13 7.5v15l-13 7.5L1 31.75v-15l12.99-7.5zM3 17.89v12.72l11 6.35 11-6.35V17.89l-11-6.35-11 6.35z'/%3E%3C/svg%3E")`;
+
+/**
+ * Brand loading indicator. Shared by the page curtain and the home page's
+ * section fallbacks so every wait on the site looks like the same product
+ * rather than three different spinners.
+ */
+export const BrandLoader = ({
+  label = "One Day Pilot",
+  compact = false,
+}: {
+  label?: string;
+  compact?: boolean;
+}) => (
+  <div className={`flex flex-col items-center justify-center gap-3 ${compact ? "py-10" : "py-24"}`}>
+    {/* Aircraft tracing a holding pattern */}
+    <div className={`relative ${compact ? "h-10 w-10" : "h-14 w-14"}`}>
+      <motion.div
+        className="absolute inset-0 rounded-full border-2 border-dashed"
+        style={{ borderColor: `${THEME.accent}44` }}
+        animate={{ rotate: 360 }}
+        transition={{ duration: 8, repeat: Infinity, ease: "linear" }}
+      />
+      <motion.div
+        className="absolute inset-0"
+        animate={{ rotate: 360 }}
+        transition={{ duration: 1.6, repeat: Infinity, ease: "linear" }}
+      >
+        <Plane
+          className={compact ? "h-4 w-4" : "h-5 w-5"}
+          style={{ color: THEME.accent, position: "absolute", top: -2, left: "50%", marginLeft: -10 }}
+        />
+      </motion.div>
+    </div>
+    <span
+      className={`uppercase text-slate-500 ${compact ? "text-[10px]" : "text-xs"}`}
+      style={{ fontFamily: THEME.condensed, letterSpacing: "0.3em" }}
+    >
+      {label}
+    </span>
+  </div>
+);
 
 /**
  * Full-bleed curtain that wipes away on mount. It buys the page a beat to lay
@@ -53,13 +107,13 @@ export const PageTransition = ({ label }: { label: string }) => {
           {/* Two panels part like hangar doors */}
           <motion.div
             className="absolute inset-y-0 left-0 w-1/2"
-            style={{ background: THEME.ink }}
+            style={{ background: `linear-gradient(135deg, #ffffff 0%, ${THEME.paper} 100%)` }}
             initial={{ x: 0 }}
             exit={{ x: "-100%", transition: { duration: 0.8, ease: [0.76, 0, 0.24, 1] } }}
           />
           <motion.div
             className="absolute inset-y-0 right-0 w-1/2"
-            style={{ background: THEME.ink }}
+            style={{ background: `linear-gradient(225deg, #ffffff 0%, ${THEME.paper} 100%)` }}
             initial={{ x: 0 }}
             exit={{ x: "100%", transition: { duration: 0.8, ease: [0.76, 0, 0.24, 1] } }}
           />
@@ -78,12 +132,12 @@ export const PageTransition = ({ label }: { label: string }) => {
               <Plane className="w-9 h-9 -rotate-12" style={{ color: THEME.accent }} />
             </motion.div>
             <span
-              className="text-white/90 text-xl md:text-2xl uppercase"
+              className="text-slate-900 text-xl md:text-2xl uppercase"
               style={{ fontFamily: THEME.display, letterSpacing: "0.22em" }}
             >
               {label}
             </span>
-            <div className="h-px w-40 overflow-hidden bg-white/10">
+            <div className="h-px w-40 overflow-hidden bg-slate-200">
               <motion.div
                 className="h-full w-full"
                 style={{ background: `linear-gradient(90deg, transparent, ${THEME.accent}, transparent)` }}
@@ -134,7 +188,7 @@ export const SectionTitle = ({
 }) => (
   <Reveal className="text-center mb-12 md:mb-16">
     <h2
-      className="text-3xl md:text-5xl lg:text-6xl uppercase text-white leading-[1.05]"
+      className="text-3xl md:text-5xl lg:text-6xl uppercase text-slate-900 leading-[1.05]"
       style={{ fontFamily: THEME.display, letterSpacing: "0.03em" }}
     >
       {children}
@@ -145,14 +199,14 @@ export const SectionTitle = ({
       <span className="h-px w-10 md:w-16" style={{ background: `linear-gradient(90deg, ${THEME.accent}, transparent)` }} />
     </div>
     {subtitle && (
-      <p className="mt-5 mx-auto max-w-3xl text-sm md:text-base leading-relaxed text-gray-400">
+      <p className="mt-5 mx-auto max-w-3xl text-sm md:text-base leading-relaxed text-slate-600">
         {subtitle}
       </p>
     )}
   </Reveal>
 );
 
-/** Glass panel matching the footer's card treatment. */
+/** Glass panel — the footer's card treatment, inverted for a light page. */
 export const GlassCard = ({
   children,
   className = "",
@@ -169,14 +223,14 @@ export const GlassCard = ({
       hover
         ? {
             y: -8,
-            backgroundColor: "rgba(255,255,255,0.08)",
-            borderColor: "rgba(205,92,92,0.3)",
-            boxShadow: "0 40px 100px -40px rgba(0,0,0,0.8), 0 0 20px rgba(205,92,92,0.1)",
+            backgroundColor: "rgba(255,255,255,0.96)",
+            borderColor: "rgba(205,92,92,0.35)",
+            boxShadow: "0 34px 80px -34px rgba(15,23,42,0.28), 0 0 24px rgba(205,92,92,0.10)",
           }
         : undefined
     }
     transition={{ duration: 0.4, ease: "easeOut" }}
-    className={`relative overflow-hidden border border-white/10 bg-white/5 backdrop-blur-md shadow-[0_28px_90px_-35px_rgba(0,0,0,0.7)] rounded-2xl md:rounded-3xl ${className}`}
+    className={`relative overflow-hidden border border-black/5 bg-white/75 backdrop-blur-md shadow-[0_20px_60px_-30px_rgba(15,23,42,0.22)] rounded-2xl md:rounded-3xl ${className}`}
     style={patterned ? { backgroundImage: HEX_PATTERN, backgroundSize: "28px 49px" } : undefined}
   >
     {children}
@@ -207,8 +261,8 @@ export const ActionLink = ({
     transition={{ type: "spring", stiffness: 400, damping: 22 }}
     className={`relative inline-flex items-center justify-center gap-2 overflow-hidden px-7 py-3.5 text-[13px] font-black uppercase rounded-full transition-colors ${
       variant === "primary"
-        ? "text-white shadow-[0_12px_36px_-10px_rgba(205,92,92,0.7)]"
-        : "text-white border border-white/20 bg-white/5 hover:bg-white/10 backdrop-blur-sm"
+        ? "text-white shadow-[0_12px_36px_-10px_rgba(205,92,92,0.55)]"
+        : "text-slate-900 border border-slate-200 bg-white/80 hover:bg-white hover:border-[#CD5C5C]/40 backdrop-blur-sm shadow-sm"
     }`}
     style={{
       fontFamily: THEME.condensed,
@@ -228,10 +282,13 @@ export const ActionLink = ({
   </motion.a>
 );
 
-/** Shared dark page shell: base colour, drifting glow, hex weave, header offset. */
+/** Shared daytime page shell: pale base, drifting warm glows, hex weave. */
 export const PageShell = ({ children }: { children: ReactNode }) => (
-  <div className="relative min-h-screen overflow-x-hidden" style={{ background: THEME.ink }}>
-    {/* Ambient drifting glows */}
+  <div
+    className="relative min-h-screen overflow-x-hidden"
+    style={{ background: `linear-gradient(180deg, #ffffff 0%, ${THEME.paper} 45%, #eef2f7 100%)` }}
+  >
+    {/* Ambient drifting glows — sunlight rather than neon */}
     <div className="pointer-events-none fixed inset-0 z-0">
       <motion.div
         className="absolute -top-40 -left-40 h-[38rem] w-[38rem] rounded-full blur-3xl"
@@ -241,13 +298,19 @@ export const PageShell = ({ children }: { children: ReactNode }) => (
       />
       <motion.div
         className="absolute top-1/2 -right-40 h-[32rem] w-[32rem] rounded-full blur-3xl"
-        style={{ background: "rgba(212,175,55,0.07)" }}
+        style={{ background: "rgba(212,175,55,0.12)" }}
         animate={{ x: [0, -50, 0], y: [0, -30, 0] }}
         transition={{ duration: 22, repeat: Infinity, ease: "easeInOut" }}
       />
+      <motion.div
+        className="absolute top-[20%] left-1/3 h-[26rem] w-[26rem] rounded-full blur-3xl"
+        style={{ background: "rgba(56,132,255,0.07)" }}
+        animate={{ x: [0, 40, 0], y: [0, 50, 0] }}
+        transition={{ duration: 26, repeat: Infinity, ease: "easeInOut" }}
+      />
     </div>
     <div
-      className="pointer-events-none fixed inset-0 z-0 opacity-60"
+      className="pointer-events-none fixed inset-0 z-0"
       style={{ backgroundImage: HEX_PATTERN, backgroundSize: "28px 49px" }}
     />
     <div className="relative z-10">{children}</div>

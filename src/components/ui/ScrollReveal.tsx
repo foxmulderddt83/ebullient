@@ -50,8 +50,15 @@ export const ScrollReveal = ({
       case "blur":
         return { opacity: 0, filter: "blur(12px)" };
       default:
-        return { opacity: 0, y: 50 };
+        return { opacity: 0, y: 32 };
     }
+  };
+
+  // Matches the Reveal used on the Packages / Flight Information pages, so a
+  // section entering on the home page moves exactly like one there.
+  const REVEAL_TRANSITION = {
+    duration: 0.7,
+    ease: [0.16, 1, 0.3, 1] as const,
   };
 
   if (!staggerChildren) {
@@ -61,13 +68,7 @@ export const ScrollReveal = ({
           <motion.div
             initial={getInitialProps()}
             animate={{ opacity: 1, x: 0, y: 0, scale: 1, filter: "blur(0px)" }}
-            transition={{
-              type: "spring",
-              damping: 20,
-              stiffness: 70,
-              duration: 0.8,
-              delay,
-            }}
+            transition={{ ...REVEAL_TRANSITION, delay }}
           >
             {children}
           </motion.div>
@@ -96,12 +97,7 @@ export const ScrollReveal = ({
       y: 0,
       scale: 1,
       filter: "blur(0px)",
-      transition: {
-        type: "spring",
-        damping: 20,
-        stiffness: 70,
-        duration: 0.7,
-      },
+      transition: REVEAL_TRANSITION,
     },
   };
 

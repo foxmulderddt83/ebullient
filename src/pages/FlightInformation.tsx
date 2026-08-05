@@ -245,7 +245,7 @@ const NoticeBox = ({
         <span className="mt-0.5 shrink-0" style={{ color: THEME.accent }}>
           {icon}
         </span>
-        <div className="text-sm leading-relaxed text-gray-200 md:text-base">{children}</div>
+        <div className="text-sm leading-relaxed text-slate-700 md:text-base">{children}</div>
       </div>
     </div>
   </Reveal>
@@ -273,16 +273,16 @@ const PhotoCard = ({
           decoding="async"
           className="h-full w-full object-cover transition-transform duration-[1.2s] ease-out group-hover:scale-110"
         />
-        <div className="absolute inset-0 bg-gradient-to-t from-[#0D0D0D] via-transparent to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-t from-white via-transparent to-transparent" />
       </div>
       <div className="p-7">
         <h3
-          className="text-xl uppercase text-white md:text-2xl"
+          className="text-xl uppercase text-slate-900 md:text-2xl"
           style={{ fontFamily: THEME.display, letterSpacing: "0.04em" }}
         >
           {title}
         </h3>
-        <p className="mt-3 text-sm leading-relaxed text-gray-400">{body}</p>
+        <p className="mt-3 text-sm leading-relaxed text-slate-600">{body}</p>
       </div>
     </GlassCard>
   </Reveal>
@@ -302,7 +302,8 @@ export default function FlightInformation() {
             animate={{ scale: 1, opacity: 1 }}
             transition={{ duration: 1.8, ease: [0.16, 1, 0.3, 1], delay: 0.55 }}
             style={{
-              backgroundImage: `linear-gradient(rgba(0,0,0,.5), rgba(13,13,13,.95)), url('${STORAGE}/backgrounds/1782178026136_SubangAP-overview.jpg')`,
+              // Daylight wash rather than the old near-black scrim.
+              backgroundImage: `linear-gradient(rgba(255,255,255,.66), rgba(248,250,252,.95)), url('${STORAGE}/backgrounds/1782178026136_SubangAP-overview.jpg')`,
               backgroundSize: "cover",
               backgroundPosition: "center",
             }}
@@ -316,14 +317,14 @@ export default function FlightInformation() {
             >
               <Link
                 to="/"
-                className="mb-8 inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-4 py-2 text-[11px] font-bold uppercase tracking-[0.2em] text-white/70 backdrop-blur-sm transition-colors hover:border-[#CD5C5C]/50 hover:text-white"
+                className="mb-8 inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white/70 px-4 py-2 text-[11px] font-bold uppercase tracking-[0.2em] text-slate-600 backdrop-blur-sm transition-colors hover:border-[#CD5C5C]/50 hover:text-slate-900"
                 style={{ fontFamily: THEME.condensed }}
               >
                 <ArrowLeft className="h-3.5 w-3.5" /> Back
               </Link>
 
               <h1
-                className="text-4xl uppercase leading-[1.04] text-white sm:text-6xl lg:text-7xl"
+                className="text-4xl uppercase leading-[1.04] text-slate-900 sm:text-6xl lg:text-7xl"
                 style={{ fontFamily: THEME.display, letterSpacing: "0.02em" }}
               >
                 {["Flight Information &", "Preparation Guide"].map((line, i) => (
@@ -343,7 +344,7 @@ export default function FlightInformation() {
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ duration: 0.8, delay: 1.25 }}
-                className="mt-7 max-w-2xl text-sm leading-relaxed text-gray-300 md:text-lg"
+                className="mt-7 max-w-2xl text-sm leading-relaxed text-slate-700 md:text-lg"
               >
                 Everything you need to know before your OneDayPilot experience.
               </motion.p>
@@ -364,7 +365,7 @@ export default function FlightInformation() {
         <section className="py-10">
           <div className="container mx-auto max-w-5xl px-5 lg:px-8">
             <NoticeBox icon={<AlertTriangle className="h-6 w-6" />}>
-              <strong className="block text-white">✈️ Important Notice</strong>
+              <strong className="block text-slate-900">✈️ Important Notice</strong>
               <span className="mt-2 block">
                 All flight experiences are subject to weather conditions and aircraft availability. Please
                 arrive at least 60 minutes before departure.
@@ -395,7 +396,7 @@ export default function FlightInformation() {
                       <motion.div
                         whileHover={{ scale: 1.12 }}
                         transition={{ type: "spring", stiffness: 320, damping: 16 }}
-                        className="relative z-10 mx-auto flex h-[92px] w-[92px] items-center justify-center rounded-full border-2 bg-[#0D0D0D]"
+                        className="relative z-10 mx-auto flex h-[92px] w-[92px] items-center justify-center rounded-full border-2 bg-white shadow-[0_12px_30px_-14px_rgba(15,23,42,0.35)]"
                         style={{ borderColor: THEME.accent }}
                       >
                         <span className="text-4xl" style={{ fontFamily: THEME.display, color: THEME.accent }}>
@@ -403,12 +404,12 @@ export default function FlightInformation() {
                         </span>
                       </motion.div>
                       <h3
-                        className="mt-5 text-lg uppercase text-white md:text-xl"
+                        className="mt-5 text-lg uppercase text-slate-900 md:text-xl"
                         style={{ fontFamily: THEME.display, letterSpacing: "0.05em" }}
                       >
                         {item.step.replace(/^\d+\.\s*/, "")}
                       </h3>
-                      <p className="mt-2 text-sm leading-relaxed text-gray-400">{item.body}</p>
+                      <p className="mt-2 text-sm leading-relaxed text-slate-600">{item.body}</p>
                     </div>
                   </Reveal>
                 ))}
@@ -426,12 +427,12 @@ export default function FlightInformation() {
                 <Reveal key={item.title} delay={i * 0.08}>
                   <GlassCard className="h-full p-7">
                     <h3
-                      className="text-xl uppercase text-gray-100 md:text-2xl"
+                      className="text-xl uppercase text-slate-900 md:text-2xl"
                       style={{ fontFamily: THEME.display, letterSpacing: "0.04em" }}
                     >
                       {item.title}
                     </h3>
-                    <p className="mt-3 text-sm leading-relaxed text-gray-400">{item.body}</p>
+                    <p className="mt-3 text-sm leading-relaxed text-slate-600">{item.body}</p>
                   </GlassCard>
                 </Reveal>
               ))}
@@ -446,7 +447,7 @@ export default function FlightInformation() {
               Getting Here &amp; Meeting Point Guide
             </SectionTitle>
             <NoticeBox icon={<Megaphone className="h-6 w-6" />}>
-              <strong className="block text-white">📢 Meeting Point Confirmation</strong>
+              <strong className="block text-slate-900">📢 Meeting Point Confirmation</strong>
               <span className="mt-2 block">
                 Subang Airport has multiple operating areas. Your final meeting point will be confirmed via
                 WhatsApp before your flight day. Please do not proceed directly to Terminal Meeting Point or
@@ -464,12 +465,12 @@ export default function FlightInformation() {
                 <Reveal key={item.title} delay={i * 0.1}>
                   <GlassCard className="h-full p-7 md:p-9">
                     <h3
-                      className="text-xl uppercase text-gray-100 md:text-2xl"
+                      className="text-xl uppercase text-slate-900 md:text-2xl"
                       style={{ fontFamily: THEME.display, letterSpacing: "0.04em" }}
                     >
                       {item.title}
                     </h3>
-                    <p className="mt-3 text-sm leading-relaxed text-gray-400">{item.body}</p>
+                    <p className="mt-3 text-sm leading-relaxed text-slate-600">{item.body}</p>
                   </GlassCard>
                 </Reveal>
               ))}
@@ -532,12 +533,12 @@ export default function FlightInformation() {
                 <Reveal key={item.title} delay={i * 0.1}>
                   <GlassCard className="h-full p-7 md:p-9">
                     <h3
-                      className="text-xl uppercase text-gray-100 md:text-2xl"
+                      className="text-xl uppercase text-slate-900 md:text-2xl"
                       style={{ fontFamily: THEME.display, letterSpacing: "0.04em" }}
                     >
                       {item.title}
                     </h3>
-                    <p className="mt-3 text-sm leading-relaxed text-gray-400">{item.body}</p>
+                    <p className="mt-3 text-sm leading-relaxed text-slate-600">{item.body}</p>
                   </GlassCard>
                 </Reveal>
               ))}
@@ -551,7 +552,7 @@ export default function FlightInformation() {
             <SectionTitle>Weather &amp; Rescheduling</SectionTitle>
             <Reveal>
               <GlassCard className="p-8 text-center md:p-12">
-                <p className="text-sm leading-relaxed text-gray-300 md:text-lg">
+                <p className="text-sm leading-relaxed text-slate-700 md:text-lg">
                   Safety always comes first. Flights may be delayed or rescheduled due to weather. If
                   conditions remain unsafe, alternative dates will be offered.
                 </p>
@@ -572,12 +573,12 @@ export default function FlightInformation() {
                 <div key={gallery.heading}>
                   <Reveal className="text-center">
                     <h3
-                      className="text-2xl uppercase text-white md:text-4xl"
+                      className="text-2xl uppercase text-slate-900 md:text-4xl"
                       style={{ fontFamily: THEME.display, letterSpacing: "0.04em" }}
                     >
                       {gallery.heading}
                     </h3>
-                    <p className="mx-auto mt-4 max-w-3xl text-sm leading-relaxed text-gray-400 md:text-base">
+                    <p className="mx-auto mt-4 max-w-3xl text-sm leading-relaxed text-slate-600 md:text-base">
                       {gallery.subtitle}
                     </p>
                   </Reveal>
@@ -588,7 +589,7 @@ export default function FlightInformation() {
                         <motion.div
                           whileHover={{ y: -8 }}
                           transition={{ duration: 0.4, ease: "easeOut" }}
-                          className="group overflow-hidden rounded-2xl border border-white/10 shadow-[0_28px_90px_-35px_rgba(0,0,0,0.8)]"
+                          className="group overflow-hidden rounded-2xl border border-black/5 shadow-[0_20px_60px_-30px_rgba(15,23,42,0.22)]"
                         >
                           <img
                             src={src}
@@ -613,7 +614,7 @@ export default function FlightInformation() {
             <Reveal>
               <GlassCard hover={false} patterned className="p-8 md:p-14">
                 <h2
-                  className="text-center text-3xl uppercase text-white md:text-5xl"
+                  className="text-center text-3xl uppercase text-slate-900 md:text-5xl"
                   style={{ fontFamily: THEME.display, letterSpacing: "0.03em" }}
                 >
                   ✈ Important Information
@@ -623,12 +624,12 @@ export default function FlightInformation() {
                     <Reveal key={item.title} delay={i * 0.1}>
                       <div className="border-l-2 pl-5" style={{ borderColor: `${THEME.accent}55` }}>
                         <h3
-                          className="text-lg uppercase text-gray-100 md:text-2xl"
+                          className="text-lg uppercase text-slate-900 md:text-2xl"
                           style={{ fontFamily: THEME.display, letterSpacing: "0.04em" }}
                         >
                           {item.title}
                         </h3>
-                        <p className="mt-3 text-sm leading-relaxed text-gray-400">{item.body}</p>
+                        <p className="mt-3 text-sm leading-relaxed text-slate-600">{item.body}</p>
                       </div>
                     </Reveal>
                   ))}
@@ -646,17 +647,17 @@ export default function FlightInformation() {
                 <motion.div
                   animate={{ y: [0, -8, 0] }}
                   transition={{ duration: 3.5, repeat: Infinity, ease: "easeInOut" }}
-                  className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-2xl border border-white/15 bg-white/5"
+                  className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-2xl border border-slate-200 bg-white/70"
                 >
                   <FileDown className="h-7 w-7" style={{ color: THEME.accent }} />
                 </motion.div>
                 <h2
-                  className="text-3xl uppercase text-white md:text-5xl"
+                  className="text-3xl uppercase text-slate-900 md:text-5xl"
                   style={{ fontFamily: THEME.display, letterSpacing: "0.03em" }}
                 >
                   📘 Visitor Guide
                 </h2>
-                <p className="mx-auto mt-5 max-w-2xl text-sm leading-relaxed text-gray-300 md:text-base">
+                <p className="mx-auto mt-5 max-w-2xl text-sm leading-relaxed text-slate-700 md:text-base">
                   Planning your visit to Subang Airport?
                   <br />
                   <br />
@@ -680,7 +681,7 @@ export default function FlightInformation() {
         <section className="pb-24">
           <div className="container mx-auto max-w-5xl px-5 lg:px-8">
             <NoticeBox icon={<AlertTriangle className="h-6 w-6" />}>
-              <strong className="block text-white">⚠ Disclaimer</strong>
+              <strong className="block text-slate-900">⚠ Disclaimer</strong>
               <span className="mt-2 block">
                 This is an introductory flight experience only. Participation does not constitute flight
                 training and does not lead to the issuance of any pilot licence, aviation qualification or
