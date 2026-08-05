@@ -298,13 +298,14 @@ export const Footer = () => {
       <div className="absolute bottom-0 left-0 h-px w-1/2 bg-gradient-to-r from-[#CD5C5C] via-[#CD5C5C]/50 to-transparent" />
       <div className="w-full relative z-10 px-2 lg:px-4">
         <div className="max-w-[1900px] mx-auto">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 items-stretch relative z-10">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-6 gap-y-5 lg:gap-x-8 items-stretch relative z-10">
             {/* Left Side: Contact Info */}
           <motion.div 
             className="pt-4 pb-8 px-8 md:pt-6 md:pb-12 md:px-12 space-y-6 relative overflow-hidden border border-white/10 bg-white/5 shadow-[0_28px_90px_-35px_rgba(0,0,0,0.7)] backdrop-blur-md transition-all duration-500 rounded-2xl md:rounded-3xl"
             style={{
-              marginTop: '0',
-              marginBottom: '3rem',
+              // No vertical offset. These two panels used to be deliberately
+              // staggered — this one flush to the top, the map pushed 4rem down —
+              // which left them permanently misaligned. The grid gap spaces them now.
               backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='28' height='49' viewBox='0 0 28 49'%3E%3Cpath fill='%23ffffff' fill-opacity='0.03' d='M13.99 9.25l13 7.5v15l-13 7.5L1 31.75v-15l12.99-7.5zM3 17.89v12.72l11 6.35 11-6.35V17.89l-11-6.35-11 6.35z'/%3E%3C/svg%3E")`,
               backgroundSize: '28px 49px'
             }}
@@ -320,11 +321,11 @@ export const Footer = () => {
             viewport={{ once: true, margin: "-100px" }}
             variants={{
               hidden: { opacity: 0, scale: 0.8, y: 40 },
-              show: { 
-                opacity: 1, 
+              show: {
+                opacity: 1,
                 scale: 1,
-                y: 0, 
-                transition: { type: "spring", stiffness: 70, damping: 15, delay: 0.1 }
+                y: 0,
+                transition: { type: "spring", stiffness: 70, damping: 15 }
               }
             }}
           >
@@ -493,10 +494,6 @@ export const Footer = () => {
           {/* Right Side: Map & Images */}
           <motion.div 
             className="relative min-h-[400px] overflow-hidden border border-white/10 bg-white/5 shadow-[0_28px_90px_-35px_rgba(0,0,0,0.7)] backdrop-blur-md transition-all duration-500 lg:min-h-full rounded-2xl md:rounded-3xl"
-            style={{
-              marginTop: '4rem',
-              marginBottom: '0'
-            }}
             initial="hidden"
             whileInView="show"
             whileHover={{ 
@@ -509,11 +506,13 @@ export const Footer = () => {
             viewport={{ once: true, margin: "-100px" }}
             variants={{
               hidden: { opacity: 0, scale: 0.8, y: 40 },
-              show: { 
-                opacity: 1, 
+              show: {
+                opacity: 1,
                 scale: 1,
-                y: 0, 
-                transition: { type: "spring", stiffness: 70, damping: 15, delay: 0.3 }
+                y: 0,
+                // Same timing as the contact panel so the pair lands together
+                // rather than one trailing the other.
+                transition: { type: "spring", stiffness: 70, damping: 15 }
               }
             }}
           >
@@ -568,7 +567,9 @@ export const Footer = () => {
         </div>
 
         {/* Official Footer Info Section */}
-        <div className="relative mt-28 overflow-visible">
+        {/* mt-16, down from mt-28: still clears the "Get in Touch" tab, which is
+            absolutely positioned 2.5rem above this panel's top edge. */}
+        <div className="relative mt-16 overflow-visible">
           <div className="pointer-events-none absolute -left-1.5 -top-10 z-50 -rotate-[6deg] scale-100 transform md:scale-110">
             <div className="relative flex items-center">
               {/* The "Hugging" Fold */}
@@ -753,7 +754,7 @@ export const Footer = () => {
           </motion.div>
         </div>
 
-        <div className="mt-12 border-t border-gray-200 pt-8">
+        <div className="mt-8 border-t border-gray-200 pt-6">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
             <div className="flex-1">
               <p className="text-secondary-foreground/40 text-[10px] md:text-xs tracking-wider font-medium text-gray-400">
