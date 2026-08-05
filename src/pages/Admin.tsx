@@ -889,30 +889,6 @@ const TextStyleEditor = ({
   );
 };
 
-// Soft pastel backgrounds for the Stage 0 package panels. The colour looks random
-// across the list but is derived from the package id, so a panel keeps the same
-// colour between renders instead of flickering on every state change.
-const SOFT_PANEL_COLORS = [
-  "bg-rose-50/80 border-rose-200/70",
-  "bg-amber-50/80 border-amber-200/70",
-  "bg-lime-50/80 border-lime-200/70",
-  "bg-emerald-50/80 border-emerald-200/70",
-  "bg-teal-50/80 border-teal-200/70",
-  "bg-sky-50/80 border-sky-200/70",
-  "bg-indigo-50/80 border-indigo-200/70",
-  "bg-violet-50/80 border-violet-200/70",
-  "bg-fuchsia-50/80 border-fuchsia-200/70",
-  "bg-orange-50/80 border-orange-200/70",
-];
-
-const getSoftPanelColor = (key: string) => {
-  let hash = 0;
-  for (let i = 0; i < key.length; i++) {
-    hash = (hash * 31 + key.charCodeAt(i)) | 0;
-  }
-  return SOFT_PANEL_COLORS[Math.abs(hash) % SOFT_PANEL_COLORS.length];
-};
-
 const SortableItem = ({
   id,
   title,
@@ -1803,7 +1779,6 @@ export default function Admin() {
   const [groundCrewPayouts, setGroundCrewPayouts] = useState<GroundCrewPayout[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [packages, setPackages] = useState<Package[]>([]);
-  const [packageSearch, setPackageSearch] = useState("");
 
   const routeOptions = useMemo(() => {
     const map = new Map<string, { route: string; google_maps_link: string | null }>();
@@ -6553,9 +6528,8 @@ export default function Admin() {
                 <Card className={cn(
                   "border-black/5 shadow-xl shadow-slate-200/50 bg-white/50 backdrop-blur-sm",
                   activeTab === 'event_template' ? "rounded-none sm:rounded-xl" : "rounded-[2.5rem]",
-                  // 'packages' needs overflow-visible too: an overflow-hidden ancestor
-                  // makes the frozen inventory header stick to a box that never
-                  // scrolls, which reads as sticky simply not working.
+                  // packages needs overflow-visible so its sticky "Add Package" bar can
+                  // pin against the scroll area instead of being clipped to this card
                   (activeTab === 'doc_templates' || activeTab === 'email_config' || activeTab === 'whatsapp_config' || activeTab === 'packages') ? "overflow-visible" : "overflow-hidden"
                 )}>
                   <CardContent className={cn(
@@ -9901,95 +9875,50 @@ export default function Admin() {
                         );
                       }
                       else if (activeTab === "packages") {
-                        const packageQuery = packageSearch.trim().toLowerCase();
-                        // Keywords are matched independently so "sunset kl" finds a
-                        // package whose name and category mention both.
-                        const packageKeywords = packageQuery ? packageQuery.split(/\s+/) : [];
-                        const matchesPackageSearch = (pkg: Package) => {
-                          if (packageKeywords.length === 0) return true;
-                          // Searching narrows the list to the Stage 0 panels, so add-on
-                          // rows drop out until the search is cleared.
-                          if (pkg.sort_order !== 0) return false;
-                          const haystack = [
-                            pkg.name,
-                            pkg.description,
-                            pkg.route,
-                            categories.find(c => c.id === pkg.category_id)?.name
-                          ].filter(Boolean).join(" ").toLowerCase();
-                          return packageKeywords.every(kw => haystack.includes(kw));
-                        };
-
                         return (
                           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
                             <div className="space-y-6 pb-20">
-                              {/* Frozen header: stays put while the package list scrolls */}
-                              <div className="sticky top-0 z-30 -mx-3 sm:-mx-4 -mt-3 sm:-mt-4 px-3 sm:px-4 pt-3 sm:pt-4 pb-4 bg-white/90 backdrop-blur-md border-b border-black/5 rounded-t-[2.5rem]">
-                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
-                                  <div className="space-y-1">
-                                    <div className="flex items-center gap-2">
-                                      <div className="bg-slate-700 p-2 rounded-xl shadow-lg shadow-slate-200/50">
-                                        <ShoppingBagIcon className="w-5 h-5 text-white" />
-                                      </div>
-                                      <h3 className="font-bold text-[11px] sm:text-xs text-slate-900 uppercase tracking-tight">Package Inventory</h3>
+                              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-2">
+                                <div className="space-y-1">
+                                  <div className="flex items-center gap-2">
+                                    <div className="bg-slate-700 p-2 rounded-xl shadow-lg shadow-slate-200/50">
+                                      <ShoppingBagIcon className="w-5 h-5 text-white" />
                                     </div>
-                                    <p className="text-[11px] sm:text-xs font-bold uppercase tracking-tight text-slate-900/60 ml-4">Add and manage flight packages and add-ons</p>
+                                    <h3 className="font-bold text-[11px] sm:text-xs text-slate-900 uppercase tracking-tight">Package Inventory</h3>
                                   </div>
-                                </div>
-
-                                <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 bg-white p-4 sm:p-5 rounded-[2.5rem] border border-black/5 shadow-sm">
-                                  <div className="relative flex-1 min-w-0">
-                                    <Search className="absolute left-5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
-                                    <Input
-                                      value={packageSearch}
-                                      onChange={(e) => setPackageSearch(e.target.value)}
-                                      placeholder="Search packages by keyword..."
-                                      className="h-10 pl-12 pr-10 rounded-xl border-black/10 bg-slate-50/50 focus:bg-white transition-all font-bold text-[11px] sm:text-xs placeholder:text-slate-400 placeholder:normal-case"
-                                    />
-                                    {packageSearch && (
-                                      <button
-                                        type="button"
-                                        onClick={() => setPackageSearch("")}
-                                        className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-900 transition-colors"
-                                        aria-label="Clear package search"
-                                      >
-                                        <X className="w-4 h-4" />
-                                      </button>
-                                    )}
-                                  </div>
-                                  {canEdit('packages') && (
-                                    <Button
-                                      onClick={() => {
-                                        setEditingTable('packages');
-                                        setEditingItem({
-                                          category_id: categories[0]?.id || '',
-                                          sort_order: 0,
-                                          is_active: true,
-                                          price: 0
-                                        });
-                                        // Scroll to form on mobile
-                                        if (window.innerWidth < 1024) {
-                                          setTimeout(() => {
-                                            const formElement = document.querySelector('form');
-                                            if (formElement) formElement.scrollIntoView({ behavior: 'smooth' });
-                                          }, 100);
-                                        }
-                                      }}
-                                      className="h-10 px-6 bg-slate-700 hover:bg-slate-800 text-white shadow-xl shadow-slate-200/50 transition-all active:scale-95 font-bold uppercase tracking-tight text-[11px] sm:text-xs rounded-xl flex items-center gap-2 whitespace-nowrap"
-                                    >
-                                      <Plus className="w-4 h-4" /> ADD PACKAGE
-                                    </Button>
-                                  )}
+                                  <p className="text-[11px] sm:text-xs font-bold uppercase tracking-tight text-slate-900/60 ml-4">Add and manage flight packages and add-ons</p>
                                 </div>
                               </div>
 
+                              {canEdit('packages') && (
+                                <div className="sticky top-2 z-30 flex flex-col sm:flex-row items-center justify-end mb-6 gap-4 bg-white/90 backdrop-blur-md p-5 rounded-[2.5rem] border border-black/5 shadow-lg shadow-slate-200/50">
+                                  <Button
+                                    onClick={() => {
+                                      setEditingTable('packages');
+                                      setEditingItem({
+                                        category_id: categories[0]?.id || '',
+                                        sort_order: 0,
+                                        is_active: true,
+                                        price: 0
+                                      });
+                                      // Scroll to form on mobile
+                                      if (window.innerWidth < 1024) {
+                                        setTimeout(() => {
+                                          const formElement = document.querySelector('form');
+                                          if (formElement) formElement.scrollIntoView({ behavior: 'smooth' });
+                                        }, 100);
+                                      }
+                                    }}
+                                    className="h-10 px-6 bg-slate-700 hover:bg-slate-800 text-white shadow-xl shadow-slate-200/50 transition-all active:scale-95 font-bold uppercase tracking-tight text-[11px] sm:text-xs rounded-xl flex items-center gap-2 whitespace-nowrap"
+                                  >
+                                    <Plus className="w-4 h-4" /> ADD PACKAGE
+                                  </Button>
+                                </div>
+                              )}
+
                               {/* Group by category (already sorted by sort_order) */}
                               {categories.map(category => {
-                                // catPackages stays unfiltered: the delete-category action
-                                // below must remove every package, not just visible ones.
                                 const catPackages = packages.filter(p => p.category_id === category.id);
-                                const visibleCatPackages = catPackages.filter(matchesPackageSearch);
-                                // Hide categories that no longer have a match while searching.
-                                if (packageKeywords.length > 0 && visibleCatPackages.length === 0) return null;
                                 return (
                                   <div key={category.id} className="mb-8 group/category">
                                     <div className="flex items-center gap-4 mb-4 px-2">
@@ -10051,11 +9980,11 @@ export default function Admin() {
                                       )}
 
                                       <SortableContext
-                                        items={visibleCatPackages.map(i => i.id)}
+                                        items={catPackages.map(i => i.id)}
                                         strategy={verticalListSortingStrategy}
                                       >
                                         <div className="space-y-1 relative z-10">
-                                          {visibleCatPackages.map((item) => {
+                                          {catPackages.map((item) => {
                                             const now = new Date();
                                             const start = item.promotion_start_at ? new Date(item.promotion_start_at) : null;
                                             const end = item.promotion_end_at ? new Date(item.promotion_end_at) : null;
@@ -10074,9 +10003,7 @@ export default function Admin() {
                                                 isMainPage={item.is_main_default}
                                                 mainPageLabel="Default Main"
                                                 isChild={item.sort_order > 0}
-                                                className={item.sort_order > 0
-                                                  ? "ml-6 sm:ml-12"
-                                                  : cn("shadow-none mb-2", getSoftPanelColor(item.id))}
+                                                className={item.sort_order > 0 ? "ml-6 sm:ml-12" : "bg-white border-black/5 shadow-none mb-2"}
                                                 badge={
                                                   <div className="flex items-center gap-1">
                                                     {item.sort_order > 0 && (
@@ -10096,7 +10023,7 @@ export default function Admin() {
                                           })}
                                         </div>
                                       </SortableContext>
-                                      {visibleCatPackages.length === 0 && (
+                                      {catPackages.length === 0 && (
                                         <div className="text-[11px] sm:text-xs text-slate-400 italic py-6 text-center">No packages in this category</div>
                                       )}
                                     </div>
@@ -10106,9 +10033,7 @@ export default function Admin() {
                               {/* Uncategorized Packages */}
                               {(() => {
                                 const categorizedIds = categories.map(c => c.id);
-                                const uncategorizedPackages = packages
-                                  .filter(p => !p.category_id || !categorizedIds.includes(p.category_id))
-                                  .filter(matchesPackageSearch);
+                                const uncategorizedPackages = packages.filter(p => !p.category_id || !categorizedIds.includes(p.category_id));
                                 if (uncategorizedPackages.length === 0) return null;
                                 return (
                                   <div className="mb-6 border-t pt-6">
@@ -10142,9 +10067,7 @@ export default function Admin() {
                                             isMainPage={item.is_main_default}
                                             mainPageLabel="Default Main"
                                             isChild={item.sort_order > 0}
-                                            className={item.sort_order > 0
-                                              ? "ml-6 sm:ml-12"
-                                              : getSoftPanelColor(item.id)}
+                                            className={item.sort_order > 0 ? "ml-6 sm:ml-12" : "bg-slate-50/50"}
                                             badge={
                                               <div className="flex items-center gap-1">
                                                 {item.sort_order > 0 && (
@@ -10166,22 +10089,6 @@ export default function Admin() {
                                   </div>
                                 );
                               })()}
-
-                              {packageKeywords.length > 0 && !packages.some(matchesPackageSearch) && (
-                                <div className="py-16 text-center space-y-2">
-                                  <Search className="w-8 h-8 mx-auto text-slate-300" />
-                                  <p className="text-[11px] sm:text-xs font-bold uppercase tracking-tight text-slate-500">
-                                    No packages match "{packageSearch.trim()}"
-                                  </p>
-                                  <Button
-                                    variant="ghost"
-                                    onClick={() => setPackageSearch("")}
-                                    className="h-8 text-[11px] sm:text-xs font-bold uppercase tracking-tight text-slate-600 hover:text-slate-900"
-                                  >
-                                    Clear search
-                                  </Button>
-                                </div>
-                              )}
                             </div>
                           </DndContext>
                         );
