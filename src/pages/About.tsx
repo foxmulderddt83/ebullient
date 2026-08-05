@@ -3,9 +3,9 @@ import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { supabase } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Loader2, X, ZoomIn } from "lucide-react";
+import { ArrowLeft, Loader2, X, ZoomIn, ChevronLeft, ChevronRight } from "lucide-react";
 import { Link } from "react-router-dom";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 
 interface AboutSection {
   id: string;
@@ -29,103 +29,207 @@ const resolveImageUrl = (url: string | null) => {
   return supabase.storage.from('media').getPublicUrl(url).data.publicUrl;
 };
 
-const AutoScrollGallery = ({ images, title, onImageClick, isLogos = false, imageData = [] }: { 
-  images: string[], 
-  title: string, 
+/**
+ * Horizontally scrolling gallery.
+ *
+ * Drifts on its own when left alone, but every manual gesture takes precedence:
+ * drag with a mouse, swipe on touch, trackpad/wheel, the arrow buttons, or
+ * keyboard arrows once focused. Auto-scroll pauses for the duration of the
+ * interaction and resumes from wherever the visitor left off.
+ */
+const AutoScrollGallery = ({ images, title, onImageClick, isLogos = false, imageData = [] }: {
+  images: string[],
+  title: string,
   onImageClick: (url: string) => void,
   isLogos?: boolean,
   imageData?: { url: string, description?: string }[]
 }) => {
   const scrollRef = useRef<HTMLDivElement>(null);
-  const [isHovered, setIsHovered] = useState(false);
   const scrollPosRef = useRef(0);
-  
+  const resumeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Drag bookkeeping. dragMoved suppresses the lightbox click that would
+  // otherwise fire at the end of every drag.
+  const dragRef = useRef({ active: false, startX: 0, startScroll: 0, moved: false });
+
+  const [paused, setPaused] = useState(false);
+  const [canScroll, setCanScroll] = useState(false);
+  const reduceMotion = useReducedMotion();
+
   // Use imageData if provided, otherwise construct it from images
-  const displayData: { url: string; description?: string }[] = imageData.length > 0 
+  const displayData: { url: string; description?: string }[] = imageData.length > 0
     ? imageData.map(item => ({ ...item, url: resolveImageUrl(item.url) }))
     : images.map(url => ({ url: resolveImageUrl(url) }));
 
+  /**
+   * The track holds three copies of the list. Keeping the viewport inside the
+   * middle copy means the visitor can drag continuously in either direction and
+   * never reach an end — the previous version only wrapped in the auto-scroll's
+   * one direction, so dragging left ran into a hard stop.
+   */
+  const normalise = (el: HTMLDivElement) => {
+    const third = el.scrollWidth / 3;
+    if (third <= 0) return el.scrollLeft;
+    let sl = el.scrollLeft;
+    while (sl >= third * 2) sl -= third;
+    while (sl < third) sl += third;
+    if (sl !== el.scrollLeft) el.scrollLeft = sl;
+    return sl;
+  };
+
+  // Start inside the middle copy so there is runway in both directions.
   useEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
+    const id = window.setTimeout(() => {
+      setCanScroll(el.scrollWidth > el.clientWidth);
+      if (el.scrollWidth > el.clientWidth) {
+        el.scrollLeft = el.scrollWidth / 3;
+        scrollPosRef.current = el.scrollLeft;
+      }
+    }, 100);
+    return () => window.clearTimeout(id);
+  }, [images, imageData]);
 
-    let animationFrameId: number;
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el || paused || reduceMotion) return;
+    if (el.scrollWidth <= el.clientWidth) return;
+
+    let frame: number;
     const speed = 0.5; // Pixels per frame
 
     const animate = () => {
-      if (!el || isHovered) return;
-      
       scrollPosRef.current += speed;
-      
-      // Reset when scrolled past 1/3 (since we duplicated 3 times)
-      if (scrollPosRef.current >= el.scrollWidth / 3) {
-        scrollPosRef.current = 0;
-      }
-      
       el.scrollLeft = scrollPosRef.current;
-      animationFrameId = requestAnimationFrame(animate);
+      scrollPosRef.current = normalise(el);
+      frame = requestAnimationFrame(animate);
     };
 
-    if (el.scrollWidth > el.clientWidth && !isHovered) {
-      animationFrameId = requestAnimationFrame(animate);
-    }
+    frame = requestAnimationFrame(animate);
+    return () => cancelAnimationFrame(frame);
+  }, [images, paused, reduceMotion]);
 
-    return () => cancelAnimationFrame(animationFrameId);
-  }, [images, isHovered]);
+  useEffect(() => () => {
+    if (resumeTimer.current) clearTimeout(resumeTimer.current);
+  }, []);
 
-  const handleScroll = () => {
-    if (isHovered && scrollRef.current) {
-      scrollPosRef.current = scrollRef.current.scrollLeft;
-    }
+  /** Pause now; resume a beat after the visitor stops interacting. */
+  const holdThenResume = (ms = 2500) => {
+    setPaused(true);
+    if (resumeTimer.current) clearTimeout(resumeTimer.current);
+    resumeTimer.current = setTimeout(() => setPaused(false), ms);
+  };
+
+  const syncPosition = () => {
+    const el = scrollRef.current;
+    if (el) scrollPosRef.current = el.scrollLeft;
+  };
+
+  const nudge = (direction: -1 | 1) => {
+    const el = scrollRef.current;
+    if (!el) return;
+    holdThenResume();
+    const step = el.clientWidth * 0.8;
+    el.scrollBy({ left: direction * step, behavior: "smooth" });
+  };
+
+  const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    // Touch and pen keep native momentum scrolling; only mice need drag support.
+    if (e.pointerType !== "mouse") return;
+    const el = scrollRef.current;
+    if (!el) return;
+    dragRef.current = { active: true, startX: e.clientX, startScroll: el.scrollLeft, moved: false };
+    el.setPointerCapture(e.pointerId);
+    setPaused(true);
+    if (resumeTimer.current) clearTimeout(resumeTimer.current);
+  };
+
+  const onPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    const drag = dragRef.current;
+    const el = scrollRef.current;
+    if (!drag.active || !el) return;
+    const delta = e.clientX - drag.startX;
+    if (Math.abs(delta) > 4) drag.moved = true;
+    el.scrollLeft = drag.startScroll - delta;
+    scrollPosRef.current = normalise(el);
+  };
+
+  const endDrag = (e: React.PointerEvent<HTMLDivElement>) => {
+    const el = scrollRef.current;
+    if (!dragRef.current.active) return;
+    dragRef.current.active = false;
+    if (el?.hasPointerCapture(e.pointerId)) el.releasePointerCapture(e.pointerId);
+    holdThenResume();
   };
 
   return (
-    <div 
+    <div
       className="w-full overflow-hidden relative group"
-      onMouseEnter={() => setIsHovered(true)}
+      onMouseEnter={() => setPaused(true)}
       onMouseLeave={() => {
-        setIsHovered(false);
-        if (scrollRef.current) {
-          scrollPosRef.current = scrollRef.current.scrollLeft;
-        }
+        syncPosition();
+        setPaused(false);
       }}
     >
-      <div 
+      <div
         ref={scrollRef}
-        onScroll={handleScroll}
-        className={`flex gap-6 overflow-x-auto py-4 no-scrollbar ${isLogos ? 'items-center' : 'items-stretch'} ${isHovered ? 'cursor-grab active:cursor-grabbing' : ''}`}
-        style={{ 
+        onScroll={syncPosition}
+        onWheel={() => holdThenResume()}
+        onTouchStart={() => setPaused(true)}
+        onTouchEnd={() => holdThenResume()}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={endDrag}
+        onPointerCancel={endDrag}
+        onKeyDown={(e) => {
+          if (e.key === "ArrowRight") { e.preventDefault(); nudge(1); }
+          if (e.key === "ArrowLeft") { e.preventDefault(); nudge(-1); }
+        }}
+        tabIndex={0}
+        role="region"
+        aria-label={`${title} gallery — scroll horizontally`}
+        className={`flex gap-6 overflow-x-auto py-4 no-scrollbar outline-none focus-visible:ring-2 focus-visible:ring-[#CD5C5C]/40 rounded-2xl ${isLogos ? 'items-center' : 'items-stretch'} cursor-grab active:cursor-grabbing`}
+        style={{
           whiteSpace: 'nowrap',
           scrollbarWidth: 'none',
           msOverflowStyle: 'none',
-          WebkitOverflowScrolling: 'touch'
+          WebkitOverflowScrolling: 'touch',
+          touchAction: 'pan-x pan-y',
         }}
       >
         {/* Render three times for infinite loop illusion */}
         {[...displayData, ...displayData, ...displayData].map((item, idx) => (
-          <div 
-            key={idx} 
+          <div
+            key={idx}
             className={`flex-shrink-0 relative group/image cursor-zoom-in ${
-              isLogos 
-                ? 'w-56 h-40 p-6 bg-white rounded-2xl shadow-sm border border-slate-100' 
+              isLogos
+                ? 'w-56 h-40 p-6 bg-white rounded-2xl shadow-sm border border-slate-100'
                 : 'w-96 md:w-[28rem] rounded-2xl overflow-hidden shadow-xl bg-white flex flex-col'
             }`}
-            onClick={() => onImageClick(item.url)}
+            onClick={() => {
+              // A drag ends with a click; don't open the lightbox for it.
+              if (dragRef.current.moved) {
+                dragRef.current.moved = false;
+                return;
+              }
+              onImageClick(item.url);
+            }}
           >
             <div className={isLogos ? "w-full h-full" : "aspect-[4/3] overflow-hidden"}>
-              <img 
-                src={item.url} 
-                alt={`${title} ${idx}`} 
-                className={`w-full h-full ${isLogos ? 'object-contain' : 'object-cover'} transition-transform duration-700 group-hover/image:scale-110`}
+              <img
+                src={item.url}
+                alt={`${title} ${idx}`}
+                draggable={false}
+                className={`w-full h-full ${isLogos ? 'object-contain' : 'object-cover'} transition-transform duration-700 group-hover/image:scale-110 select-none`}
               />
             </div>
-            
+
             {!isLogos && item.description && (
               <div className="p-4 bg-white">
                 <p className="text-slate-900 font-bold text-sm truncate">{item.description}</p>
               </div>
             )}
-            
+
             {/* Zoom Icon Overlay */}
             <div className="absolute inset-0 bg-black/0 group-hover/image:bg-black/10 transition-colors duration-300 flex items-center justify-center opacity-0 group-hover/image:opacity-100">
               <ZoomIn className="text-white w-8 h-8 drop-shadow-md" />
@@ -133,7 +237,29 @@ const AutoScrollGallery = ({ images, title, onImageClick, isLogos = false, image
           </div>
         ))}
       </div>
-      
+
+      {/* Manual controls. Hidden when everything already fits on screen. */}
+      {canScroll && (
+        <>
+          <button
+            type="button"
+            aria-label="Scroll left"
+            onClick={() => nudge(-1)}
+            className="absolute left-2 top-1/2 z-20 -translate-y-1/2 flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white/90 text-slate-700 shadow-lg backdrop-blur-sm transition-all hover:bg-white hover:text-slate-900 hover:scale-110 active:scale-95"
+          >
+            <ChevronLeft className="h-5 w-5" />
+          </button>
+          <button
+            type="button"
+            aria-label="Scroll right"
+            onClick={() => nudge(1)}
+            className="absolute right-2 top-1/2 z-20 -translate-y-1/2 flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white/90 text-slate-700 shadow-lg backdrop-blur-sm transition-all hover:bg-white hover:text-slate-900 hover:scale-110 active:scale-95"
+          >
+            <ChevronRight className="h-5 w-5" />
+          </button>
+        </>
+      )}
+
       {/* Gradient Masks */}
       <div className="absolute left-0 top-0 bottom-0 w-12 bg-gradient-to-r from-white/80 to-transparent z-10 pointer-events-none" />
       <div className="absolute right-0 top-0 bottom-0 w-12 bg-gradient-to-l from-white/80 to-transparent z-10 pointer-events-none" />
