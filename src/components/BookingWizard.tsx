@@ -2145,12 +2145,20 @@ export const BookingWizard = () => {
         </div>
         <div className="w-full px-4 md:px-6 lg:px-8 relative z-10">
           <div className="max-w-6xl mx-auto">
-            <h1 
-  className="mb-6 text-center uppercase leading-none md:text-7xl font-title tracking-[0.08em]"
+            {/* Playfair Display rather than the site-wide condensed Bebas.
+                Every other heading on these pages is uppercase Bebas, so a
+                mixed-case serif here makes the booking title the one thing the
+                eye lands on instead of another line in the same voice. Case is
+                left as the admin typed it — the old `uppercase` overrode it.
+                Playfair is already preloaded in index.html, so this costs no
+                extra font request. Weight defaults to 700 because that is the
+                heaviest cut loaded; 900 would have been synthesised. */}
+            <h1
+  className="mb-6 text-center leading-[1.05] md:text-7xl font-display tracking-[0.01em]"
   style={{
     color: settingsStyles.booking_title?.color || '#2D2D2D',
     fontSize: settingsStyles.booking_title?.fontSize || 'clamp(2.5rem, 8vw, 5rem)',
-    fontWeight: settingsStyles.booking_title?.fontWeight || '900',
+    fontWeight: settingsStyles.booking_title?.fontWeight || '700',
     fontStyle: settingsStyles.booking_title?.fontStyle,
   }}
 >

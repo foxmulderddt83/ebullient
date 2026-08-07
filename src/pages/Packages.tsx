@@ -1,5 +1,7 @@
+// No framer-motion import here any more: every animation left on this page is
+// a CSS transition, and the scroll reveals share one IntersectionObserver via
+// <Reveal>. That keeps the whole page off the JS animation loop.
 import { useState, lazy, Suspense } from "react";
-import { motion, AnimatePresence } from "framer-motion";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 
@@ -297,27 +299,26 @@ const FaqItem = ({ q, a, index }: { q: string; a: React.ReactNode; index: number
           >
             {q}
           </span>
-          <motion.span
-            animate={{ rotate: open ? 45 : 0 }}
-            transition={{ duration: 0.3, ease: "easeOut" }}
-            className="shrink-0 rounded-full border p-1"
+          <span
+            className={`shrink-0 rounded-full border p-1 transition-transform duration-300 ease-out ${
+              open ? "rotate-45" : ""
+            }`}
             style={{ borderColor: open ? THEME.accent : "rgba(15,23,42,0.15)" }}
           >
             <Plus className="h-4 w-4" style={{ color: open ? THEME.accent : "#cbd5e1" }} />
-          </motion.span>
+          </span>
         </button>
-        <AnimatePresence initial={false}>
-          {open && (
-            <motion.div
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: "auto", opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-              transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
-            >
-              <p className="px-6 pb-6 text-sm md:text-base leading-relaxed text-slate-600">{a}</p>
-            </motion.div>
-          )}
-        </AnimatePresence>
+        {/* Open/close is a grid-template-rows transition rather than framer's
+            animated height. Same easing, but it needs no AnimatePresence and no
+            per-frame JS — which matters because there are eleven of these. */}
+        <div
+          className="grid transition-[grid-template-rows] duration-300 ease-out"
+          style={{ gridTemplateRows: open ? "1fr" : "0fr" }}
+        >
+          <div className="overflow-hidden">
+            <p className="px-6 pb-6 text-sm md:text-base leading-relaxed text-slate-600">{a}</p>
+          </div>
+        </div>
       </div>
     </Reveal>
   );
@@ -331,11 +332,12 @@ export default function Packages() {
       <PageShell>
         {/* ── HERO ── */}
         <section className="relative flex min-h-[92vh] items-center overflow-hidden pt-28 pb-16">
-          <motion.div
+          {/* Static. This used to scale from 1.14 to 1 over 1.8s: a full-bleed
+              cover image re-rasterised every frame at a new scale, which is the
+              single most expensive animation either page ran, and it fired
+              right as the visitor arrived and the wizard chunk was loading. */}
+          <div
             className="absolute inset-0 z-0"
-            initial={{ scale: 1.14, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            transition={{ duration: 1.8, ease: [0.16, 1, 0.3, 1], delay: 0.55 }}
             style={{
               // Daylight wash rather than the old near-black scrim, so the skyline
               // still reads while slate text stays legible on top of it.
@@ -346,13 +348,13 @@ export default function Packages() {
             }}
           />
 
+          {/* The hero used to be seven separately animated pieces — wrapper,
+              three headline lines, price pill, paragraph, buttons — on delays
+              running out to 1.8s, longer than the curtain that preceded them.
+              It is one reveal now: same arrival, a seventh of the machinery,
+              and the content is settled almost immediately. */}
           <div className="container relative z-10 mx-auto max-w-[1400px] px-5 lg:px-8">
-            <motion.div
-              initial={{ opacity: 0, y: 30 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.9, delay: 0.75, ease: [0.16, 1, 0.3, 1] }}
-              className="max-w-3xl"
-            >
+            <Reveal delay={0.1} y={30} className="max-w-3xl">
               <Link
                 to="/"
                 className="mb-8 inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white/85 px-4 py-2 text-[11px] font-bold uppercase tracking-[0.2em] text-slate-600 transition-colors hover:border-[#CD5C5C]/50 hover:text-slate-900"
@@ -365,25 +367,14 @@ export default function Packages() {
                 className="text-4xl leading-[1.02] text-slate-900 sm:text-6xl lg:text-7xl xl:text-8xl uppercase"
                 style={{ fontFamily: THEME.display, letterSpacing: "0.02em" }}
               >
-                {["TAKE CONTROLS", "OF AN UNFORGETABLE", "EXPERIENCE"].map((line, i) => (
-                  <motion.span
-                    key={line}
-                    className="block"
-                    initial={{ opacity: 0, y: 26 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.75, delay: 0.85 + i * 0.12, ease: [0.16, 1, 0.3, 1] }}
-                  >
+                {["TAKE CONTROLS", "OF AN UNFORGETABLE", "EXPERIENCE"].map(line => (
+                  <span key={line} className="block">
                     {line}
-                  </motion.span>
+                  </span>
                 ))}
               </h1>
 
-              <motion.div
-                initial={{ opacity: 0, scale: 0.85 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ type: "spring", stiffness: 180, damping: 16, delay: 1.3 }}
-                className="mt-7 inline-flex items-baseline gap-3 rounded-full border border-slate-200 bg-white/85 px-6 py-3"
-              >
+              <div className="mt-7 inline-flex items-baseline gap-3 rounded-full border border-slate-200 bg-white/85 px-6 py-3">
                 <span
                   className="text-[11px] font-black uppercase tracking-[0.3em] text-slate-700"
                   style={{ fontFamily: THEME.condensed }}
@@ -393,38 +384,23 @@ export default function Packages() {
                 <span className="text-3xl md:text-4xl" style={{ fontFamily: THEME.display, color: THEME.accent }}>
                   RM699
                 </span>
-              </motion.div>
+              </div>
 
-              <motion.p
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ duration: 0.8, delay: 1.45 }}
-                className="mt-7 max-w-2xl text-sm leading-relaxed text-slate-700 md:text-lg"
-              >
+              <p className="mt-7 max-w-2xl text-sm leading-relaxed text-slate-700 md:text-lg">
                 Experience what it feels like to fly a real aircraft with professional pilots and guided
                 introductory flight experiences.
-              </motion.p>
+              </p>
 
-              <motion.div
-                initial={{ opacity: 0, y: 18 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.7, delay: 1.6 }}
-                className="mt-9 flex flex-wrap gap-4"
-              >
+              <div className="mt-9 flex flex-wrap gap-4">
                 <ActionLink href="#book-now">Book Your Flight</ActionLink>
                 <ActionLink href={WHATSAPP} variant="secondary" external>
                   Book via WhatsApp
                 </ActionLink>
-              </motion.div>
-            </motion.div>
+              </div>
+            </Reveal>
 
             {/* Trust strip */}
-            <motion.div
-              initial={{ opacity: 0, y: 24 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.8, delay: 1.8 }}
-              className="mt-16 grid grid-cols-2 gap-3 lg:grid-cols-4"
-            >
+            <Reveal delay={0.25} className="mt-16 grid grid-cols-2 gap-3 lg:grid-cols-4">
               {TRUST_STRIP.map(item => (
                 <div
                   key={item}
@@ -433,7 +409,7 @@ export default function Packages() {
                   {item}
                 </div>
               ))}
-            </motion.div>
+            </Reveal>
           </div>
         </section>
 
@@ -601,21 +577,12 @@ export default function Packages() {
         </section>
 
         {/* ── SEAPLANE ── */}
+        {/* The seaplane that drifted across this section is gone. It ran once,
+            but "once" meant fourteen continuous seconds of a moving layer
+            starting exactly when the visitor reached the section — so it was
+            animating through the part of the page they were actually reading
+            and scrolling. */}
         <section className="relative overflow-hidden py-20 md:py-28">
-          {/* Seaplane drifting across the section. Kept: it runs once, and a
-              translate on a composited layer is close to free. The infinite
-              bob that used to sit on the aircraft photo below was not — it
-              never stopped, so it took a frame budget for the whole visit. */}
-          <motion.div
-            className="pointer-events-none absolute top-10 z-0 w-40 opacity-30 md:w-72"
-            initial={{ x: "-20vw" }}
-            whileInView={{ x: "115vw" }}
-            viewport={{ once: true }}
-            transition={{ duration: 14, ease: "linear" }}
-          >
-            <img src="/BG/superpetrel-flyYX.png" alt="" loading="lazy" className="h-auto w-full" />
-          </motion.div>
-
           <div className="container relative z-10 mx-auto max-w-[1400px] px-5 lg:px-8">
             <GlassCard hover={false} patterned className="p-8 md:p-14">
               <div className="grid items-center gap-10 lg:grid-cols-2">
@@ -807,25 +774,20 @@ export default function Packages() {
           an infinite scale+fade on a fixed element, which forces the compositor
           to keep that layer live for the entire visit, scrolling or not. It is
           a hover-only ring now. */}
-      <motion.a
+      <a
         href={WHATSAPP}
         target="_blank"
         rel="noopener noreferrer"
         aria-label="Book via WhatsApp"
-        initial={{ scale: 0, opacity: 0 }}
-        animate={{ scale: 1, opacity: 1 }}
-        transition={{ type: "spring", stiffness: 220, damping: 18, delay: 2 }}
-        whileHover={{ scale: 1.1 }}
-        whileTap={{ scale: 0.94 }}
         // Bottom-right with clearance from the edge. FloatingCart sits at
         // bottom-24 right-6, so this stays below it without overlapping.
-        className="group fixed bottom-8 right-6 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-[#25D366] text-slate-900 shadow-[0_12px_40px_-8px_rgba(37,211,102,0.7)]"
+        className="group fixed bottom-8 right-6 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-[#25D366] text-slate-900 shadow-[0_12px_40px_-8px_rgba(37,211,102,0.7)] transition-transform duration-200 ease-out hover:scale-110 active:scale-95"
       >
         <span className="pointer-events-none absolute inset-0 rounded-full bg-[#25D366] opacity-0 transition-all duration-500 group-hover:scale-150 group-hover:opacity-25" />
         <svg viewBox="0 0 448 512" width="28" height="28" fill="currentColor" className="relative z-10">
           <path d="M380.9 97.1C339 55.1 283.2 32 223.9 32c-122.4 0-222 99.6-222 222 0 39.1 10.2 77.3 29.6 111L0 480l117.7-30.9c32.4 17.7 68.9 27 106.1 27h.1c122.3 0 224.1-99.6 224.1-222 0-59.3-25.2-115-67.1-157zm-157 341.6c-33.2 0-65.7-8.9-94-25.7l-6.7-4-69.8 18.3L72 359.2l-4.4-7c-18.5-29.4-28.2-63.3-28.2-98.2 0-101.7 82.8-184.5 184.6-184.5 49.3 0 95.6 19.2 130.4 54.1 34.8 34.9 56.2 81.2 56.1 130.5 0 101.8-84.9 184.6-186.6 184.6zm101.2-138.2c-5.5-2.8-32.8-16.2-37.9-18-5.1-1.9-8.8-2.8-12.5 2.8-3.7 5.6-14.3 18-17.6 21.8-3.2 3.7-6.5 4.2-12 1.4-5.5-2.8-23.2-8.5-44.2-27.1-16.4-14.6-27.4-32.7-30.6-38.1-3.2-5.4-.3-8.3 2.4-11.1 2.5-2.5 5.5-6.5 8.3-9.7 2.8-3.2 3.7-5.5 5.5-9.2 1.8-3.7.9-6.9-.5-9.7-1.4-2.8-12.5-30.1-17.1-41.2-4.5-10.8-9.1-9.3-12.5-9.5-3.2-.2-6.9-.2-10.6-.2-3.7 0-9.7 1.4-14.8 6.9-5.1 5.6-19.4 19-19.4 46.3 0 27.3 19.9 53.7 22.6 57.4 2.8 3.7 39.1 59.7 94.8 83.8 13.2 5.7 23.5 9.2 31.6 11.8 13.3 4.2 25.4 3.6 35 2.2 10.7-1.5 32.8-13.4 37.4-26.4 4.6-13 4.6-24.1 3.2-26.4-1.3-2.5-5-3.9-10.5-6.6z" />
         </svg>
-      </motion.a>
+      </a>
     </>
   );
 }

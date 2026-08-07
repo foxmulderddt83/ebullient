@@ -1,4 +1,4 @@
-import { ReactNode, useEffect, useState } from "react";
+import { ReactNode, useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { Plane } from "lucide-react";
 
@@ -90,7 +90,10 @@ export const PageTransition = ({ label }: { label: string }) => {
 
   useEffect(() => {
     if (reduceMotion) return;
-    const t = setTimeout(() => setDone(true), 1150);
+    // Was 1150ms. The curtain is the first thing between the visitor and the
+    // page, and it was holding the content back longer than the page needs to
+    // lay itself out. 700ms still reads as a deliberate arrival.
+    const t = setTimeout(() => setDone(true), 700);
     return () => clearTimeout(t);
   }, [reduceMotion]);
 
@@ -125,26 +128,20 @@ export const PageTransition = ({ label }: { label: string }) => {
             exit={{ opacity: 0, scale: 0.9, transition: { duration: 0.3 } }}
             transition={{ duration: 0.4, delay: 0.05 }}
           >
-            <motion.div
-              animate={{ x: [-18, 18, -18], y: [0, -6, 0] }}
-              transition={{ duration: 2.2, repeat: Infinity, ease: "easeInOut" }}
-            >
-              <Plane className="w-9 h-9 -rotate-12" style={{ color: THEME.accent }} />
-            </motion.div>
+            {/* The plane used to bob and the rule used to run a shimmer, both
+                on infinite loops. Over a 700ms curtain neither completes a
+                cycle, so they were pure cost for no read. */}
+            <Plane className="w-9 h-9 -rotate-12" style={{ color: THEME.accent }} />
             <span
               className="text-slate-900 text-xl md:text-2xl uppercase"
               style={{ fontFamily: THEME.display, letterSpacing: "0.22em" }}
             >
               {label}
             </span>
-            <div className="h-px w-40 overflow-hidden bg-slate-200">
-              <motion.div
-                className="h-full w-full"
-                style={{ background: `linear-gradient(90deg, transparent, ${THEME.accent}, transparent)` }}
-                animate={{ x: ["-100%", "100%"] }}
-                transition={{ duration: 1.1, repeat: Infinity, ease: "linear" }}
-              />
-            </div>
+            <div
+              className="h-px w-40"
+              style={{ background: `linear-gradient(90deg, transparent, ${THEME.accent}, transparent)` }}
+            />
           </motion.div>
         </motion.div>
       )}
@@ -156,6 +153,38 @@ export const PageTransition = ({ label }: { label: string }) => {
  * Scroll-triggered reveal. Replaces the hand-rolled scroll listener the static
  * pages used, which toggled inline styles on every scroll event.
  */
+const REVEAL_EASE = "cubic-bezier(.16,1,.3,1)";
+
+/**
+ * One IntersectionObserver for every Reveal on the page.
+ *
+ * framer-motion's whileInView creates an observer per motion component, and
+ * these pages have sixty-odd of them. Sixty observers all reporting into the
+ * same scroll, each waking its own component to run a JS-driven animation, is
+ * a lot of work for what is ultimately a fade and a 24px slide. One observer
+ * feeding a boolean into a CSS transition does the same job on the compositor.
+ */
+const revealCallbacks = new WeakMap<Element, () => void>();
+let revealObserver: IntersectionObserver | null = null;
+
+const getRevealObserver = () => {
+  if (revealObserver) return revealObserver;
+  revealObserver = new IntersectionObserver(
+    entries => {
+      for (const entry of entries) {
+        if (!entry.isIntersecting) continue;
+        revealCallbacks.get(entry.target)?.();
+        // Reveal once, then stop watching. Nothing here survives to cost
+        // anything on later scrolls.
+        revealObserver?.unobserve(entry.target);
+        revealCallbacks.delete(entry.target);
+      }
+    },
+    { rootMargin: "0px 0px -60px 0px" }
+  );
+  return revealObserver;
+};
+
 export const Reveal = ({
   children,
   delay = 0,
@@ -168,25 +197,42 @@ export const Reveal = ({
   className?: string;
 }) => {
   const reduceMotion = useReducedMotion();
+  const ref = useRef<HTMLDivElement>(null);
+  const [shown, setShown] = useState(false);
 
-  // Nothing to animate — render a plain div so there is no motion component,
-  // no IntersectionObserver and no animation frame for this subtree at all.
+  useEffect(() => {
+    if (reduceMotion) return;
+    const el = ref.current;
+    if (!el) return;
+    if (typeof IntersectionObserver === "undefined") {
+      setShown(true);
+      return;
+    }
+    const observer = getRevealObserver();
+    revealCallbacks.set(el, () => setShown(true));
+    observer.observe(el);
+    return () => {
+      observer.unobserve(el);
+      revealCallbacks.delete(el);
+    };
+  }, [reduceMotion]);
+
+  // Nothing to animate — render a plain div, so this subtree gets no observer
+  // and no transition at all.
   if (reduceMotion) return <div className={className}>{children}</div>;
 
   return (
-    <motion.div
+    <div
+      ref={ref}
       className={className}
-      initial={{ opacity: 0, y }}
-      whileInView={{ opacity: 1, y: 0 }}
-      // once: true is what keeps these cheap — each element animates a single
-      // time and is then static for the rest of the visit. The shorter travel
-      // and duration mean the reveal has finished by the time a normal scroll
-      // brings the next one in, so only one or two run concurrently.
-      viewport={{ once: true, margin: "-60px" }}
-      transition={{ duration: 0.5, delay, ease: [0.16, 1, 0.3, 1] }}
+      style={{
+        opacity: shown ? 1 : 0,
+        transform: shown ? "none" : `translateY(${y}px)`,
+        transition: `opacity .5s ${REVEAL_EASE} ${delay}s, transform .5s ${REVEAL_EASE} ${delay}s`,
+      }}
     >
       {children}
-    </motion.div>
+    </div>
   );
 };
 

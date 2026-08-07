@@ -1,4 +1,5 @@
-import { motion } from "framer-motion";
+// No framer-motion here any more — everything left is a CSS transition, and
+// the scroll reveals share a single IntersectionObserver via <Reveal>.
 import { Link } from "react-router-dom";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
@@ -301,11 +302,10 @@ export default function FlightInformation() {
       <PageShell>
         {/* ── HERO ── */}
         <section className="relative flex min-h-[70vh] items-center overflow-hidden pt-28 pb-16">
-          <motion.div
+          {/* Static — see the matching note on the Packages hero. Scaling a
+              full-bleed cover photo forces a re-raster every frame. */}
+          <div
             className="absolute inset-0 z-0"
-            initial={{ scale: 1.12, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            transition={{ duration: 1.8, ease: [0.16, 1, 0.3, 1], delay: 0.55 }}
             style={{
               // Daylight wash rather than a near-black scrim. Light at the top so
               // the airport photograph actually reads, then thickening downward:
@@ -317,13 +317,10 @@ export default function FlightInformation() {
               backgroundPosition: "center",
             }}
           />
+          {/* One reveal for the whole hero instead of five staggered pieces
+              finishing at 1.4s. */}
           <div className="container relative z-10 mx-auto max-w-[1400px] px-5 lg:px-8">
-            <motion.div
-              initial={{ opacity: 0, y: 30 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.9, delay: 0.75, ease: [0.16, 1, 0.3, 1] }}
-              className="max-w-3xl"
-            >
+            <Reveal delay={0.1} y={30} className="max-w-3xl">
               <Link
                 to="/"
                 className="mb-8 inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white/85 px-4 py-2 text-[11px] font-bold uppercase tracking-[0.2em] text-slate-600 transition-colors hover:border-[#CD5C5C]/50 hover:text-slate-900"
@@ -336,37 +333,21 @@ export default function FlightInformation() {
                 className="text-4xl uppercase leading-[1.04] text-slate-900 sm:text-6xl lg:text-7xl"
                 style={{ fontFamily: THEME.display, letterSpacing: "0.02em" }}
               >
-                {["Flight Information &", "Preparation Guide"].map((line, i) => (
-                  <motion.span
-                    key={line}
-                    className="block"
-                    initial={{ opacity: 0, y: 26 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.75, delay: 0.9 + i * 0.13, ease: [0.16, 1, 0.3, 1] }}
-                  >
+                {["Flight Information &", "Preparation Guide"].map(line => (
+                  <span key={line} className="block">
                     {line}
-                  </motion.span>
+                  </span>
                 ))}
               </h1>
 
-              <motion.p
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ duration: 0.8, delay: 1.25 }}
-                className="mt-7 max-w-2xl text-sm leading-relaxed text-slate-700 md:text-lg"
-              >
+              <p className="mt-7 max-w-2xl text-sm leading-relaxed text-slate-700 md:text-lg">
                 Everything you need to know before your OneDayPilot experience.
-              </motion.p>
+              </p>
 
-              <motion.div
-                initial={{ opacity: 0, y: 18 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.7, delay: 1.4 }}
-                className="mt-9"
-              >
+              <div className="mt-9">
                 <ActionLink href="/packages">Back To Packages</ActionLink>
-              </motion.div>
-            </motion.div>
+              </div>
+            </Reveal>
           </div>
         </section>
 
@@ -389,14 +370,12 @@ export default function FlightInformation() {
             <SectionTitle>Your Flight Day Journey</SectionTitle>
 
             <div className="relative">
-              {/* Runway line linking the steps */}
-              <motion.div
-                className="absolute left-0 right-0 top-[46px] hidden h-px origin-left lg:block"
+              {/* Runway line linking the steps. Static: it used to draw itself
+                  over 1.2s from its own observer, which is a whole extra
+                  animation for a one-pixel rule. */}
+              <div
+                className="absolute left-0 right-0 top-[46px] hidden h-px lg:block"
                 style={{ background: `linear-gradient(90deg, transparent, ${THEME.accent}, transparent)` }}
-                initial={{ scaleX: 0 }}
-                whileInView={{ scaleX: 1 }}
-                viewport={{ once: true }}
-                transition={{ duration: 1.2, ease: "easeOut" }}
               />
               <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
                 {JOURNEY.map((item, i) => (
