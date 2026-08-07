@@ -224,7 +224,14 @@ const AVIATION_INFO = [
   },
 ];
 
-/** Highlighted advisory panel — the old .notice-box. */
+/**
+ * Highlighted advisory panel — the old .notice-box.
+ *
+ * The accent rule used to pulse on an infinite loop and the panel carried a
+ * backdrop blur. Three of these sit on the page, so that was three permanently
+ * running animations plus three backdrop re-samples on every scrolled frame.
+ * A solid accent rule and an opaque tint read the same and cost nothing.
+ */
 const NoticeBox = ({
   icon,
   children,
@@ -233,13 +240,11 @@ const NoticeBox = ({
   children: React.ReactNode;
 }) => (
   <Reveal>
-    <div className="relative overflow-hidden rounded-2xl border border-[#CD5C5C]/30 bg-[#CD5C5C]/10 p-7 backdrop-blur-md md:p-9">
-      <motion.span
+    <div className="relative overflow-hidden rounded-2xl border border-[#CD5C5C]/30 bg-[#CD5C5C]/10 p-7 md:p-9">
+      <span
         aria-hidden
         className="absolute inset-y-0 left-0 w-1"
         style={{ background: THEME.accent }}
-        animate={{ opacity: [0.5, 1, 0.5] }}
-        transition={{ duration: 2.4, repeat: Infinity, ease: "easeInOut" }}
       />
       <div className="flex items-start gap-4">
         <span className="mt-0.5 shrink-0" style={{ color: THEME.accent }}>
@@ -271,7 +276,7 @@ const PhotoCard = ({
           alt={title}
           loading="lazy"
           decoding="async"
-          className="h-full w-full object-cover transition-transform duration-[1.2s] ease-out group-hover:scale-110"
+          className="h-full w-full object-cover transition-transform duration-500 ease-out group-hover:scale-[1.06]"
         />
         <div className="absolute inset-0 bg-gradient-to-t from-white via-transparent to-transparent" />
       </div>
@@ -321,7 +326,7 @@ export default function FlightInformation() {
             >
               <Link
                 to="/"
-                className="mb-8 inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white/70 px-4 py-2 text-[11px] font-bold uppercase tracking-[0.2em] text-slate-600 backdrop-blur-sm transition-colors hover:border-[#CD5C5C]/50 hover:text-slate-900"
+                className="mb-8 inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white/85 px-4 py-2 text-[11px] font-bold uppercase tracking-[0.2em] text-slate-600 transition-colors hover:border-[#CD5C5C]/50 hover:text-slate-900"
                 style={{ fontFamily: THEME.condensed }}
               >
                 <ArrowLeft className="h-3.5 w-3.5" /> Back
@@ -397,16 +402,14 @@ export default function FlightInformation() {
                 {JOURNEY.map((item, i) => (
                   <Reveal key={item.step} delay={i * 0.12}>
                     <div className="text-center">
-                      <motion.div
-                        whileHover={{ scale: 1.12 }}
-                        transition={{ type: "spring", stiffness: 320, damping: 16 }}
-                        className="relative z-10 mx-auto flex h-[92px] w-[92px] items-center justify-center rounded-full border-2 bg-white shadow-[0_12px_30px_-14px_rgba(15,23,42,0.35)]"
+                      <div
+                        className="relative z-10 mx-auto flex h-[92px] w-[92px] items-center justify-center rounded-full border-2 bg-white shadow-[0_12px_30px_-14px_rgba(15,23,42,0.35)] transition-transform duration-300 ease-out hover:scale-110"
                         style={{ borderColor: THEME.accent }}
                       >
                         <span className="text-4xl" style={{ fontFamily: THEME.display, color: THEME.accent }}>
                           {i + 1}
                         </span>
-                      </motion.div>
+                      </div>
                       <h3
                         className="mt-5 text-lg uppercase text-slate-900 md:text-xl"
                         style={{ fontFamily: THEME.display, letterSpacing: "0.05em" }}
@@ -590,19 +593,15 @@ export default function FlightInformation() {
                   <div className="mt-8 grid gap-5 md:grid-cols-3">
                     {gallery.images.map((src, i) => (
                       <Reveal key={src} delay={i * 0.1}>
-                        <motion.div
-                          whileHover={{ y: -8 }}
-                          transition={{ duration: 0.4, ease: "easeOut" }}
-                          className="group overflow-hidden rounded-2xl border border-black/5 shadow-[0_20px_60px_-30px_rgba(15,23,42,0.22)]"
-                        >
+                        <div className="group overflow-hidden rounded-2xl border border-black/5 shadow-[0_20px_60px_-30px_rgba(15,23,42,0.22)] transition-transform duration-300 ease-out hover:-translate-y-2">
                           <img
                             src={src}
                             alt={gallery.heading}
                             loading="lazy"
                             decoding="async"
-                            className="h-64 w-full object-cover transition-transform duration-[1.2s] ease-out group-hover:scale-110 md:h-72"
+                            className="h-64 w-full object-cover transition-transform duration-500 ease-out group-hover:scale-[1.06] md:h-72"
                           />
-                        </motion.div>
+                        </div>
                       </Reveal>
                     ))}
                   </div>
@@ -648,13 +647,9 @@ export default function FlightInformation() {
           <div className="container mx-auto max-w-4xl px-5 lg:px-8">
             <Reveal>
               <GlassCard hover={false} patterned className="p-10 text-center md:p-14">
-                <motion.div
-                  animate={{ y: [0, -8, 0] }}
-                  transition={{ duration: 3.5, repeat: Infinity, ease: "easeInOut" }}
-                  className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-2xl border border-slate-200 bg-white/70"
-                >
+                <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-2xl border border-slate-200 bg-white/85">
                   <FileDown className="h-7 w-7" style={{ color: THEME.accent }} />
-                </motion.div>
+                </div>
                 <h2
                   className="text-3xl uppercase text-slate-900 md:text-5xl"
                   style={{ fontFamily: THEME.display, letterSpacing: "0.03em" }}

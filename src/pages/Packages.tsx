@@ -282,8 +282,8 @@ const FaqItem = ({ q, a, index }: { q: string; a: React.ReactNode; index: number
     <Reveal delay={index * 0.04}>
       <div
         className={`overflow-hidden rounded-2xl border transition-colors duration-300 ${
-          open ? "border-[#CD5C5C]/40 bg-white" : "border-black/5 bg-white/70"
-        } backdrop-blur-md`}
+          open ? "border-[#CD5C5C]/40 bg-white" : "border-black/5 bg-white/85"
+        }`}
       >
         <button
           type="button"
@@ -355,7 +355,7 @@ export default function Packages() {
             >
               <Link
                 to="/"
-                className="mb-8 inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white/70 px-4 py-2 text-[11px] font-bold uppercase tracking-[0.2em] text-slate-600 backdrop-blur-sm transition-colors hover:border-[#CD5C5C]/50 hover:text-slate-900"
+                className="mb-8 inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white/85 px-4 py-2 text-[11px] font-bold uppercase tracking-[0.2em] text-slate-600 transition-colors hover:border-[#CD5C5C]/50 hover:text-slate-900"
                 style={{ fontFamily: THEME.condensed }}
               >
                 <ArrowLeft className="h-3.5 w-3.5" /> Back
@@ -382,7 +382,7 @@ export default function Packages() {
                 initial={{ opacity: 0, scale: 0.85 }}
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ type: "spring", stiffness: 180, damping: 16, delay: 1.3 }}
-                className="mt-7 inline-flex items-baseline gap-3 rounded-full border border-slate-200 bg-white/70 px-6 py-3 backdrop-blur-md"
+                className="mt-7 inline-flex items-baseline gap-3 rounded-full border border-slate-200 bg-white/85 px-6 py-3"
               >
                 <span
                   className="text-[11px] font-black uppercase tracking-[0.3em] text-slate-700"
@@ -428,7 +428,7 @@ export default function Packages() {
               {TRUST_STRIP.map(item => (
                 <div
                   key={item}
-                  className="rounded-2xl border border-black/5 bg-white/70 px-4 py-4 text-center text-[11px] font-semibold text-slate-700 backdrop-blur-md md:text-sm"
+                  className="rounded-2xl border border-black/5 bg-white/85 px-4 py-4 text-center text-[11px] font-semibold text-slate-700 md:text-sm"
                 >
                   {item}
                 </div>
@@ -498,9 +498,9 @@ export default function Packages() {
                   allowFullScreen
                   loading="lazy"
                   referrerPolicy="no-referrer-when-downgrade"
-                  className="block w-full grayscale-[0.35] transition-all duration-700 hover:grayscale-0"
+                  className="block w-full grayscale-[0.35] transition-[filter] duration-500 hover:grayscale-0"
                 />
-                <div className="flex justify-center border-t border-black/5 bg-white/70 p-6">
+                <div className="flex justify-center border-t border-black/5 bg-white/85 p-6">
                   <ActionLink
                     href="https://maps.google.com/maps?q=Aerotree+Flight+Services+Hangar+2"
                     external
@@ -526,7 +526,7 @@ export default function Packages() {
                   <GlassCard className="group h-full">
                     <div className="relative h-[320px] overflow-hidden md:h-[420px]">
                       <div
-                        className="absolute inset-0 transition-transform duration-[1.2s] ease-out group-hover:scale-110"
+                        className="absolute inset-0 transition-transform duration-500 ease-out group-hover:scale-[1.06]"
                         style={{
                           backgroundImage: `url('${route.image}')`,
                           backgroundSize: "cover",
@@ -564,7 +564,7 @@ export default function Packages() {
                   <GlassCard className="group h-full">
                     <div className="relative h-[320px] overflow-hidden">
                       <div
-                        className="absolute inset-0 transition-transform duration-[1.2s] ease-out group-hover:scale-110"
+                        className="absolute inset-0 transition-transform duration-500 ease-out group-hover:scale-[1.06]"
                         style={{
                           backgroundImage: `url('${plane.image}')`,
                           backgroundSize: "cover",
@@ -602,7 +602,10 @@ export default function Packages() {
 
         {/* ── SEAPLANE ── */}
         <section className="relative overflow-hidden py-20 md:py-28">
-          {/* Seaplane drifting across the section */}
+          {/* Seaplane drifting across the section. Kept: it runs once, and a
+              translate on a composited layer is close to free. The infinite
+              bob that used to sit on the aircraft photo below was not — it
+              never stopped, so it took a frame budget for the whole visit. */}
           <motion.div
             className="pointer-events-none absolute top-10 z-0 w-40 opacity-30 md:w-72"
             initial={{ x: "-20vw" }}
@@ -617,9 +620,7 @@ export default function Packages() {
             <GlassCard hover={false} patterned className="p-8 md:p-14">
               <div className="grid items-center gap-10 lg:grid-cols-2">
                 <Reveal>
-                  <motion.div
-                    animate={{ y: [0, -14, 0] }}
-                    transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }}
+                  <div
                     className="h-[280px] bg-contain bg-center bg-no-repeat md:h-[420px]"
                     style={{ backgroundImage: "url('/BG/Super Petrel XP Plus 2.png')" }}
                   />
@@ -729,7 +730,7 @@ export default function Packages() {
         <section className="py-10">
           <div className="container mx-auto max-w-[1400px] px-5 lg:px-8">
             <Reveal>
-              <div className="grid gap-3 rounded-3xl border border-black/5 bg-white/70 p-6 backdrop-blur-md sm:grid-cols-2 lg:grid-cols-4">
+              <div className="grid gap-3 rounded-3xl border border-black/5 bg-white/85 p-6 sm:grid-cols-2 lg:grid-cols-4">
                 {TRUST_BAR.map(item => (
                   <div key={item} className="text-center text-xs font-semibold text-slate-700 md:text-sm">
                     {item}
@@ -801,7 +802,11 @@ export default function Packages() {
 
       <Footer />
 
-      {/* Floating WhatsApp */}
+      {/* Floating WhatsApp.
+          The entrance is still framer, but the halo used to be animate-ping —
+          an infinite scale+fade on a fixed element, which forces the compositor
+          to keep that layer live for the entire visit, scrolling or not. It is
+          a hover-only ring now. */}
       <motion.a
         href={WHATSAPP}
         target="_blank"
@@ -814,9 +819,9 @@ export default function Packages() {
         whileTap={{ scale: 0.94 }}
         // Bottom-right with clearance from the edge. FloatingCart sits at
         // bottom-24 right-6, so this stays below it without overlapping.
-        className="fixed bottom-8 right-6 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-[#25D366] text-slate-900 shadow-[0_12px_40px_-8px_rgba(37,211,102,0.7)]"
+        className="group fixed bottom-8 right-6 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-[#25D366] text-slate-900 shadow-[0_12px_40px_-8px_rgba(37,211,102,0.7)]"
       >
-        <span className="absolute inset-0 animate-ping rounded-full bg-[#25D366] opacity-25" />
+        <span className="pointer-events-none absolute inset-0 rounded-full bg-[#25D366] opacity-0 transition-all duration-500 group-hover:scale-150 group-hover:opacity-25" />
         <svg viewBox="0 0 448 512" width="28" height="28" fill="currentColor" className="relative z-10">
           <path d="M380.9 97.1C339 55.1 283.2 32 223.9 32c-122.4 0-222 99.6-222 222 0 39.1 10.2 77.3 29.6 111L0 480l117.7-30.9c32.4 17.7 68.9 27 106.1 27h.1c122.3 0 224.1-99.6 224.1-222 0-59.3-25.2-115-67.1-157zm-157 341.6c-33.2 0-65.7-8.9-94-25.7l-6.7-4-69.8 18.3L72 359.2l-4.4-7c-18.5-29.4-28.2-63.3-28.2-98.2 0-101.7 82.8-184.5 184.6-184.5 49.3 0 95.6 19.2 130.4 54.1 34.8 34.9 56.2 81.2 56.1 130.5 0 101.8-84.9 184.6-186.6 184.6zm101.2-138.2c-5.5-2.8-32.8-16.2-37.9-18-5.1-1.9-8.8-2.8-12.5 2.8-3.7 5.6-14.3 18-17.6 21.8-3.2 3.7-6.5 4.2-12 1.4-5.5-2.8-23.2-8.5-44.2-27.1-16.4-14.6-27.4-32.7-30.6-38.1-3.2-5.4-.3-8.3 2.4-11.1 2.5-2.5 5.5-6.5 8.3-9.7 2.8-3.2 3.7-5.5 5.5-9.2 1.8-3.7.9-6.9-.5-9.7-1.4-2.8-12.5-30.1-17.1-41.2-4.5-10.8-9.1-9.3-12.5-9.5-3.2-.2-6.9-.2-10.6-.2-3.7 0-9.7 1.4-14.8 6.9-5.1 5.6-19.4 19-19.4 46.3 0 27.3 19.9 53.7 22.6 57.4 2.8 3.7 39.1 59.7 94.8 83.8 13.2 5.7 23.5 9.2 31.6 11.8 13.3 4.2 25.4 3.6 35 2.2 10.7-1.5 32.8-13.4 37.4-26.4 4.6-13 4.6-24.1 3.2-26.4-1.3-2.5-5-3.9-10.5-6.6z" />
         </svg>

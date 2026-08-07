@@ -159,24 +159,36 @@ export const PageTransition = ({ label }: { label: string }) => {
 export const Reveal = ({
   children,
   delay = 0,
-  y = 32,
+  y = 24,
   className,
 }: {
   children: ReactNode;
   delay?: number;
   y?: number;
   className?: string;
-}) => (
-  <motion.div
-    className={className}
-    initial={{ opacity: 0, y }}
-    whileInView={{ opacity: 1, y: 0 }}
-    viewport={{ once: true, margin: "-80px" }}
-    transition={{ duration: 0.7, delay, ease: [0.16, 1, 0.3, 1] }}
-  >
-    {children}
-  </motion.div>
-);
+}) => {
+  const reduceMotion = useReducedMotion();
+
+  // Nothing to animate — render a plain div so there is no motion component,
+  // no IntersectionObserver and no animation frame for this subtree at all.
+  if (reduceMotion) return <div className={className}>{children}</div>;
+
+  return (
+    <motion.div
+      className={className}
+      initial={{ opacity: 0, y }}
+      whileInView={{ opacity: 1, y: 0 }}
+      // once: true is what keeps these cheap — each element animates a single
+      // time and is then static for the rest of the visit. The shorter travel
+      // and duration mean the reveal has finished by the time a normal scroll
+      // brings the next one in, so only one or two run concurrently.
+      viewport={{ once: true, margin: "-60px" }}
+      transition={{ duration: 0.5, delay, ease: [0.16, 1, 0.3, 1] }}
+    >
+      {children}
+    </motion.div>
+  );
+};
 
 /** Section heading with the runway rule underneath. */
 export const SectionTitle = ({
@@ -206,7 +218,17 @@ export const SectionTitle = ({
   </Reveal>
 );
 
-/** Glass panel — the footer's card treatment, inverted for a light page. */
+/**
+ * Glass panel — the footer's card treatment, inverted for a light page.
+ *
+ * Performance note. This carried `backdrop-blur-md` and a framer-motion hover.
+ * backdrop-filter is the expensive one: the browser must re-sample everything
+ * behind the element whenever it or the page moves, so with two or three dozen
+ * cards on the page the blur was being recomputed continuously while scrolling.
+ * The page sits on a near-white base, so a slightly more opaque white reads
+ * almost identically for none of the cost. The lift is a plain CSS transition
+ * now — the GPU handles it without a motion component per card.
+ */
 export const GlassCard = ({
   children,
   className = "",
@@ -218,26 +240,28 @@ export const GlassCard = ({
   hover?: boolean;
   patterned?: boolean;
 }) => (
-  <motion.div
-    whileHover={
+  <div
+    className={`relative overflow-hidden border border-black/5 bg-white/85 shadow-[0_20px_60px_-30px_rgba(15,23,42,0.22)] rounded-2xl md:rounded-3xl ${
       hover
-        ? {
-            y: -8,
-            backgroundColor: "rgba(255,255,255,0.96)",
-            borderColor: "rgba(205,92,92,0.35)",
-            boxShadow: "0 34px 80px -34px rgba(15,23,42,0.28), 0 0 24px rgba(205,92,92,0.10)",
-          }
-        : undefined
-    }
-    transition={{ duration: 0.4, ease: "easeOut" }}
-    className={`relative overflow-hidden border border-black/5 bg-white/75 backdrop-blur-md shadow-[0_20px_60px_-30px_rgba(15,23,42,0.22)] rounded-2xl md:rounded-3xl ${className}`}
+        ? "transition-[transform,border-color,box-shadow] duration-300 ease-out hover:-translate-y-2 hover:border-[#CD5C5C]/35 hover:shadow-[0_34px_80px_-34px_rgba(15,23,42,0.28)]"
+        : ""
+    } ${className}`}
     style={patterned ? { backgroundImage: HEX_PATTERN, backgroundSize: "28px 49px" } : undefined}
   >
     {children}
-  </motion.div>
+  </div>
 );
 
-/** Primary / secondary buttons in the site's condensed uppercase style. */
+/**
+ * Primary / secondary buttons in the site's condensed uppercase style.
+ *
+ * Performance note. Every primary button used to run a blurred sheen across
+ * itself on an infinite loop, whether or not it was on screen — a dozen of
+ * these were animating at once. The sheen now sweeps on hover only, so it still
+ * catches the eye where it matters and costs nothing at rest. Hover/press are
+ * CSS transitions rather than a spring, which keeps the buttons off the JS
+ * animation loop entirely.
+ */
 export const ActionLink = ({
   href,
   children,
@@ -251,18 +275,15 @@ export const ActionLink = ({
   download?: boolean;
   external?: boolean;
 }) => (
-  <motion.a
+  <a
     href={href}
     download={download}
     target={external ? "_blank" : undefined}
     rel={external ? "noopener noreferrer" : undefined}
-    whileHover={{ scale: 1.04, y: -2 }}
-    whileTap={{ scale: 0.97 }}
-    transition={{ type: "spring", stiffness: 400, damping: 22 }}
-    className={`relative inline-flex items-center justify-center gap-2 overflow-hidden px-7 py-3.5 text-[13px] font-black uppercase rounded-full transition-colors ${
+    className={`group relative inline-flex items-center justify-center gap-2 overflow-hidden px-7 py-3.5 text-[13px] font-black uppercase rounded-full transition-transform duration-200 ease-out hover:-translate-y-0.5 hover:scale-[1.03] active:scale-[0.98] ${
       variant === "primary"
         ? "text-white shadow-[0_12px_36px_-10px_rgba(205,92,92,0.55)]"
-        : "text-slate-900 border border-slate-200 bg-white/80 hover:bg-white hover:border-[#CD5C5C]/40 backdrop-blur-sm shadow-sm"
+        : "text-slate-900 border border-slate-200 bg-white/90 hover:bg-white hover:border-[#CD5C5C]/40 shadow-sm"
     }`}
     style={{
       fontFamily: THEME.condensed,
@@ -271,47 +292,43 @@ export const ActionLink = ({
     }}
   >
     {variant === "primary" && (
-      <motion.span
+      <span
         aria-hidden
-        className="absolute top-0 h-full w-12 bg-white/30 skew-x-[-25deg] blur-sm"
-        animate={{ left: ["-30%", "130%"] }}
-        transition={{ duration: 2.4, repeat: Infinity, ease: "linear", repeatDelay: 1.6 }}
+        className="pointer-events-none absolute top-0 h-full w-12 -translate-x-[200%] skew-x-[-25deg] bg-white/30 transition-transform duration-700 ease-out group-hover:translate-x-[900%]"
       />
     )}
     <span className="relative z-10">{children}</span>
-  </motion.a>
+  </a>
 );
 
-/** Shared daytime page shell: pale base, drifting warm glows, hex weave. */
+/**
+ * Shared daytime page shell: pale base, warm glows, hex weave.
+ *
+ * Performance note. The glows used to be three `blur-3xl` divs on infinite x/y
+ * loops. A 64px filter over a 600px circle is one of the most expensive things
+ * a browser can repaint, and because the layer was fixed and always animating,
+ * that cost was paid on every single frame of every scroll — three times over.
+ * They are radial-gradients now: same sunlight, no filter, no animation, and
+ * the whole backdrop collapses into one static layer the compositor can cache.
+ * The hex weave is painted into the same element rather than a second fixed
+ * layer, halving the full-screen overdraw.
+ */
 export const PageShell = ({ children }: { children: ReactNode }) => (
   <div
     className="relative min-h-screen overflow-x-hidden"
     style={{ background: `linear-gradient(180deg, #ffffff 0%, ${THEME.paper} 45%, #eef2f7 100%)` }}
   >
-    {/* Ambient drifting glows — sunlight rather than neon */}
-    <div className="pointer-events-none fixed inset-0 z-0">
-      <motion.div
-        className="absolute -top-40 -left-40 h-[38rem] w-[38rem] rounded-full blur-3xl"
-        style={{ background: "rgba(205,92,92,0.10)" }}
-        animate={{ x: [0, 60, 0], y: [0, 40, 0] }}
-        transition={{ duration: 18, repeat: Infinity, ease: "easeInOut" }}
-      />
-      <motion.div
-        className="absolute top-1/2 -right-40 h-[32rem] w-[32rem] rounded-full blur-3xl"
-        style={{ background: "rgba(212,175,55,0.12)" }}
-        animate={{ x: [0, -50, 0], y: [0, -30, 0] }}
-        transition={{ duration: 22, repeat: Infinity, ease: "easeInOut" }}
-      />
-      <motion.div
-        className="absolute top-[20%] left-1/3 h-[26rem] w-[26rem] rounded-full blur-3xl"
-        style={{ background: "rgba(56,132,255,0.07)" }}
-        animate={{ x: [0, 40, 0], y: [0, 50, 0] }}
-        transition={{ duration: 26, repeat: Infinity, ease: "easeInOut" }}
-      />
-    </div>
     <div
       className="pointer-events-none fixed inset-0 z-0"
-      style={{ backgroundImage: HEX_PATTERN, backgroundSize: "28px 49px" }}
+      style={{
+        backgroundImage: [
+          HEX_PATTERN,
+          "radial-gradient(38rem 38rem at 8% 6%, rgba(205,92,92,0.13), transparent 70%)",
+          "radial-gradient(32rem 32rem at 96% 52%, rgba(212,175,55,0.15), transparent 70%)",
+          "radial-gradient(26rem 26rem at 42% 24%, rgba(56,132,255,0.09), transparent 70%)",
+        ].join(", "),
+        backgroundSize: "28px 49px, auto, auto, auto",
+      }}
     />
     <div className="relative z-10">{children}</div>
   </div>
