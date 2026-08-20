@@ -1481,6 +1481,15 @@ export default function Admin() {
     (window as any).captchaCallback = (token: string) => setCaptchaToken(token);
     (window as any).captchaExpired = () => setCaptchaToken(null);
 
+    // Reset CAPTCHA when leaving login view
+    if (authView !== 'login') {
+      setCaptchaToken(null);
+      if ((window as any).hcaptcha) {
+        (window as any).hcaptcha.reset();
+      }
+      return;
+    }
+
     if (authView === 'login') {
       // Load hCaptcha script if not already loaded
       if (!(window as any).hcaptcha) {
@@ -4654,10 +4663,19 @@ export default function Admin() {
 
       if (error) {
         await logActivity('login_failed', 'auth', null, { email: cleanEmail, error: error.message }, cleanEmail);
+
+        // Reset CAPTCHA on error - token can only be used once
+        setCaptchaToken(null);
+        if ((window as any).hcaptcha) {
+          (window as any).hcaptcha.reset();
+        }
+
         if (error.message.includes("Email not confirmed")) {
           toast.error("Your email is not verified. Please check your email for the verification link.");
         } else if (error.message.includes("Invalid login credentials")) {
           toast.error("Incorrect email or password. Please try again.");
+        } else if (error.message.includes("already-seen-response")) {
+          toast.error("CAPTCHA expired. Please complete it again.");
         } else {
           toast.error("Login failed. Please try again later.");
           console.error('Auth error:', error.message);
