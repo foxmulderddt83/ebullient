@@ -1348,6 +1348,7 @@ export default function Admin() {
   const [registerRole, setRegisterRole] = useState("Account"); // Default role
   const [authBusy, setAuthBusy] = useState(false);
   const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const captchaRenderedRef = useRef(false);
   const [resetToken, setResetToken] = useState<string | null>(null);
   const [newPassword, setNewPassword] = useState("");
   const [confirmNewPassword, setConfirmNewPassword] = useState("");
@@ -1477,51 +1478,49 @@ export default function Admin() {
   }, [supabase]);
 
   useEffect(() => {
-    // Add global callbacks for hCaptcha first
+    // Add global callbacks for hCaptcha
     (window as any).captchaCallback = (token: string) => setCaptchaToken(token);
     (window as any).captchaExpired = () => setCaptchaToken(null);
 
     // Reset CAPTCHA when leaving login view
     if (authView !== 'login') {
       setCaptchaToken(null);
-      if ((window as any).hcaptcha) {
-        (window as any).hcaptcha.reset();
-      }
+      captchaRenderedRef.current = false;
+      const container = document.getElementById('hcaptcha-container');
+      if (container) container.innerHTML = '';
       return;
     }
 
-    if (authView === 'login') {
-      // Load hCaptcha script if not already loaded
-      if (!(window as any).hcaptcha) {
-        const script = document.createElement('script');
-        script.src = 'https://js.hcaptcha.com/1/api.js';
-        script.async = true;
-        script.onload = () => {
-          // Force re-render of captcha after script loads
-          if ((window as any).hcaptcha && (window as any).hcaptcha.render) {
-            const container = document.getElementById('hcaptcha-container');
-            if (container) {
+    // Only render captcha once per login view
+    if (authView === 'login' && !captchaRenderedRef.current) {
+      const renderCaptcha = () => {
+        if ((window as any).hcaptcha && (window as any).hcaptcha.render) {
+          const container = document.getElementById('hcaptcha-container');
+          if (container && container.innerHTML === '') {
+            try {
               (window as any).hcaptcha.render('hcaptcha-container', {
                 sitekey: 'e5e095d8-8c9e-4dfc-9170-47ea2d70b01e',
                 callback: (window as any).captchaCallback,
                 'expired-callback': (window as any).captchaExpired,
                 'error-callback': () => setCaptchaToken(null),
               });
+              captchaRenderedRef.current = true;
+            } catch (e) {
+              console.warn('CAPTCHA already rendered, skipping');
             }
           }
-        };
+        }
+      };
+
+      // Load hCaptcha script if not already loaded
+      if (!(window as any).hcaptcha) {
+        const script = document.createElement('script');
+        script.src = 'https://js.hcaptcha.com/1/api.js';
+        script.async = true;
+        script.onload = renderCaptcha;
         document.head.appendChild(script);
       } else {
-        // Script already loaded, just render
-        const container = document.getElementById('hcaptcha-container');
-        if (container && (window as any).hcaptcha && (window as any).hcaptcha.render) {
-          (window as any).hcaptcha.render('hcaptcha-container', {
-            sitekey: 'e5e095d8-8c9e-4dfc-9170-47ea2d70b01e',
-            callback: (window as any).captchaCallback,
-            'expired-callback': (window as any).captchaExpired,
-            'error-callback': () => setCaptchaToken(null),
-          });
-        }
+        renderCaptcha();
       }
     }
   }, [authView]);
