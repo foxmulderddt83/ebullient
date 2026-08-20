@@ -1347,6 +1347,7 @@ export default function Admin() {
   const [authView, setAuthView] = useState<'login' | 'register' | 'forgot' | 'reset'>('login');
   const [registerRole, setRegisterRole] = useState("Account"); // Default role
   const [authBusy, setAuthBusy] = useState(false);
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
   const [resetToken, setResetToken] = useState<string | null>(null);
   const [newPassword, setNewPassword] = useState("");
   const [confirmNewPassword, setConfirmNewPassword] = useState("");
@@ -1474,6 +1475,19 @@ export default function Admin() {
 
     run();
   }, [supabase]);
+
+  useEffect(() => {
+    if (authView === 'login' && !window.hcaptcha) {
+      const script = document.createElement('script');
+      script.src = 'https://js.hcaptcha.com/1/api.js';
+      script.async = true;
+      script.defer = true;
+      document.body.appendChild(script);
+    }
+    // Add global callbacks for hCaptcha
+    (window as any).captchaCallback = (token: string) => setCaptchaToken(token);
+    (window as any).captchaExpired = () => setCaptchaToken(null);
+  }, [authView]);
 
   useEffect(() => {
     if (showPreviewDialog) {
@@ -4596,6 +4610,11 @@ export default function Admin() {
       return;
     }
 
+    if (!captchaToken) {
+      toast.error("Please complete the CAPTCHA verification.");
+      return;
+    }
+
     try {
       const { data, error } = await supabase.auth.signInWithPassword({
         email: cleanEmail,
@@ -4638,9 +4657,11 @@ export default function Admin() {
 
         toast.success("Logged in successfully");
         await logActivity('login_success', 'auth', null, { email: cleanEmail }, cleanEmail);
+        setCaptchaToken(null);
       }
     } catch (err: any) {
       toast.error("An unexpected error occurred during login.");
+      setCaptchaToken(null);
     }
   };
 
@@ -5979,6 +6000,17 @@ export default function Admin() {
                       ))}
                     </SelectContent>
                   </Select>
+                </div>
+              )}
+
+              {authView === 'login' && (
+                <div className="flex justify-center">
+                  <div
+                    className="h-captcha scale-90"
+                    data-sitekey="e5e095d8-8c9e-4dfc-9170-47ea2d70b01e"
+                    data-callback="captchaCallback"
+                    data-expired-callback="captchaExpired"
+                  />
                 </div>
               )}
 
@@ -14204,7 +14236,39 @@ export default function Admin() {
                                 </div>
 
                                 <div className="space-y-2">
-                                  <label className="text-[11px] sm:text-xs font-bold uppercase tracking-tight text-slate-600 ml-1">Sort Order / Stage</label>
+                                  <div className="flex items-center gap-1.5 ml-1">
+                                    <label className="text-[11px] sm:text-xs font-bold uppercase tracking-tight text-slate-600">Sort Order / Stage</label>
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <button type="button" className="text-slate-400 hover:text-slate-600 transition-colors">
+                                          <Info className="w-3.5 h-3.5" />
+                                        </button>
+                                      </TooltipTrigger>
+                                      <TooltipContent className="bg-slate-900 text-white border-slate-800 p-4 rounded-2xl shadow-2xl w-64" side="top" align="start">
+                                        <div className="space-y-3">
+                                          <div className="flex items-center gap-2 border-b border-white/10 pb-2 mb-2">
+                                            <Layers className="w-3.5 h-3.5 text-indigo-400" />
+                                            <span className="font-black uppercase text-[10px] tracking-widest">Hierarchy Logic</span>
+                                          </div>
+                                          <div className="font-mono text-[10px] leading-relaxed bg-black/20 p-3 rounded-xl border border-white/5">
+                                            <div className="flex items-center gap-2">
+                                              <div className="w-2 h-2 rounded-full bg-indigo-500"></div>
+                                              <span className="text-indigo-300 font-bold">PARENT (Stage 0)</span>
+                                            </div>
+                                            <div className="ml-1 border-l-2 border-slate-700 pl-4 my-1 py-1">
+                                              <div className="flex items-center gap-2">
+                                                <div className="w-1.5 h-1.5 rounded-full bg-emerald-500"></div>
+                                                <span className="text-emerald-300 font-bold">CHILD (Stage 1)</span>
+                                              </div>
+                                            </div>
+                                          </div>
+                                          <p className="text-[9px] text-slate-400 font-medium leading-normal italic">
+                                            Stage 1 items are treated as add-ons that belong to a Stage 0 parent selection.
+                                          </p>
+                                        </div>
+                                      </TooltipContent>
+                                    </Tooltip>
+                                  </div>
                                   <Select
                                     value={(editingItem.sort_order ?? 0).toString()}
                                     onValueChange={(v) => {
