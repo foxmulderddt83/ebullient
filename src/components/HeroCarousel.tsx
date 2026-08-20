@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback } from "react";
 import { ChevronLeft, ChevronRight, Plane } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { motion, AnimatePresence } from "framer-motion";
-import { BackgroundParticles } from "./ui/BackgroundParticles";
 
 import hero1 from "@/assets/hero-1.jpg";
 import hero2 from "@/assets/hero-2.jpg";
@@ -61,37 +60,40 @@ export const HeroCarousel = () => {
   }, []);
 
   useEffect(() => {
-    const fetchData = async () => {
-      if (!supabase) return;
-      const { data: slidesData } = await supabase
-        .from("hero_slides").select("*").order("order", { ascending: true });
-      if (slidesData && slidesData.length > 0) setSlides(slidesData as HeroSlide[]);
-      const { data: settingsData } = await supabase
-        .from("site_settings").select("*").in("key", [
-          "hero_button_text", "bg_gradient_hero",
-          "hero_btn1_text", "hero_btn1_size", "hero_btn1_color", "hero_btn1_bg",
-          "hero_btn2_text", "hero_btn2_size", "hero_btn2_color", "hero_btn2_bg"
-        ]);
-      if (settingsData) {
-        const btn1Text = settingsData.find(s => s.key === "hero_btn1_text")?.value || settingsData.find(s => s.key === "hero_button_text")?.value;
-        if (btn1Text) setHeroButtonText(btn1Text);
+    const timer = setTimeout(() => {
+      const fetchData = async () => {
+        if (!supabase) return;
+        const { data: slidesData } = await supabase
+          .from("hero_slides").select("*").order("order", { ascending: true });
+        if (slidesData && slidesData.length > 0) setSlides(slidesData as HeroSlide[]);
+        const { data: settingsData } = await supabase
+          .from("site_settings").select("*").in("key", [
+            "hero_button_text", "bg_gradient_hero",
+            "hero_btn1_text", "hero_btn1_size", "hero_btn1_color", "hero_btn1_bg",
+            "hero_btn2_text", "hero_btn2_size", "hero_btn2_color", "hero_btn2_bg"
+          ]);
+        if (settingsData) {
+          const btn1Text = settingsData.find(s => s.key === "hero_btn1_text")?.value || settingsData.find(s => s.key === "hero_button_text")?.value;
+          if (btn1Text) setHeroButtonText(btn1Text);
 
-        setButtonStyles(prev => ({
-          btn1_text: btn1Text || prev.btn1_text,
-          btn1_size: settingsData.find(s => s.key === "hero_btn1_size")?.value || prev.btn1_size,
-          btn1_color: settingsData.find(s => s.key === "hero_btn1_color")?.value || prev.btn1_color,
-          btn1_bg: settingsData.find(s => s.key === "hero_btn1_bg")?.value || prev.btn1_bg,
-          btn2_text: settingsData.find(s => s.key === "hero_btn2_text")?.value || prev.btn2_text,
-          btn2_size: settingsData.find(s => s.key === "hero_btn2_size")?.value || prev.btn2_size,
-          btn2_color: settingsData.find(s => s.key === "hero_btn2_color")?.value || prev.btn2_color,
-          btn2_bg: settingsData.find(s => s.key === "hero_btn2_bg")?.value || prev.btn2_bg,
-        }));
+          setButtonStyles(prev => ({
+            btn1_text: btn1Text || prev.btn1_text,
+            btn1_size: settingsData.find(s => s.key === "hero_btn1_size")?.value || prev.btn1_size,
+            btn1_color: settingsData.find(s => s.key === "hero_btn1_color")?.value || prev.btn1_color,
+            btn1_bg: settingsData.find(s => s.key === "hero_btn1_bg")?.value || prev.btn1_bg,
+            btn2_text: settingsData.find(s => s.key === "hero_btn2_text")?.value || prev.btn2_text,
+            btn2_size: settingsData.find(s => s.key === "hero_btn2_size")?.value || prev.btn2_size,
+            btn2_color: settingsData.find(s => s.key === "hero_btn2_color")?.value || prev.btn2_color,
+            btn2_bg: settingsData.find(s => s.key === "hero_btn2_bg")?.value || prev.btn2_bg,
+          }));
 
-        const gradient = settingsData.find(s => s.key === "bg_gradient_hero")?.value;
-        if (gradient) setHeroGradient(gradient);
-      }
-    };
-    fetchData();
+          const gradient = settingsData.find(s => s.key === "bg_gradient_hero")?.value;
+          if (gradient) setHeroGradient(gradient);
+        }
+      };
+      fetchData();
+    }, 0);
+    return () => clearTimeout(timer);
   }, []);
 
   const nextSlide = useCallback(() => {

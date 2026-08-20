@@ -2,7 +2,12 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta http-equiv="Content-Security-Policy" content="default-src * 'self' 'unsafe-inline' 'unsafe-eval' data: blob:; img-src * 'self' data: blob: https://vumbnail.com https://*.vimeo.com; connect-src 'self' https://*.supabase.co https://*.supabase.in https://*.supabase.net wss://*.supabase.co wss://*.supabase.in wss://*.supabase.net https://*.vercel-scripts.com https://ipapi.co https://maps.googleapis.com https://*.fly.dev https://oneday-whatsapp-bot.fly.dev wss://*.fly.dev wss://oneday-whatsapp-bot.fly.dev https://api.brevo.com https://vimeo.com https://*.vimeo.com; script-src * 'self' 'unsafe-inline' 'unsafe-eval' data: blob:; style-src * 'self' 'unsafe-inline' data: blob:;">
+    <!-- Content-Security-Policy is served as an HTTP header, not here:
+         public/.htaccess on cPanel, vercel.json on Vercel. The <meta> form
+         cannot express frame-ancestors, and the policy that used to live
+         here allowed `default-src *` and `script-src *`, which is close to
+         no policy at all. Two competing policies also made breakage hard to
+         attribute, since the browser enforces the intersection of both. -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title id="site-title">OneDayPilot | Fly a Real Plane in KL | Subang Airport Experience</title>
     <meta
@@ -15,13 +20,25 @@
       content="one day pilot malaysia, fly a plane kl, flight experience subang, pilot for a day malaysia, introductory flight malaysia, airplane joyride kuala lumpur, flying experience gift malaysia, bridal shoot aircraft malaysia, scenic flight kl subang airport"
     />
     <link rel="canonical" href="https://onedaypilot.com/" />
-    <link rel="icon" type="image/png" href="/logo.png" />
-    <link rel="apple-touch-icon" href="/logo.png" />
+    <link rel="icon" href="/favicon.ico" sizes="any" />
+    <link rel="icon" type="image/png" sizes="48x48" href="/favicon-48x48.png" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/favicon-192x192.png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     
     <!-- Security: DNS Prefetch for third-party CDNs -->
     <link rel="dns-prefetch" href="https://fonts.googleapis.com">
     <link rel="dns-prefetch" href="https://fonts.gstatic.com">
-    <link rel="dns-prefetch" href="https://*.supabase.co">
+
+    <!-- Preload first hero image for faster LCP (Largest Contentful Paint) -->
+    <link rel="preload" as="image" href="/src/assets/hero-1.jpg" media="(min-width: 0px)">
+
+    <!-- Supabase is on the critical path: every page's first paint waits on a
+         query, and that query cannot start until vendor-supabase.js has
+         downloaded and parsed. Opening the connection here runs DNS, TCP and
+         TLS in parallel with the JS download instead of after it.
+         This replaces a `dns-prefetch` on "https://*.supabase.co" — wildcards
+         are not valid in a resource hint, so that line resolved nothing. -->
+    <link rel="preconnect" href="https://kjukdoqkunuifiorcdpz.supabase.co" crossorigin>
 
     <!-- Security: Do Not Track for third-party embeds -->
     <meta name="dnt" content="on">
@@ -29,16 +46,18 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 
-    <!-- Core fonts: Poppins, Montserrat, Barlow Condensed (critical for first paint) -->
+    <!-- Core fonts: Poppins, Montserrat, Barlow Condensed.
+         Loaded async so page can paint while fonts download. `display=swap`
+         shows fallback immediately, then swaps the real font in. -->
     <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&family=Montserrat:wght@600;700&family=Barlow+Condensed:wght@400;600;700&display=swap">
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&family=Montserrat:wght@600;700&family=Barlow+Condensed:wght@400;600;700&display=swap">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&family=Montserrat:wght@600;700&family=Barlow+Condensed:wght@400;600;700&display=swap" media="print" onload="this.media='all'">
 
     <!-- Display fonts: Playfair, Cormorant, Bebas Neue (async load, non-critical) -->
     <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700&family=Cormorant+Garamond:ital,wght@0,400;0,700&family=Bebas+Neue&display=swap" media="(prefers-reduced-motion: no-preference)">
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700&family=Cormorant+Garamond:ital,wght@0,400;0,700&family=Bebas+Neue&display=swap" media="print" onload="this.media='all'">
 
     <noscript>
-      <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&family=Montserrat:wght@600;700&family=Barlow+Condensed:wght@400;600;700&family=Playfair+Display:ital,wght@0,400;0,700&family=Cormorant+Garamond:ital,wght@0,400;0,700&family=Bebas+Neue&display=swap">
+      <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&family=Montserrat:wght@600;700&family=Barlow+Condensed:wght@400;600;700&family=Playfair+Display:ital,wght@0,400;0,700&family=Cormorant+Garamond:ital,wght@0,400;0,700&family=Bebas+Neue&display=fallback">
     </noscript>
     
     <!-- Open Graph / Facebook -->

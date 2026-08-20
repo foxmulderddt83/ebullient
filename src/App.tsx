@@ -2,15 +2,15 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { CartProvider } from "@/context/CartContext";
 import { FloatingCart } from "@/components/FloatingCart";
+import { ScrollToTop } from "@/components/ScrollToTop";
 import { FloatingSupport } from "@/components/FloatingSupport";
 import { SocialProofPopup } from "@/components/SocialProofPopup";
 import { usePageTracking } from "@/lib/analytics";
-import { lazy, Suspense, useEffect, useState } from "react";
+import { lazy, Suspense, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
-import { BrandLoader } from "@/components/page/PageChrome";
 import Index from "./pages/Index";
 
 // Lazy load heavy pages
@@ -34,32 +34,16 @@ const FlightInformation = lazy(() => import("./pages/FlightInformation"));
 
 const queryClient = new QueryClient();
 
-// Loading component for Suspense and Initial Session
-// Uses the shared BrandLoader so the first paint, the home page's section
-// fallbacks and the marketing pages all show the same loading treatment.
-const PageLoader = () => (
-  <div className="flex flex-col items-center justify-center min-h-screen bg-white">
-    <BrandLoader label="One Day Pilot" />
-  </div>
-);
-
 const App = () => {
-  const [isSessionReady, setIsSessionReady] = useState(false);
-
   useEffect(() => {
     const initSession = async () => {
       if (supabase) {
         try {
-          // Force a small wait on mobile to ensure localStorage is readable
-          if (window.innerWidth < 768) {
-            await new Promise(resolve => setTimeout(resolve, 300));
-          }
           await supabase.auth.getSession();
         } catch (e) {
           console.error("Auth session init error:", e);
         }
       }
-      setIsSessionReady(true);
     };
 
     initSession();
@@ -73,14 +57,14 @@ const App = () => {
     return () => window.removeEventListener('oneday:app-visible' as any, handleAppVisible);
   }, []);
 
-  if (!isSessionReady) return <PageLoader />;
-
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <Toaster />
         <Sonner />
         <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+          {/* Must sit inside BrowserRouter — it reads the current location. */}
+          <ScrollToTop />
           <CartProvider>
             {/* SVG Filters for Logo */}
             <svg width="0" height="0" className="absolute pointer-events-none">
@@ -108,6 +92,7 @@ const App = () => {
             <Suspense fallback={<PageLoader />}>
               <Routes>
                 <Route path="/" element={<Index />} />
+                <Route path="/home.php" element={<Navigate to="/" replace />} />
                 <Route path="/admin" element={<Admin />} />
                 <Route path="/checkout" element={<Checkout />} />
                 <Route path="/booking/success" element={<BookingSuccess />} />
