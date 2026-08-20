@@ -1477,16 +1477,44 @@ export default function Admin() {
   }, [supabase]);
 
   useEffect(() => {
-    if (authView === 'login' && !window.hcaptcha) {
-      const script = document.createElement('script');
-      script.src = 'https://js.hcaptcha.com/1/api.js';
-      script.async = true;
-      script.defer = true;
-      document.body.appendChild(script);
-    }
-    // Add global callbacks for hCaptcha
+    // Add global callbacks for hCaptcha first
     (window as any).captchaCallback = (token: string) => setCaptchaToken(token);
     (window as any).captchaExpired = () => setCaptchaToken(null);
+
+    if (authView === 'login') {
+      // Load hCaptcha script if not already loaded
+      if (!(window as any).hcaptcha) {
+        const script = document.createElement('script');
+        script.src = 'https://js.hcaptcha.com/1/api.js';
+        script.async = true;
+        script.onload = () => {
+          // Force re-render of captcha after script loads
+          if ((window as any).hcaptcha && (window as any).hcaptcha.render) {
+            const container = document.getElementById('hcaptcha-container');
+            if (container) {
+              (window as any).hcaptcha.render('hcaptcha-container', {
+                sitekey: 'e5e095d8-8c9e-4dfc-9170-47ea2d70b01e',
+                callback: (window as any).captchaCallback,
+                'expired-callback': (window as any).captchaExpired,
+                'error-callback': () => setCaptchaToken(null),
+              });
+            }
+          }
+        };
+        document.head.appendChild(script);
+      } else {
+        // Script already loaded, just render
+        const container = document.getElementById('hcaptcha-container');
+        if (container && (window as any).hcaptcha && (window as any).hcaptcha.render) {
+          (window as any).hcaptcha.render('hcaptcha-container', {
+            sitekey: 'e5e095d8-8c9e-4dfc-9170-47ea2d70b01e',
+            callback: (window as any).captchaCallback,
+            'expired-callback': (window as any).captchaExpired,
+            'error-callback': () => setCaptchaToken(null),
+          });
+        }
+      }
+    }
   }, [authView]);
 
   useEffect(() => {
@@ -4618,7 +4646,10 @@ export default function Admin() {
     try {
       const { data, error } = await supabase.auth.signInWithPassword({
         email: cleanEmail,
-        password: cleanPassword
+        password: cleanPassword,
+        options: {
+          captchaToken: captchaToken
+        }
       });
 
       if (error) {
@@ -6004,12 +6035,11 @@ export default function Admin() {
               )}
 
               {authView === 'login' && (
-                <div className="flex justify-center">
+                <div className="flex justify-center py-2">
                   <div
-                    className="h-captcha scale-90"
+                    id="hcaptcha-container"
+                    className="h-captcha"
                     data-sitekey="e5e095d8-8c9e-4dfc-9170-47ea2d70b01e"
-                    data-callback="captchaCallback"
-                    data-expired-callback="captchaExpired"
                   />
                 </div>
               )}
