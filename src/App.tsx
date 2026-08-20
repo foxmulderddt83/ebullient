@@ -89,7 +89,7 @@ const App = () => {
                 </filter>
               </defs>
             </svg>
-            <Suspense fallback={<PageLoader />}>
+            <Suspense fallback={<div className="flex items-center justify-center min-h-screen" />}>
               <Routes>
                 <Route path="/" element={<Index />} />
                 <Route path="/home.php" element={<Navigate to="/" replace />} />
