@@ -3026,7 +3026,7 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
                       : 'Leave empty to run forever.'}
                   </p>
                 </div>
-                <div className="flex items-center justify-between gap-3 pt-6">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-3 pt-6">
                   <Label className="text-xs font-bold text-slate-700">Active</Label>
                   <Switch
                     checked={editingLink.is_active ?? true}
@@ -3273,7 +3273,7 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
                     ['show_header', 'Show site header'],
                     ['show_footer', 'Show site footer'],
                   ] as const).map(([key, label]) => (
-                    <div key={key} className="flex items-center justify-between gap-3">
+                    <div key={key} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-3">
                       <Label className="text-xs font-bold text-slate-700">{label}</Label>
                       <Switch
                         checked={(editingPage as any)[key] ?? true}
