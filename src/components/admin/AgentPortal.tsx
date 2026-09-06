@@ -363,6 +363,30 @@ const StatCard = ({ label, value, sub, icon: Icon }: {
 );
 
 /** Stacked key/value row used by the mobile card layouts. */
+/**
+ * How far back the analytics tab looks. "All time" stays the default: the
+ * tab has always shown everything, and quietly hiding older rows behind a
+ * new default would read as data loss.
+ */
+const ANALYTICS_RANGES = [
+  { key: 'all', label: 'All time', hours: null },
+  { key: '24h', label: '24 hours', hours: 24 },
+  { key: '7d',  label: 'Weekly',   hours: 24 * 7 },
+  { key: '30d', label: 'Monthly',  hours: 24 * 30 },
+] as const;
+
+type AnalyticsRange = typeof ANALYTICS_RANGES[number]['key'];
+
+/** What clearing offers. days === null means everything, whatever its age. */
+const CLEAR_OPTIONS = [
+  { key: 'all', short: 'All',       title: 'Clear all analytics?',                   days: null },
+  { key: '3d',  short: '3 days +',  title: 'Clear analytics older than 3 days?',     days: 3 },
+  { key: '7d',  short: '7 days +',  title: 'Clear analytics older than 7 days?',     days: 7 },
+  { key: '30d', short: '1 month +', title: 'Clear analytics older than a month?',    days: 30 },
+] as const;
+
+type ClearOption = typeof CLEAR_OPTIONS[number];
+
 const Field = ({ label, children }: { label: string; children: React.ReactNode }) => (
   <div className="flex flex-col items-start gap-0.5 py-1 sm:flex-row sm:items-baseline sm:justify-between sm:gap-3">
     <span className="text-[8px] sm:text-[9px] font-bold uppercase tracking-widest text-slate-400 shrink-0">{label}</span>
@@ -435,6 +459,9 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
   const [pageBaselineHtml, setPageBaselineHtml] = useState('');
 
   const [analyticsScope, setAnalyticsScope] = useState<string>('all');
+  const [analyticsRange, setAnalyticsRange] = useState<AnalyticsRange>('all');
+  const [confirmClear, setConfirmClear] = useState<ClearOption | null>(null);
+  const [clearing, setClearing] = useState(false);
 
   // How many protected blocks the page being edited carries.
   const lockedCount = useMemo(
@@ -1042,31 +1069,129 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
   // ------------------------------------------------------------------
   // Analytics
   // ------------------------------------------------------------------
-  const scopedEvents = useMemo(() => {
-    if (analyticsScope === 'all') return events;
-    if (analyticsScope.startsWith('link:')) {
-      const id = analyticsScope.slice(5);
-      return events.filter(e => e.share_link_id === id);
-    }
-    if (analyticsScope.startsWith('page:')) {
-      const id = analyticsScope.slice(5);
-      return events.filter(e => e.landing_page_id === id);
-    }
-    return events;
-  }, [events, analyticsScope]);
+  /** Which link or page a row belongs to, per the Scope selector. */
+  const inScope = useCallback((row: { share_link_id: string | null; landing_page_id: string | null }) => {
+    if (analyticsScope.startsWith('link:')) return row.share_link_id === analyticsScope.slice(5);
+    if (analyticsScope.startsWith('page:')) return row.landing_page_id === analyticsScope.slice(5);
+    return true;
+  }, [analyticsScope]);
 
-  const scopedCaptures = useMemo(() => {
-    if (analyticsScope === 'all') return captures;
+  /**
+   * Start of the window the tab is reading, or null for all time. A row
+   * whose timestamp will not parse is kept rather than hidden: a filter
+   * should narrow what you see, not drop rows without saying so.
+   */
+  const rangeStart = useMemo(() => {
+    const hours = ANALYTICS_RANGES.find(r => r.key === analyticsRange)?.hours;
+    return hours ? Date.now() - hours * 3600_000 : null;
+  }, [analyticsRange]);
+
+  const inRange = useCallback((ts: string | null) => {
+    if (rangeStart === null) return true;
+    const t = ts ? new Date(ts).getTime() : NaN;
+    return Number.isNaN(t) ? true : t >= rangeStart;
+  }, [rangeStart]);
+
+  const scopedEvents = useMemo(
+    () => events.filter(e => inScope(e) && inRange(e.created_at)),
+    [events, inScope, inRange],
+  );
+
+  const scopedCaptures = useMemo(
+    () => captures.filter(c => inScope(c) && inRange(c.updated_at)),
+    [captures, inScope, inRange],
+  );
+
+  /** Names what a clear would take, for the confirm. */
+  const clearScopeLabel = useMemo(() => {
     if (analyticsScope.startsWith('link:')) {
-      const id = analyticsScope.slice(5);
-      return captures.filter(c => c.share_link_id === id);
+      const l = shareLinks.find(x => x.id === analyticsScope.slice(5));
+      return l ? `the link "${l.label || l.token}"` : 'this link';
     }
     if (analyticsScope.startsWith('page:')) {
-      const id = analyticsScope.slice(5);
-      return captures.filter(c => c.landing_page_id === id);
+      const p = pages.find(x => x.id === analyticsScope.slice(5));
+      return p ? `the page "${p.title}"` : 'this page';
     }
-    return captures;
-  }, [captures, analyticsScope]);
+    return 'all your links and pages';
+  }, [analyticsScope, shareLinks, pages]);
+
+  /**
+   * Roughly how much a clear would take. Counted from the rows already
+   * loaded, which are capped, so the real delete can reach further back -
+   * the confirm says as much rather than implying this is the total.
+   */
+  const clearPreview = useMemo(() => {
+    if (!confirmClear) return { events: 0, captures: 0 };
+    const cutoff = confirmClear.days === null ? null : Date.now() - confirmClear.days * 86_400_000;
+    const older = (ts: string | null) => {
+      if (cutoff === null) return true;
+      const t = ts ? new Date(ts).getTime() : NaN;
+      return !Number.isNaN(t) && t < cutoff;
+    };
+    return {
+      events: events.filter(e => inScope(e) && older(e.created_at)).length,
+      captures: captures.filter(c => inScope(c) && older(c.updated_at)).length,
+    };
+  }, [confirmClear, events, captures, inScope]);
+
+  /**
+   * Delete telemetry, scoped exactly the way the tab is reading it.
+   *
+   * The owning ids are named explicitly rather than left to RLS. The owner
+   * policy on these tables also passes for is_admin(), so an admin pressing
+   * "All" here would otherwise wipe every agent's rows instead of their own.
+   */
+  const clearAnalytics = async (opt: ClearOption) => {
+    if (!supabase) return;
+    setClearing(true);
+    try {
+      const cutoff = opt.days === null
+        ? null
+        : new Date(Date.now() - opt.days * 86_400_000).toISOString();
+
+      const linkIds = shareLinks.map(l => l.id);
+      const pageIds = pages.map(p => p.id);
+
+      const wipe = async (table: string, tsCol: string) => {
+        const build = () => {
+          const q = supabase.from(table).delete();
+          return cutoff ? q.lt(tsCol, cutoff) : q;
+        };
+        const runs: any[] = [];
+        if (analyticsScope.startsWith('link:')) {
+          runs.push(build().eq('share_link_id', analyticsScope.slice(5)));
+        } else if (analyticsScope.startsWith('page:')) {
+          runs.push(build().eq('landing_page_id', analyticsScope.slice(5)));
+        } else {
+          // A row hangs off a link OR a page, so both keys are swept - the
+          // same shape the loader reads them back with.
+          if (linkIds.length) runs.push(build().in('share_link_id', linkIds));
+          if (pageIds.length) runs.push(build().in('landing_page_id', pageIds));
+        }
+        if (!runs.length) return;
+        const results = await Promise.all(runs);
+        const bad = results.find(r => r.error);
+        if (bad) throw bad.error;
+      };
+
+      await wipe('share_link_events', 'created_at');
+      await wipe('share_link_form_captures', 'updated_at');
+
+      logActivity(supabase, 'delete', 'share_link_events', null, {
+        scope: analyticsScope, older_than_days: opt.days,
+      });
+      toast.success(opt.days === null
+        ? 'Analytics cleared'
+        : `Cleared anything older than ${opt.days} days`);
+      setConfirmClear(null);
+      reload();
+    } catch (e: any) {
+      console.error('[AgentPortal] clear analytics failed', e);
+      toast.error(e?.message || 'Failed to clear analytics');
+    } finally {
+      setClearing(false);
+    }
+  };
 
   const stats = useMemo(() => {
     const sessions = new Set(scopedEvents.map(e => e.session_id).filter(Boolean));
@@ -1995,6 +2120,41 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
               <RefreshCw className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">Refresh</span>
             </Button>
+          </div>
+
+          {/* Both rows act on the Scope above: a page picked there is the
+              page being read and the page being cleared, and the confirm
+              names it either way. */}
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+            <div className="flex flex-wrap items-center gap-1.5">
+              <Label className="mr-1 text-[10px] font-bold uppercase tracking-widest text-slate-500">Show</Label>
+              {ANALYTICS_RANGES.map(r => (
+                <Button
+                  key={r.key}
+                  size="sm"
+                  variant={analyticsRange === r.key ? 'default' : 'outline'}
+                  onClick={() => setAnalyticsRange(r.key)}
+                  className="h-8 rounded-xl px-2.5 text-[11px] font-bold"
+                >
+                  {r.label}
+                </Button>
+              ))}
+            </div>
+
+            <div className="flex flex-wrap items-center gap-1.5">
+              <Label className="mr-1 text-[10px] font-bold uppercase tracking-widest text-slate-500">Clear</Label>
+              {CLEAR_OPTIONS.map(o => (
+                <Button
+                  key={o.key}
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setConfirmClear(o)}
+                  className="h-8 gap-1 rounded-xl border-red-200 px-2.5 text-[11px] font-bold text-red-600 hover:bg-red-50 hover:text-red-700"
+                >
+                  <Trash2 className="h-3 w-3" /> {o.short}
+                </Button>
+              ))}
+            </div>
           </div>
 
           <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
@@ -3442,6 +3602,41 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
       </Dialog>
 
       {/* ========================== DELETE CONFIRM ========================== */}
+      {/* Captures hold customer names, emails and phone numbers, so the
+          confirm says what goes and from where before anything is deleted. */}
+      <AlertDialog open={!!confirmClear} onOpenChange={(o) => !o && setConfirmClear(null)}>
+        <AlertDialogContent className="w-[calc(100vw-2rem)] max-w-md rounded-2xl sm:rounded-3xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle>{confirmClear?.title}</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2">
+                <p>
+                  Deletes visits and form captures for{' '}
+                  <span className="font-bold text-slate-700">{clearScopeLabel}</span>.
+                  Form captures hold customer names, emails and phone numbers.
+                  This cannot be undone.
+                </p>
+                <p className="text-xs text-slate-500">
+                  At least {clearPreview.events} visit{clearPreview.events === 1 ? '' : 's'} and{' '}
+                  {clearPreview.captures} capture{clearPreview.captures === 1 ? '' : 's'} — counted from
+                  what is loaded here, so anything older that has not been loaded goes too.
+                </p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="gap-2">
+            <AlertDialogCancel className="rounded-xl mt-0" disabled={clearing}>Keep them</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={clearing}
+              onClick={(e) => { e.preventDefault(); if (confirmClear) clearAnalytics(confirmClear); }}
+              className="rounded-xl bg-red-600 hover:bg-red-700"
+            >
+              {clearing ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Delete'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       <AlertDialog open={!!confirmDelete} onOpenChange={(o) => !o && setConfirmDelete(null)}>
         <AlertDialogContent className="w-[calc(100vw-2rem)] max-w-md rounded-2xl sm:rounded-3xl">
           <AlertDialogHeader>
