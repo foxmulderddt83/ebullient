@@ -1269,7 +1269,7 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
                   ? c.category_ids.map(id => categories.find(x => x.id === id)?.name ?? '—').join(', ')
                   : 'All packages';
               return (
-                <div key={c.id} className="rounded-2xl border border-slate-200 bg-white p-4 space-y-2">
+                <div key={c.id} className="rounded-2xl border border-slate-200 bg-white p-4 space-y-2 pr-5 sm:pr-4">
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
                       <button
@@ -1324,7 +1324,7 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
             })}
           </div>
 
-          <div className="hidden sm:block rounded-2xl border border-slate-200 overflow-hidden bg-white">
+          <div className="hidden sm:block rounded-2xl border border-slate-200 overflow-hidden bg-white pr-3 sm:pr-0">
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
@@ -1759,7 +1759,7 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
             })}
           </div>
 
-          <div className="hidden sm:block rounded-2xl border border-slate-200 overflow-hidden bg-white">
+          <div className="hidden sm:block rounded-2xl border border-slate-200 overflow-hidden bg-white pr-3 sm:pr-0">
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
