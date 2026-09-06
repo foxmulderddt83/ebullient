@@ -364,7 +364,7 @@ const StatCard = ({ label, value, sub, icon: Icon }: {
 
 /** Stacked key/value row used by the mobile card layouts. */
 const Field = ({ label, children }: { label: string; children: React.ReactNode }) => (
-  <div className="flex items-baseline justify-between gap-3 py-1">
+  <div className="flex flex-col items-start gap-1 py-1 sm:flex-row sm:items-baseline sm:justify-between sm:gap-3 sm:py-1">
     <span className="text-[9px] font-bold uppercase tracking-widest text-slate-400 shrink-0">{label}</span>
     <span className="text-xs text-slate-700 text-right min-w-0 truncate">{children}</span>
   </div>
@@ -1233,7 +1233,7 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
 
         {/* ============================ COUPONS ============================ */}
         <TabsContent value="coupons" className="space-y-4 mt-5">
-          <div className="flex items-center justify-between gap-3">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-3">
             <p className="text-[11px] sm:text-xs text-slate-500 font-medium">
               {coupons.length} coupon{coupons.length === 1 ? '' : 's'} ·{' '}
               {coupons.filter(c => couponStatus(c, shareLinks).label === 'Active').length} active
@@ -1492,7 +1492,7 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
         <TabsContent value="slash" className="space-y-4 mt-5">
           {/* ================= PRICE SLASH CHALLENGES ================= */}
           <div>
-            <div className="flex items-center justify-between gap-3">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-3">
               <div className="min-w-0">
                 <h3 className="flex items-center gap-2 text-sm font-black uppercase tracking-tight text-slate-900">
                   <Gamepad2 className="h-4 w-4 text-[#CD5C5C]" />
@@ -1651,7 +1651,7 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
 
         {/* ========================== SHARE LINKS ========================== */}
         <TabsContent value="links" className="space-y-4 mt-5">
-          <div className="flex items-center justify-between gap-3">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-3">
             <p className="text-[11px] sm:text-xs text-slate-500 font-medium">
               {shareLinks.length} link{shareLinks.length === 1 ? '' : 's'} ·{' '}
               {shareLinks.reduce((s, l) => s + l.click_count, 0)} total clicks
@@ -1855,7 +1855,7 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
 
         {/* ========================= LANDING PAGES ========================= */}
         <TabsContent value="pages" className="space-y-4 mt-5">
-          <div className="flex items-center justify-between gap-3">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-3">
             <p className="text-[11px] sm:text-xs text-slate-500 font-medium">
               {pages.length} page{pages.length === 1 ? '' : 's'} ·{' '}
               {pages.filter(p => p.is_published).length} published
@@ -2376,7 +2376,7 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
                   )}
                 </div>
                 <div className="space-y-3 pt-6">
-                  <div className="flex items-center justify-between gap-3">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-3">
                     <Label className="text-xs font-bold text-slate-700">One use per customer</Label>
                     <Switch
                       checked={editingCoupon.once_per_customer ?? true}
@@ -2384,7 +2384,7 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
                       disabled={!canEdit}
                     />
                   </div>
-                  <div className="flex items-center justify-between gap-3">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-3">
                     <Label className="text-xs font-bold text-slate-700">Active</Label>
                     <Switch
                       checked={editingCoupon.is_active ?? true}
@@ -2738,7 +2738,7 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
                   </p>
                 </div>
                 <div className="space-y-3 pt-6">
-                  <div className="flex items-center justify-between gap-3">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-3">
                     <Label className="text-xs font-bold text-slate-700">Running</Label>
                     <Switch
                       checked={editingCampaign.is_active ?? true}
