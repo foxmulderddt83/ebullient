@@ -1191,7 +1191,7 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
   const uncategorised = packages.filter(p => !p.category_id || !categories.some(c => c.id === p.category_id));
 
   return (
-    <div className="space-y-6 w-full min-w-0">
+    <div className="space-y-6 w-full min-w-0 pr-3 sm:pr-0">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <h2 className="text-base sm:text-lg font-black uppercase tracking-tight text-slate-900">Agent Portal</h2>
