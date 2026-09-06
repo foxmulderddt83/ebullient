@@ -49,6 +49,8 @@ interface LandingPage {
    * page itself, which visitors can read.
    */
   settings: { package_ids?: string[] } | null;
+  /** A challenge prices the packages itself, so no coupon is in play. */
+  slash_campaign_id: string | null;
   show_wizard: boolean;
   show_header: boolean;
   show_footer: boolean;
@@ -71,6 +73,12 @@ export default function AgentLanding() {
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [urlReady, setUrlReady] = useState(false);
+  /**
+   * Why the page cannot apply the coupon it advertises - expired, switched
+   * off, used up. Shown before the visitor starts booking rather than at
+   * the payment step, which is the end of the funnel.
+   */
+  const [couponNotice, setCouponNotice] = useState<string | null>(null);
 
   // Starts once the page id is known, so the view/scroll rows are attributed
   // to this landing page as well as to the share link the visitor came from.
@@ -122,7 +130,7 @@ export default function AgentLanding() {
 
         let query = supabase
           .from('agent_landing_pages')
-          .select('id, slug, title, agent_name, html_content, meta_description, package_id, category_id, coupon_id, settings, show_wizard, show_header, show_footer, whatsapp_number, whatsapp_message')
+          .select('id, slug, title, agent_name, html_content, meta_description, package_id, category_id, coupon_id, settings, slash_campaign_id, show_wizard, show_header, show_footer, whatsapp_number, whatsapp_message')
           .ilike('slug', slug);
 
         if (!isPreview) query = query.eq('is_published', true);
@@ -175,9 +183,20 @@ export default function AgentLanding() {
         // type it. agent_coupons has no public select policy, so the id is
         // turned into a code by a definer function rather than read here.
         if (!who.coupon_code && p.coupon_id) {
-          const { data: pageCode } = await supabase.rpc('landing_page_coupon', { p_page_id: p.id });
+          const { data: verdict } = await supabase.rpc('landing_page_coupon', { p_page_id: p.id });
           if (cancelled) return;
-          if (pageCode) who = { ...who, coupon_code: pageCode as string };
+          const v = verdict as { state?: string; code?: string; message?: string } | null;
+          if (v?.state === 'ok' && v.code) {
+            who = { ...who, coupon_code: v.code };
+          } else if (v?.state === 'unavailable' && !p.slash_campaign_id) {
+            // The verdict comes from validate_coupon itself, so this cannot
+            // contradict what checkout would have said. Suppressed on a
+            // challenge page: there the price comes from the game, and a
+            // notice about a coupon would describe an offer nobody is being
+            // made. No code goes on the URL either way, so the wizard has
+            // nothing to try and fail on.
+            setCouponNotice(v.message || 'The discount on this page is no longer available.');
+          }
         }
 
         if (cancelled) return;
@@ -278,6 +297,22 @@ export default function AgentLanding() {
           className="agent-landing-content"
           dangerouslySetInnerHTML={{ __html: page.html_content || '' }}
         />
+
+        {/* Said here, not at the payment step, so nobody picks a flight and
+            a time before finding out the advertised discount is gone. */}
+        {couponNotice && (
+          <div className="mx-auto max-w-3xl px-6 pt-6">
+            <div className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3">
+              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-amber-700">
+                Offer ended
+              </p>
+              <p className="mt-1 text-sm font-bold text-amber-900">{couponNotice}</p>
+              <p className="mt-1 text-xs text-amber-800/80">
+                You can still book below at the standard price.
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* Sits above the booking steps: the visitor plays for a discount
             first, then books with it already applied. */}
