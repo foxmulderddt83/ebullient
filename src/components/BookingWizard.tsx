@@ -497,7 +497,12 @@ const BOOKING_STEP_ICONS: Record<string, LucideIcon> = {
   CheckCircle2,
 };
 
-export const BookingWizard = () => {
+interface BookingWizardProps {
+  /** Restricts the packages on offer - see FlightPackagesSection. */
+  allowedPackageIds?: string[] | null;
+}
+
+export const BookingWizard = ({ allowedPackageIds = null }: BookingWizardProps = {}) => {
   const [step, setStep] = useState(1);
   const [isReviewOpen, setIsReviewOpen] = useState(false);
   const [isMobileView, setIsMobileView] = useState(false);
@@ -2635,6 +2640,7 @@ export const BookingWizard = () => {
                   <FlightPackagesSection 
                     hidePadding={true} 
                     showTitle={false}
+                    allowedPackageIds={allowedPackageIds}
                     onSelect={() => setHasInteracted(true)} 
                     onCategorySelect={(catId, sortOrder) => {
                       setSelectedCategoryId(catId);
@@ -2815,6 +2821,7 @@ export const BookingWizard = () => {
                           onSelect={() => setHasInteracted(true)} 
                           sortOrder={currentSortOrder}
                           categoryId={selectedCategoryId}
+                          allowedPackageIds={allowedPackageIds}
                           buttonText="Add to Trip"
                           isCompact={true}
                         />

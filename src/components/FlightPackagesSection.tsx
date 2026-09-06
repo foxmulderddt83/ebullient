@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { cn } from "@/lib/utils";
 import { motion, useInView } from "framer-motion";
 import { supabase } from "@/lib/supabase";
@@ -55,6 +55,13 @@ interface FlightPackagesSectionProps {
   showTitle?: boolean;
   buttonText?: string;
   isCompact?: boolean;
+  /**
+   * Restricts the main packages on show to this set. A landing page scoped
+   * to a coupon passes the packages that coupon actually pays for, so the
+   * page never offers something the discount will refuse at checkout.
+   * Null or empty means no restriction.
+   */
+  allowedPackageIds?: string[] | null;
 }
 
 export const FlightPackagesSection = ({ 
@@ -66,7 +73,8 @@ export const FlightPackagesSection = ({
   categoryId = null,
   showTitle = false,
   buttonText,
-  isCompact = false
+  isCompact = false,
+  allowedPackageIds = null
 }: FlightPackagesSectionProps) => {
   const [categoryGroups, setCategoryGroups] = useState<CategoryGroup[]>([]);
   const [loading, setLoading] = useState(true);
@@ -355,7 +363,20 @@ export const FlightPackagesSection = ({
     }
   };
 
-  const allPackages = categoryGroups.flatMap(group => group.packages);
+  /**
+   * Main packages only: add-ons are picked on a later step and a coupon's
+   * package scope has nothing to say about them, so the filter is confined
+   * to sortOrder 0 where the choice of package is actually made.
+   */
+  const scopedGroups = useMemo(() => {
+    if (sortOrder !== 0 || !allowedPackageIds?.length) return categoryGroups;
+    const allow = new Set(allowedPackageIds);
+    return categoryGroups
+      .map(group => ({ ...group, packages: group.packages.filter(p => allow.has(p.id)) }))
+      .filter(group => group.packages.length > 0);
+  }, [categoryGroups, allowedPackageIds, sortOrder]);
+
+  const allPackages = scopedGroups.flatMap(group => group.packages);
 
   const [isHovered, setIsHovered] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
@@ -666,7 +687,7 @@ export const FlightPackagesSection = ({
     return <Check className="w-4 h-4 mr-3 shrink-0 text-[#CD5C5C]" />;
   };
 
-  if (categoryGroups.length === 0) {
+  if (scopedGroups.length === 0) {
     if (loading) return (
       <div className="py-20 text-center flex flex-col items-center justify-center">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#CD5C5C] mb-4"></div>
@@ -767,9 +788,9 @@ export const FlightPackagesSection = ({
                 onTouchEnd={() => setIsHovered(false)}
                 onTouchCancel={() => setIsHovered(false)}
               >
-                {sortOrder === 0 && (sharedPackageId || categoryGroups.some(g => g.packages.length > 1)) ? (
+                {sortOrder === 0 && (sharedPackageId || scopedGroups.some(g => g.packages.length > 1)) ? (
                   <>
-                    {categoryGroups.map((group, groupIdx) => (
+                    {scopedGroups.map((group, groupIdx) => (
                       (() => {
                         const defaultPkg = group.packages.find(p => p.is_main_default) || group.packages[0];
                         const hoveredId = hoveredPackageByGroup[group.id];

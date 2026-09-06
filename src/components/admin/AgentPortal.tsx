@@ -888,6 +888,52 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
     setEditingPage(p);
   };
 
+  /**
+   * What a coupon actually sells.
+   *
+   * Coupons scope by package, by category, or not at all. This flattens
+   * those into the main packages a page running that coupon should offer -
+   * an empty list meaning "no restriction", which the storefront reads as
+   * "show everything".
+   */
+  const couponScope = (couponId: string | null) => {
+    const c = coupons.find(x => x.id === couponId);
+    if (!c) return { packageIds: [] as string[], categoryId: null as string | null };
+
+    const byId = new Set(c.package_ids || []);
+    if (c.category_ids?.length) {
+      for (const pkg of packages) {
+        if (pkg.sort_order === 0 && c.category_ids.includes(pkg.category_id)) byId.add(pkg.id);
+      }
+    }
+
+    const packageIds = packages
+      .filter(pkg => pkg.sort_order === 0 && byId.has(pkg.id))
+      .map(pkg => pkg.id);
+
+    // Only meaningful when the whole scope sits in one category - that is
+    // what the wizard narrows to and what the cart is pruned against.
+    const cats = new Set(packages.filter(pkg => byId.has(pkg.id)).map(pkg => pkg.category_id));
+    return { packageIds, categoryId: cats.size === 1 ? [...cats][0] : null };
+  };
+
+  /**
+   * The packages a page offers: its coupon's scope, or - when a game runs
+   * instead - the single package that game is cutting.
+   */
+  const pageScope = (p: Partial<LandingPage>) => {
+    if (p.coupon_id) return couponScope(p.coupon_id);
+
+    const cm = campaigns.find(c => c.id === p.slash_campaign_id);
+    if (cm?.package_id) {
+      return {
+        packageIds: [cm.package_id],
+        categoryId: packages.find(x => x.id === cm.package_id)?.category_id ?? null,
+      };
+    }
+    return { packageIds: [] as string[], categoryId: null as string | null };
+  };
+
   const savePage = async () => {
     if (!editingPage || !supabase) return;
     const p = editingPage;
@@ -915,6 +961,10 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
         meta_description: p.meta_description || null,
         package_id: p.package_id || null,
         category_id: p.category_id || null,
+        coupon_id: p.coupon_id || null,
+        // Visitors cannot read agent_coupons, so the packages the coupon
+        // covers are resolved here and stored on the page, which is public.
+        settings: { package_ids: pageScope(p).packageIds },
         show_wizard: p.show_wizard ?? true,
         show_header: p.show_header ?? true,
         show_footer: p.show_footer ?? true,
@@ -1163,7 +1213,7 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
       </div>
 
       <Tabs defaultValue="coupons" className="w-full">
-        <TabsList className="grid w-full grid-cols-2 gap-1 bg-slate-100 rounded-2xl p-1 h-auto sm:flex sm:w-auto sm:flex-wrap">
+        <TabsList className="grid w-full grid-cols-1 sm:grid-cols-2 lg:flex gap-1 bg-slate-100 rounded-2xl p-1 h-auto lg:flex-wrap lg:w-auto">
           <TabsTrigger value="coupons" className="rounded-xl text-[11px] sm:text-xs font-bold gap-1.5 px-2 sm:px-4 py-2">
             <Ticket className="w-3.5 h-3.5 shrink-0" /> Coupons
           </TabsTrigger>
@@ -2028,7 +2078,7 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
                 <CardDescription className="text-[11px]">Derived from the visitor's IP address.</CardDescription>
               </CardHeader>
               <CardContent className="p-0">
-                <div className="max-h-[300px] overflow-y-auto">
+                <div className="max-h-[300px] overflow-y-auto overflow-x-auto">
                   <Table>
                     <TableHeader className="sticky top-0 bg-white z-10">
                       <TableRow>
@@ -3026,9 +3076,14 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
           </DialogHeader>
 
           {editingPage && (
-            <div className="flex-1 min-h-0 flex flex-col lg:flex-row">
-              {/* Settings rail */}
-              <div className="lg:w-[320px] shrink-0 border-b lg:border-b-0 lg:border-r border-slate-100 overflow-y-auto p-4 sm:p-5 space-y-4 max-h-[42vh] lg:max-h-none">
+            <div className="flex-1 min-h-0 flex flex-col lg:flex-row overflow-y-auto lg:overflow-hidden">
+              {/* Two panes side by side on a desktop; on a phone one column
+                  that scrolls as a single surface. The rail used to keep its
+                  own 42vh scrollbar on mobile, which put a second scroll area
+                  inside the first and left every field in a letterbox.
+
+                  Settings rail: */}
+              <div className="w-full lg:w-[320px] shrink-0 border-b lg:border-b-0 lg:border-r border-slate-100 p-4 sm:p-5 space-y-4 lg:overflow-y-auto">
                 <div className="space-y-1.5">
                   <Label className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Title</Label>
                   <Input
@@ -3054,62 +3109,94 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
                   </div>
                 </div>
 
+                {/* The coupon decides what this page sells: a page should
+                    never offer a package its own discount will refuse. The
+                    package and category are derived from it - they are what
+                    narrow the wizard and scope the cart. */}
                 <div className="space-y-1.5">
-                  <Label className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Featured package</Label>
+                  <Label className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Coupon this page runs</Label>
                   <Select
-                    value={editingPage.package_id || 'none'}
+                    value={editingPage.coupon_id || 'none'}
                     onValueChange={(v) => {
-                      const pkg = packages.find(p => p.id === v);
+                      const scope = couponScope(v === 'none' ? null : v);
                       setEditingPage({
                         ...editingPage,
-                        package_id: v === 'none' ? null : v,
-                        category_id: v === 'none' ? null : pkg?.category_id ?? null,
+                        coupon_id: v === 'none' ? null : v,
+                        // One or the other: a coupon takes the game off the page.
+                        slash_campaign_id: v === 'none' ? editingPage.slash_campaign_id ?? null : null,
+                        // A single package in scope still narrows the wizard to
+                        // it, exactly as picking it by hand used to.
+                        package_id: scope.packageIds.length === 1 ? scope.packageIds[0] : null,
+                        category_id: scope.categoryId,
                       });
                     }}
                     disabled={!canEdit}
                   >
-                    <SelectTrigger className="rounded-xl text-xs"><SelectValue placeholder="All packages" /></SelectTrigger>
+                    <SelectTrigger className="rounded-xl text-xs"><SelectValue placeholder="No coupon - all packages" /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="none">All packages</SelectItem>
-                      {packagesByCategory.map(group => (
-                        <div key={group.id}>
-                          <p className="px-2 py-1.5 text-[10px] font-black uppercase tracking-widest text-[#CD5C5C]">{group.name}</p>
-                          {group.items.filter(p => p.sort_order === 0).map(p => (
-                            <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
-                          ))}
-                        </div>
+                      <SelectItem value="none">No coupon - all packages</SelectItem>
+                      {coupons.map(c => (
+                        <SelectItem key={c.id} value={c.id}>
+                          {c.code}{c.discount_type === 'percent' ? ` · ${c.discount_value}% off` : ` · RM ${c.discount_value} off`}
+                        </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
+                  {(() => {
+                    if (!editingPage.coupon_id) {
+                      return (
+                        <p className="text-[10px] font-medium leading-snug text-slate-400">
+                          Without a coupon the page shows every package and visitors pay the
+                          normal price.
+                        </p>
+                      );
+                    }
+                    const scope = couponScope(editingPage.coupon_id);
+                    if (!scope.packageIds.length) {
+                      return (
+                        <p className="rounded-lg bg-amber-50 p-2 text-[11px] leading-snug text-amber-700">
+                          This coupon is not limited to any package, so the page will show all of
+                          them. Set its packages or categories on the Coupons tab to narrow it.
+                        </p>
+                      );
+                    }
+                    return (
+                      <div className="rounded-lg bg-emerald-50 p-2 text-[11px] leading-snug text-emerald-700">
+                        <p className="font-bold uppercase tracking-wider">This page will show</p>
+                        <ul className="mt-1 list-disc pl-4">
+                          {scope.packageIds.map(id => <li key={id}>{packageName(id)}</li>)}
+                        </ul>
+                      </div>
+                    );
+                  })()}
                 </div>
 
+                {/* Either/or: a page is priced by a coupon or by a game,
+                    never both. Two discounts on the same package would
+                    compound, and a game whose price can still be undercut
+                    by a code is not really setting the price. */}
                 <div className="space-y-1.5">
-                  <Label className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Meta description</Label>
-                  <Textarea
-                    value={editingPage.meta_description || ''}
-                    onChange={(e) => setEditingPage({ ...editingPage, meta_description: e.target.value })}
-                    className="rounded-xl min-h-[60px] text-xs" disabled={!canEdit}
-                  />
-                </div>
-
-                <div className="rounded-xl bg-slate-50 border border-slate-200 p-3">
-                  <p className="text-[10px] text-slate-500 font-medium leading-snug">
-                    <span className="font-bold uppercase tracking-wider text-slate-600">Template only.</span>{' '}
-                    The agent's name, coupon and WhatsApp number come from the share link that
-                    opens this page — set them on the Share Links tab, so one design can serve
-                    several agents.
-                  </p>
-                </div>
-
-                {/* Which game, if any, this page hosts. The campaign carries
-                    its own terms and clock; the page only chooses it. */}
-                <div className="space-y-1.5 pt-2 border-t border-slate-100">
                   <Label className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-slate-500">
                     <Gamepad2 className="w-3 h-3 text-[#CD5C5C]" /> Price slash game
                   </Label>
                   <Select
                     value={editingPage.slash_campaign_id || 'none'}
-                    onValueChange={(v) => setEditingPage({ ...editingPage, slash_campaign_id: v === 'none' ? null : v })}
+                    onValueChange={(v) => {
+                      const cm = campaigns.find(c => c.id === v);
+                      setEditingPage({
+                        ...editingPage,
+                        slash_campaign_id: v === 'none' ? null : v,
+                        // Choosing a game drops the coupon, and the page
+                        // follows the package that game is cutting.
+                        ...(v === 'none' ? {} : {
+                          coupon_id: null,
+                          package_id: cm?.package_id ?? null,
+                          category_id: cm?.package_id
+                            ? packages.find(x => x.id === cm.package_id)?.category_id ?? null
+                            : null,
+                        }),
+                      });
+                    }}
                     disabled={!canEdit}
                   >
                     <SelectTrigger className="rounded-xl text-xs"><SelectValue placeholder="No game" /></SelectTrigger>
@@ -3128,10 +3215,9 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
                   {(() => {
                     const cm = campaigns.find(c => c.id === editingPage.slash_campaign_id);
                     if (!cm) return null;
-                    // A challenge moves the price of one package. Point it at a
-                    // different one than the page features and the game still
-                    // runs, but every price on the page stays put - which looks
-                    // like the feature is broken rather than misconfigured.
+                    // The page follows the campaign's package now, so the two
+                    // can never disagree - the only thing left to warn about
+                    // is a campaign that targets nothing at all.
                     if (!cm.package_id) {
                       return (
                         <p className="rounded-lg bg-amber-50 p-2 text-[11px] leading-snug text-amber-700">
@@ -3140,20 +3226,14 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
                         </p>
                       );
                     }
-                    if (editingPage.package_id && cm.package_id !== editingPage.package_id) {
-                      return (
-                        <p className="rounded-lg bg-amber-50 p-2 text-[11px] leading-snug text-amber-700">
-                          This challenge prices <strong>{packageName(cm.package_id)}</strong>, but the
-                          page features <strong>{packageName(editingPage.package_id)}</strong>. The game
-                          will run and the prices on the page will not move. Point both at the same package.
-                        </p>
-                      );
-                    }
                     return (
-                      <p className="rounded-lg bg-emerald-50 p-2 text-[11px] leading-snug text-emerald-700">
-                        The packages on this page show the price the game has reached
-                        for <strong>{packageName(cm.package_id)}</strong>, and checkout charges it. No coupon involved.
-                      </p>
+                      <div className="rounded-lg bg-emerald-50 p-2 text-[11px] leading-snug text-emerald-700">
+                        <p className="font-bold uppercase tracking-wider">This page will show</p>
+                        <ul className="mt-1 list-disc pl-4">
+                          <li>{packageName(cm.package_id)}</li>
+                        </ul>
+                        <p className="mt-1">Priced by the game, and checkout charges whatever it reaches.</p>
+                      </div>
                     );
                   })()}
                   {campaigns.length === 0 ? (
@@ -3163,10 +3243,28 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
                     </p>
                   ) : (
                     <p className="text-[10px] font-medium leading-snug text-slate-400">
-                      Adds the game above the booking steps. Visitors play one round each to cut
-                      the price, and the discount is waiting at checkout.
+                      A page runs one or the other: choosing a game here clears the coupon above,
+                      and choosing a coupon clears the game.
                     </p>
                   )}
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Meta description</Label>
+                  <Textarea
+                    value={editingPage.meta_description || ''}
+                    onChange={(e) => setEditingPage({ ...editingPage, meta_description: e.target.value })}
+                    className="rounded-xl min-h-[60px] text-xs" disabled={!canEdit}
+                  />
+                </div>
+
+                <div className="rounded-xl bg-slate-50 border border-slate-200 p-3">
+                  <p className="text-[10px] text-slate-500 font-medium leading-snug">
+                    <span className="font-bold uppercase tracking-wider text-slate-600">Template only.</span>{' '}
+                    The agent's name, coupon and WhatsApp number come from the share link that
+                    opens this page — set them on the Share Links tab, so one design can serve
+                    several agents.
+                  </p>
                 </div>
 
                 <div className="space-y-2.5 pt-2 border-t border-slate-100">
@@ -3222,7 +3320,9 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
               </div>
 
               {/* The editor itself — the very same component the document templates use */}
-              <div className="flex-1 min-h-[280px] min-w-0 bg-slate-50 flex flex-col">
+              {/* Below the form on a phone, so it needs a height of its own -
+                  flex-1 alone collapses inside a scrolling column. */}
+              <div className="flex-1 min-h-[65vh] lg:min-h-[280px] min-w-0 bg-slate-50 flex flex-col">
                 <div className="flex items-center justify-between gap-2 border-b border-slate-200 bg-white px-3 py-2 shrink-0">
                   <div className="flex items-center gap-1 rounded-lg bg-slate-100 p-0.5">
                     <button

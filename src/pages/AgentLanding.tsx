@@ -43,6 +43,12 @@ interface LandingPage {
   package_id: string | null;
   category_id: string | null;
   coupon_id: string | null;
+  /**
+   * Resolved when the page is saved. Coupons have no public read policy,
+   * so the admin writes the packages the chosen coupon covers onto the
+   * page itself, which visitors can read.
+   */
+  settings: { package_ids?: string[] } | null;
   show_wizard: boolean;
   show_header: boolean;
   show_footer: boolean;
@@ -116,7 +122,7 @@ export default function AgentLanding() {
 
         let query = supabase
           .from('agent_landing_pages')
-          .select('id, slug, title, agent_name, html_content, meta_description, package_id, category_id, coupon_id, show_wizard, show_header, show_footer, whatsapp_number, whatsapp_message')
+          .select('id, slug, title, agent_name, html_content, meta_description, package_id, category_id, coupon_id, settings, show_wizard, show_header, show_footer, whatsapp_number, whatsapp_message')
           .ilike('slug', slug);
 
         if (!isPreview) query = query.eq('is_published', true);
@@ -282,7 +288,7 @@ export default function AgentLanding() {
                 </div>
               }
             >
-              <BookingWizard />
+              <BookingWizard allowedPackageIds={page.settings?.package_ids ?? null} />
             </Suspense>
           </section>
         )}
