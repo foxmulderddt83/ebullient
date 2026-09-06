@@ -9,6 +9,8 @@ import { useCart } from "@/context/CartContext";
 import { toast } from "sonner";
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
 import { trackEvent } from "@/lib/analytics";
+import { trackShareEvent } from "@/lib/agentTracking";
+import { useSlashPrice, slashedPrice } from "@/lib/slashPrice";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   AlertDialog,
@@ -93,6 +95,10 @@ export const FlightPackagesSection = ({
   const isInView = useInView(scrollRef);
   const [currentTime, setCurrentTime] = useState(new Date());
   const [showLimitDialog, setShowLimitDialog] = useState(false);
+  // Read once for the whole grid. A live campaign sets the price of the
+  // package it targets outright: what the card shows is what goes in the
+  // cart and what gets charged. There is no coupon anywhere behind it.
+  const slash = useSlashPrice();
   const [isSelecting, setIsSelecting] = useState(false);
 
   const basePackageInCart = items.find(i => i.sort_order === 0);
@@ -197,7 +203,10 @@ export const FlightPackagesSection = ({
       (!start || start <= now) &&
       (!end || end > now);
     
-    const finalPrice = isPromotionActive && pkg.promotion_price ? Number(pkg.promotion_price) : Number(pkg.price);
+    const askingPrice = isPromotionActive && pkg.promotion_price ? Number(pkg.promotion_price) : Number(pkg.price);
+    // A live challenge is the last word on the price - it cuts whatever was
+    // already on show, promotion included.
+    const finalPrice = slashedPrice(slash, pkg.id, askingPrice) ?? askingPrice;
 
     const group = categoryGroups.find(g => g.id === pkg.category_id);
     const categoryName = group ? group.name : "";
@@ -222,6 +231,15 @@ export const FlightPackagesSection = ({
       entity_id: pkg.id,
       entity_name: `Package Selected: ${pkg.name}`,
       source: 'FlightPackagesSection'
+    });
+
+    // Attribute the click to the agent share link the visitor arrived on, so
+    // the agent report can rank which package their audience opens most.
+    trackShareEvent({
+      event_type: 'package_click',
+      packageId: pkg.id,
+      packageName: pkg.name,
+      metadata: { price: finalPrice, category: categoryName },
     });
 
     toast.success(`Added ${pkg.name} to cart`);
@@ -294,8 +312,15 @@ export const FlightPackagesSection = ({
     const start = pkg.promotion_start_at ? new Date(pkg.promotion_start_at) : null;
     const end = pkg.promotion_end_at ? new Date(pkg.promotion_end_at) : null;
     const isPromotionActive = !!(pkg.promotion_price && (!start || start <= currentTime) && (!end || end > currentTime));
-    const displayPrice = isPromotionActive && pkg.promotion_price ? Number(pkg.promotion_price) : Number(pkg.price);
-    return { isPromotionActive, displayPrice };
+    const askingPrice = isPromotionActive && pkg.promotion_price ? Number(pkg.promotion_price) : Number(pkg.price);
+    // A live challenge is the last word on the price, promotion included.
+    const challengePrice = slashedPrice(slash, pkg.id, askingPrice);
+    return {
+      isPromotionActive,
+      askingPrice,
+      challengePrice,
+      displayPrice: challengePrice ?? askingPrice,
+    };
   };
 
   const handleManualScroll = (direction: 'left' | 'right') => {
@@ -750,7 +775,7 @@ export const FlightPackagesSection = ({
                         const hoveredId = hoveredPackageByGroup[group.id];
                         const hoveredPkg = hoveredId ? group.packages.find(p => p.id === hoveredId) : undefined;
                         const displayPkg = hoveredPkg || defaultPkg;
-                        const { displayPrice } = displayPkg ? getActivePrice(displayPkg) : { displayPrice: undefined as number | undefined };
+                        const priceInfo = displayPkg ? getActivePrice(displayPkg) : null;
 
                         return (
                           <motion.div
@@ -800,13 +825,27 @@ export const FlightPackagesSection = ({
                               <h4 className="text-2xl md:text-3xl uppercase leading-none text-white relative z-10 font-title tracking-[0.04em]">
                                 {group.name}
                               </h4>
-                              {typeof displayPrice === "number" && (
+                              {priceInfo && (
                                 <div className="mt-1.5 md:mt-2 relative px-3 py-1 md:px-4 md:py-1.5 rounded-2xl overflow-hidden group/price">
                                   {/* Localized background for price visibility */}
                                   <div className="absolute inset-0 bg-black/40 backdrop-blur-md z-[-1] border border-white/5" />
-                                  <p className="text-lg md:text-xl font-bold uppercase tracking-[0.15em] text-[#CD5C5C] font-condensed">
-                                    RM {displayPrice.toLocaleString()}
-                                  </p>
+                                  {priceInfo.challengePrice !== null ? (
+                                    <>
+                                      <p className="text-lg md:text-xl font-bold uppercase tracking-[0.15em] text-emerald-400 font-condensed text-center">
+                                        RM {priceInfo.challengePrice.toLocaleString()}
+                                      </p>
+                                      <p className="text-[10px] md:text-xs font-bold text-white/50 line-through text-center">
+                                        RM {priceInfo.askingPrice.toLocaleString()}
+                                      </p>
+                                      <p className="text-[10px] md:text-xs font-black uppercase tracking-[0.18em] text-emerald-400 text-center font-condensed">
+                                        Challenge price
+                                      </p>
+                                    </>
+                                  ) : (
+                                    <p className="text-lg md:text-xl font-bold uppercase tracking-[0.15em] text-[#CD5C5C] font-condensed">
+                                      RM {priceInfo.displayPrice.toLocaleString()}
+                                    </p>
+                                  )}
                                 </div>
                               )}
                             </div>
@@ -852,6 +891,13 @@ export const FlightPackagesSection = ({
                   const isPromotionActive = pkg.promotion_price && 
                      (!start || start <= currentTime) &&
                      (!end || end > currentTime);
+
+                  // A live challenge cuts whatever price was already on show,
+                  // promotion included - it is the last word on the number.
+                  const askingPrice = isPromotionActive && pkg.promotion_price
+                    ? Number(pkg.promotion_price)
+                    : Number(pkg.price);
+                  const challengePrice = slashedPrice(slash, pkg.id, askingPrice);
 
                   const isSelected = items.some(i => i.id === pkg.id);
                    const shareEligible = pkg.sort_order === 0;
@@ -945,7 +991,21 @@ export const FlightPackagesSection = ({
                       )}
                       
                       <div className="flex flex-col items-center justify-center mt-1.5 md:mt-2">
-                        {isPromotionActive && pkg.promotion_price ? (
+                        {challengePrice !== null ? (
+                          <div className="relative px-4 py-1.5 md:px-5 md:py-2 rounded-2xl overflow-hidden group/price">
+                            {/* Localized background for price visibility */}
+                            <div className="absolute inset-0 bg-black/40 backdrop-blur-md z-[-1] border border-white/5" />
+                            <div className={`${isCompact ? "text-2xl md:text-3xl" : "text-3xl md:text-4xl"} flex items-center gap-2 text-emerald-400 font-title tracking-[0.04em]`} style={{ textShadow: "none" }}>
+                              RM {challengePrice.toLocaleString()}
+                            </div>
+                            <div className="text-xs md:text-sm font-bold text-white/50 line-through text-center">
+                              RM {askingPrice.toLocaleString()}
+                            </div>
+                            <div className="mt-0.5 md:mt-1 text-sm md:text-base font-black uppercase tracking-[0.18em] text-emerald-400 text-center font-condensed" style={{ textShadow: "0 0 15px rgba(52,211,153,0.5)" }}>
+                              Challenge price
+                            </div>
+                          </div>
+                        ) : isPromotionActive && pkg.promotion_price ? (
                           <div className="relative px-4 py-1.5 md:px-5 md:py-2 rounded-2xl overflow-hidden group/price">
                             {/* Localized background for price visibility */}
                             <div className="absolute inset-0 bg-black/40 backdrop-blur-md z-[-1] border border-white/5" />

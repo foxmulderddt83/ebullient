@@ -1,6 +1,7 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { motion } from "framer-motion";
 import { supabase } from "@/lib/supabase";
+import { getSiteSettings, invalidateSiteSettings } from "@/lib/siteSettings";
 import { FlightPackagesSection } from "./FlightPackagesSection";
 import { AddonsSelection } from "./AddonsSelection";
 import { Button } from "@/components/ui/button";
@@ -32,6 +33,20 @@ import {
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { generateBookingReference, cn } from "@/lib/utils";
+import { captureShareForm, readShareContext, resolveShareLink, trackShareEvent } from "@/lib/agentTracking";
+import { fetchSlashState, priceAfterReward } from "@/lib/slashCampaign";
+import { fetchSlashPrice } from "@/lib/slashPrice";
+
+interface AppliedCoupon {
+  coupon_id: string;
+  code: string;
+  discount_type: 'fixed' | 'percent';
+  discount_value: number;
+  discount_amount: number;
+  description?: string | null;
+  agent_name?: string | null;
+  expires_at?: string | null;
+}
 
 // Custom blinking animation for "Flying" label
 const blinkingStyles = `
@@ -62,20 +77,20 @@ interface Passenger {
 }
 
 const PASSENGER_COLORS = [
-  'bg-blue-50/50',
-  'bg-emerald-50/50',
-  'bg-violet-50/50',
-  'bg-amber-50/50',
-  'bg-rose-50/50',
-  'bg-cyan-50/50',
-  'bg-indigo-50/50',
-  'bg-teal-50/50',
-  'bg-fuchsia-50/50',
-  'bg-sky-50/50',
-  'bg-slate-50/80'
+  'bg-sky-50/70',
+  'bg-emerald-50/70',
+  'bg-violet-50/70',
+  'bg-amber-50/70',
+  'bg-rose-50/70',
+  'bg-cyan-50/70',
+  'bg-indigo-50/70',
+  'bg-teal-50/70',
+  'bg-fuchsia-50/70',
+  'bg-orange-50/70',
+  'bg-slate-100/50'
 ];
 
-const getRandomColor = () => PASSENGER_COLORS[Math.floor(Math.random() * PASSENGER_COLORS.length)];
+const getPassengerColor = (index: number) => PASSENGER_COLORS[index % PASSENGER_COLORS.length];
 
 const PASSENGERS_STORAGE_KEY = "booking_wizard_passengers";
 const DEFAULT_PASSENGERS: Passenger[] = [
@@ -102,7 +117,7 @@ const sanitizeStoredPassengers = (value: unknown): Passenger[] => {
         id_front: (typeof candidate.id_front === "string" && !candidate.id_front.startsWith('blob:')) ? candidate.id_front : undefined,
         id_back: (typeof candidate.id_back === "string" && !candidate.id_back.startsWith('blob:')) ? candidate.id_back : undefined,
         will_fly: typeof candidate.will_fly === "boolean" ? candidate.will_fly : false,
-        bgColor: typeof candidate.bgColor === "string" ? candidate.bgColor : getRandomColor(),
+        bgColor: typeof candidate.bgColor === "string" ? candidate.bgColor : getPassengerColor(0),
       } as Passenger;
     })
     .filter((item): item is Passenger => item !== null);
@@ -111,7 +126,7 @@ const sanitizeStoredPassengers = (value: unknown): Passenger[] => {
     ...p,
     id: idx + 1,
     will_fly: typeof p.will_fly === "boolean" ? p.will_fly : idx === 0,
-    bgColor: p.bgColor || getRandomColor(),
+    bgColor: p.bgColor || getPassengerColor(idx),
   }));
 
   if (normalized.length === 0) return DEFAULT_PASSENGERS;
@@ -693,7 +708,12 @@ export const BookingWizard = () => {
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'site_settings' },
-        () => setRetryCount(prev => prev + 1)
+        () => {
+          // The refetch below reads through the shared cache, so it has to
+          // be dropped first or an admin edit would never reach this tab.
+          invalidateSiteSettings();
+          setRetryCount(prev => prev + 1);
+        }
       )
       .subscribe();
 
@@ -777,10 +797,30 @@ export const BookingWizard = () => {
     return () => window.removeEventListener("resize", updateMobileView);
   }, []);
   const { items, total, addItem, updateQuantity, removeItem, clearCart } = useCart();
-  
+
+  // Agent coupon. Declared here (rather than beside the other checkout state
+  // further down) because the payable totals below depend on it.
+  const [couponInput, setCouponInput] = useState('');
+  const [appliedCoupon, setAppliedCoupon] = useState<AppliedCoupon | null>(null);
+  /**
+   * True when a price-slash campaign is running on this visit.
+   *
+   * A campaign sets the package price directly, so there is no discount
+   * left for a code to apply and the coupon box comes off the checkout.
+   * Anything typed there could only fight with a price the group has
+   * already won.
+   */
+  const [slashActive, setSlashActive] = useState(false);
+  const [couponChecking, setCouponChecking] = useState(false);
+  const [couponError, setCouponError] = useState<string | null>(null);
+
+  // The discount can never exceed the cart, so the payable total never goes negative.
+  const discountAmount = appliedCoupon ? Math.min(Number(appliedCoupon.discount_amount) || 0, total) : 0;
+  const netTotal = Math.max(0, total - discountAmount);
+
   const depositAmount = parseFloat(siteSettings.payment_deposit_amount || '0');
-  const hasDepositOption = depositAmount > 0 && total > depositAmount;
-  const currentTotal = paymentType === 'deposit' ? depositAmount : total;
+  const hasDepositOption = depositAmount > 0 && netTotal > depositAmount;
+  const currentTotal = paymentType === 'deposit' ? depositAmount : netTotal;
   const topRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const isFirstMount = useRef(true);
@@ -824,28 +864,33 @@ export const BookingWizard = () => {
         
         if (error) throw error;
         
-        let packageFlyerLimit = 0;
-        let totalPassengerLimit = 0;
+        let mainPackageCapacity = 0;
+        let addonPackageCapacity = 0;
         
         if (pkgs) {
           items.forEach(item => {
             const pkg = pkgs.find(p => p.id === item.id);
             if (pkg) {
-              const maxQty = Number(pkg.max_quantity) || 0;
-              const quantity = item.quantity || 1;
-              
-              totalPassengerLimit += maxQty * quantity;
-              
+              const maxPerUnit = pkg.max_quantity || 1;
+              const totalForThisItem = maxPerUnit * (item.quantity || 1);
+
+              // Main Package (sort_order 0) determines the "Flyer" limit
               if (pkg.sort_order === 0 || pkg.sort_order === null || pkg.sort_order === undefined) {
-                packageFlyerLimit += maxQty * quantity;
+                mainPackageCapacity += totalForThisItem;
+              } 
+              // Add-ons (sort_order 1) only add to the "Total Passengers" limit
+              else if (pkg.sort_order === 1) {
+                addonPackageCapacity += totalForThisItem;
               }
             }
           });
         }
         
-        const finalFlyerLimit = Math.max(1, packageFlyerLimit);
+        const finalFlyerLimit = Math.max(1, mainPackageCapacity);
+        const finalTotalLimit = Math.max(1, mainPackageCapacity + addonPackageCapacity);
+        
         setMaxFlyersFromPackages(finalFlyerLimit);
-        setTotalMaxPassengers(Math.max(finalFlyerLimit, totalPassengerLimit));
+        setTotalMaxPassengers(finalTotalLimit);
       } catch (err) {
         console.error("Error calculating limits:", err);
       }
@@ -1002,6 +1047,160 @@ export const BookingWizard = () => {
   const [contactInfo, setContactInfo] = useState({ name: '', email: '', phone: '' });
   const [specialRequests, setSpecialRequests] = useState<string>('');
 
+  // ------------------------------------------------------------------
+  // Agent coupons
+  // ------------------------------------------------------------------
+  // All validation happens in Postgres (validate_coupon), so the expiry,
+  // the usage cap and the package scope cannot be bypassed from the browser.
+  const validateCoupon = async (
+    rawCode: string,
+    opts: { silent?: boolean } = {},
+  ): Promise<AppliedCoupon | null> => {
+    const code = (rawCode || '').trim();
+    if (!code || !supabase) return null;
+
+    setCouponChecking(true);
+    setCouponError(null);
+    try {
+      const { data, error } = await supabase.rpc('validate_coupon', {
+        p_code: code,
+        p_package_ids: items.map(i => i.id),
+        p_subtotal: total,
+        p_email: contactInfo.email || null,
+      });
+
+      if (error) throw error;
+
+      const result = data as any;
+      if (!result?.valid) {
+        setAppliedCoupon(null);
+        setCouponError(result?.message || 'This coupon code is not valid.');
+        if (!opts.silent) toast.error(result?.message || 'This coupon code is not valid.');
+        return null;
+      }
+
+      const applied: AppliedCoupon = {
+        coupon_id: result.coupon_id,
+        code: result.code,
+        discount_type: result.discount_type,
+        discount_value: Number(result.discount_value),
+        discount_amount: Number(result.discount_amount),
+        description: result.description,
+        agent_name: result.agent_name,
+        expires_at: result.expires_at,
+      };
+
+      setAppliedCoupon(applied);
+      setCouponInput(applied.code);
+      setCouponError(null);
+
+      if (!opts.silent) {
+        toast.success(`Coupon ${applied.code} applied — RM ${applied.discount_amount.toFixed(2)} off`);
+      }
+
+      trackShareEvent({
+        event_type: 'coupon_applied',
+        metadata: { code: applied.code, discount: applied.discount_amount },
+      });
+
+      return applied;
+    } catch (e: any) {
+      console.error('Coupon validation failed:', e);
+      setAppliedCoupon(null);
+      setCouponError('Could not check that coupon. Please try again.');
+      if (!opts.silent) toast.error('Could not check that coupon. Please try again.');
+      return null;
+    } finally {
+      setCouponChecking(false);
+    }
+  };
+
+  const removeCoupon = () => {
+    setAppliedCoupon(null);
+    setCouponInput('');
+    setCouponError(null);
+  };
+
+  // Pick up ?ref= (share link) and ?coupon= from the URL once on mount.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    let cancelled = false;
+
+    const init = async () => {
+      await resolveShareLink();
+      if (cancelled) return;
+
+      // A live campaign wins over whatever code the share link put on the
+      // URL: that one was chosen before anybody had played, so it cannot
+      // know the price the group has since reached. Resolved here rather
+      // than in its own effect so the two can never race each other.
+      const ctx = readShareContext();
+      const slash = (ctx.landingPageId || ctx.token)
+        ? await fetchSlashState({ landingPageId: ctx.landingPageId ?? null })
+        : null;
+      if (cancelled) return;
+
+      // A challenge prices the package itself. Nothing to apply, and no
+      // agent code either: theirs was written against the sticker price.
+      if (slash) {
+        setSlashActive(true);
+        return;
+      }
+
+      const params = new URLSearchParams(window.location.search);
+      const code = params.get('coupon');
+      if (code) await validateCoupon(code, { silent: true });
+    };
+
+    init();
+    return () => { cancelled = true; };
+    // Runs once - the URL is read directly rather than tracked as state.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // The cart drives both the package scope and the discount amount, so a
+  // coupon that was valid for the old cart has to be re-checked.
+  useEffect(() => {
+    if (!appliedCoupon) return;
+    if (items.length === 0) { removeCoupon(); return; }
+
+    const timer = setTimeout(() => {
+      validateCoupon(appliedCoupon.code, { silent: true });
+    }, 400);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [items, total]);
+
+  // Keep the agent's report up to date with whatever the visitor has typed,
+  // whether or not they ever reach the payment gateway.
+  useEffect(() => {
+    const ctx = readShareContext();
+    if (!ctx.shareLinkId && !ctx.landingPageId) return;
+    if (!contactInfo.name && !contactInfo.email && !contactInfo.phone && items.length === 0) return;
+
+    const timer = setTimeout(() => {
+      captureShareForm({
+        name: contactInfo.name,
+        email: contactInfo.email,
+        phone: contactInfo.phone,
+        selectedDate: selectedDate || null,
+        selectedTime: selectedTime || null,
+        passengerCount: passengers.length,
+        specialRequests,
+        couponCode: appliedCoupon?.code ?? couponInput ?? null,
+        cartItems: items.map(i => ({ id: i.id, name: i.name, price: i.price, quantity: i.quantity })),
+        cartTotal: total,
+        discountAmount,
+        stepReached: `Step ${step} · Checkout ${checkoutStep}`,
+        furthestStep: checkoutStep,
+      });
+    }, 1200);
+
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [contactInfo.name, contactInfo.email, contactInfo.phone, selectedDate, selectedTime,
+      specialRequests, items, total, discountAmount, step, checkoutStep, appliedCoupon?.code]);
+
   useEffect(() => {
     let timer: NodeJS.Timeout;
     if (showProgressOverlay) {
@@ -1034,7 +1233,11 @@ export const BookingWizard = () => {
   const resetToSelectFlight = () => {
     setStep(1);
     setCurrentSortOrder(0);
-    setSelectedCategoryId(null);
+    // Only a multi-category site has a chooser to go back to. On a single
+    // category site - or any ?sharePackageId= link, which forces single
+    // category mode - clearing this strands the wizard on "Could not load
+    // flight categories" with nothing left on screen to re-select.
+    if (isMultiCategory) setSelectedCategoryId(null);
     setShowPassengerDetails(false);
     scrollToTop();
   };
@@ -1107,41 +1310,49 @@ export const BookingWizard = () => {
     }
   };
 
-  useEffect(() => {
-    const handleSharedPackage = async () => {
-      if (!supabase) return;
-      const params = new URLSearchParams(window.location.search);
-      const sharedId = params.get("sharePackageId");
-      if (!sharedId) return;
+  /**
+   * Turns a ?sharePackageId= link into the category that package sits in.
+   *
+   * A shared link forces the wizard into single-category mode, so this is
+   * the only thing that ever hands it a category to show. That makes it a
+   * recovery path, not just a boot step - it has to stay callable, or a
+   * retry has nothing to retry with.
+   */
+  const resolveSharedPackage = useCallback(async () => {
+    if (!supabase) return false;
+    const params = new URLSearchParams(window.location.search);
+    const sharedId = params.get("sharePackageId");
+    if (!sharedId) return false;
 
-      const { data: sharedPkg, error: sharedError } = await supabase
-        .from('packages')
-        .select('category_id, sort_order')
-        .eq('id', sharedId)
-        .eq('is_active', true)
-        .single();
+    const { data: sharedPkg, error: sharedError } = await supabase
+      .from('packages')
+      .select('category_id, sort_order')
+      .eq('id', sharedId)
+      .eq('is_active', true)
+      .single();
 
-      if (!sharedError && sharedPkg) {
-        setIsMultiCategory(false);
-        setSelectedCategoryId(sharedPkg.category_id);
-        setCurrentSortOrder(0);
-        
-        const { data: packages } = await supabase
-          .from('packages')
-          .select('sort_order')
-          .eq('category_id', sharedPkg.category_id)
-          .eq('is_active', true)
-          .order('sort_order', { ascending: true });
+    if (sharedError || !sharedPkg) return false;
 
-        if (packages) {
-          const uniqueOrders = Array.from(new Set(packages.map(p => p.sort_order)));
-          setUniqueSortOrders(uniqueOrders);
-          setTotalStages(uniqueOrders.length + 1);
-        }
-      }
-    };
-    handleSharedPackage();
-  }, [supabase]);
+    setIsMultiCategory(false);
+    setSelectedCategoryId(sharedPkg.category_id);
+    setCurrentSortOrder(0);
+
+    const { data: packages } = await supabase
+      .from('packages')
+      .select('sort_order')
+      .eq('category_id', sharedPkg.category_id)
+      .eq('is_active', true)
+      .order('sort_order', { ascending: true });
+
+    if (packages) {
+      const uniqueOrders = Array.from(new Set(packages.map(p => p.sort_order)));
+      setUniqueSortOrders(uniqueOrders);
+      setTotalStages(uniqueOrders.length + 1);
+    }
+    return true;
+  }, []);
+
+  useEffect(() => { resolveSharedPackage(); }, [resolveSharedPackage]);
 
   useEffect(() => {
     const fetchMainCategory = async (attempt = 1) => {
@@ -1150,8 +1361,12 @@ export const BookingWizard = () => {
         return;
       }
       
+      // A shared link has no category chooser to fall back on, so the
+      // retry path re-resolves the share instead of bailing out here and
+      // leaving the wizard with no category at all.
       const params = new URLSearchParams(window.location.search);
       if (params.has("sharePackageId")) {
+        await resolveSharedPackage();
         setIsInitialLoading(false);
         return;
       }
@@ -1208,13 +1423,13 @@ export const BookingWizard = () => {
     };
 
     fetchMainCategory();
-  }, [retryCount, liveUpdateTick, supabase]);
+  }, [retryCount, liveUpdateTick, resolveSharedPackage]);
 
   useEffect(() => {
     const fetchSiteSettings = async () => {
       if (!supabase) return;
-      const { data, error } = await supabase.from('site_settings').select('*');
-      if (data && !error) {
+      const data = await getSiteSettings();
+      if (data.length) {
         const settingsMap: Record<string, string> = {};
         const stylesMap: Record<string, any> = {};
         
@@ -1342,7 +1557,7 @@ export const BookingWizard = () => {
     } else {
       // If already at step 1, ensure we are at sort_order 0
       setCurrentSortOrder(0);
-      setSelectedCategoryId(null);
+      if (isMultiCategory) setSelectedCategoryId(null);
     }
     scrollToTop();
   };
@@ -1399,7 +1614,7 @@ export const BookingWizard = () => {
         country_of_origin: '',
         gender: '',
         will_fly: false,
-        bgColor: getRandomColor()
+        bgColor: getPassengerColor(prev.length)
       }];
     });
   };
@@ -1729,11 +1944,13 @@ export const BookingWizard = () => {
       return;
     }
 
-    if (total < 1.01) {
-      toast.error("Minimum payment amount is RM 1.01");
+    if (netTotal < 1.01) {
+      toast.error(discountAmount > 0
+        ? "The discount leaves less than the RM 1.01 minimum payable. Please remove the coupon or add another package."
+        : "Minimum payment amount is RM 1.01");
       return;
     }
-    if (total > 50000) {
+    if (netTotal > 50000) {
       toast.error("Maximum payment amount is RM 50,000.00");
       return;
     }
@@ -1815,23 +2032,72 @@ export const BookingWizard = () => {
         .select('id, name, price, promotion_price, promotion_start_at, promotion_end_at')
         .in('id', packageIds);
       
+      // Read the campaign fresh: it is the only thing allowed to have moved
+      // a price below the packages table, and the cut comes from Postgres,
+      // so this can confirm a discount but never invent one.
+      const slashNow = await fetchSlashPrice();
+
       if (currentPackages) {
         const now = new Date();
         for (const item of items) {
           const pkg = currentPackages.find(p => p.id === item.id);
           if (pkg) {
-            const isPromo = pkg.promotion_price && 
+            const isPromo = pkg.promotion_price &&
               (!pkg.promotion_start_at || new Date(pkg.promotion_start_at) <= now) &&
               (!pkg.promotion_end_at || new Date(pkg.promotion_end_at) > now);
-            
-            const expectedPrice = isPromo ? Number(pkg.promotion_price) : Number(pkg.price);
-            
+
+            const askingPrice = isPromo ? Number(pkg.promotion_price) : Number(pkg.price);
+            const isChallenge = !!slashNow && slashNow.packageId === pkg.id;
+            const expectedPrice = isChallenge
+              ? priceAfterReward(askingPrice, slashNow.reward, slashNow.rewardType)
+              : askingPrice;
+
             if (Math.abs(expectedPrice - item.price) > 0.01) {
-              throw new Error(`Price for ${pkg.name} has changed (Promotion status updated). Please re-select the package.`);
+              // More people playing moves this mid-session, which is the
+              // campaign working rather than an error - so say that.
+              throw new Error(isChallenge
+                ? `The challenge price for ${pkg.name} is now RM ${expectedPrice.toFixed(2)}. Please re-select the package to take it.`
+                : `Price for ${pkg.name} has changed (Promotion status updated). Please re-select the package.`);
             }
           }
         }
       }
+
+      // Re-check the coupon at the last moment: it may have expired, been
+      // used up by somebody else, or stopped matching the cart since it was
+      // typed in. The server is the authority on the discount we charge.
+      let finalDiscount = 0;
+      let finalCoupon: AppliedCoupon | null = null;
+
+      if (appliedCoupon) {
+        const { data: recheck, error: recheckError } = await supabase.rpc('validate_coupon', {
+          p_code: appliedCoupon.code,
+          p_package_ids: items.map(i => i.id),
+          p_subtotal: total,
+          p_email: email,
+        });
+
+        if (recheckError) throw new Error(`Coupon check failed: ${recheckError.message}`);
+
+        const verdict = recheck as any;
+        if (!verdict?.valid) {
+          setAppliedCoupon(null);
+          setCouponError(verdict?.message || 'This coupon is no longer valid.');
+          throw new Error(verdict?.message || 'This coupon is no longer valid. Please review your total.');
+        }
+
+        finalDiscount = Math.min(Number(verdict.discount_amount) || 0, total);
+        finalCoupon = { ...appliedCoupon, discount_amount: finalDiscount };
+        setAppliedCoupon(finalCoupon);
+      }
+
+      const payableTotal = Math.max(0, total - finalDiscount);
+
+      if (payableTotal < 1.01) {
+        throw new Error("The discount leaves less than the RM 1.01 minimum payable.");
+      }
+
+      const shareCtx = readShareContext();
 
       let customerId;
       
@@ -1867,7 +2133,12 @@ export const BookingWizard = () => {
           booking_id: bookingId,
           customer_id: customerId,
           booking_reference: bookingRef,
-          total_amount: total,
+          total_amount: payableTotal,
+          subtotal_amount: total,
+          discount_amount: finalDiscount,
+          coupon_id: finalCoupon?.coupon_id ?? null,
+          coupon_code: finalCoupon?.code ?? null,
+          share_link_id: shareCtx.shareLinkId,
           payment_status: 'unpaid',
           payment_gateway: paymentMethod === 'qr' ? 'manual' : 'CHIP',
           payment_method: paymentMethod === 'qr' ? 'qr_pay' : 'online_banking',
@@ -1876,12 +2147,55 @@ export const BookingWizard = () => {
           notes: specialNotes,
           add_items_summary: addItemsSummary,
           payment_type: paymentType,
-          deposit_amount: paymentType === 'deposit' ? depositAmount : total,
-          outstanding_balance: paymentType === 'full' ? 0 : (total - depositAmount),
+          deposit_amount: paymentType === 'deposit' ? depositAmount : payableTotal,
+          outstanding_balance: paymentType === 'full' ? 0 : (payableTotal - depositAmount),
           status: (paymentType === 'deposit' || paymentMethod === 'qr') ? 'pending_verification' : 'pending'
         });
 
       if (bookingError) throw new Error(`Booking creation failed: ${bookingError.message}`);
+
+      // Burn the coupon now that a booking row exists. redeem_coupon is
+      // idempotent per booking, so a retry never double-counts it.
+      if (finalCoupon) {
+        const { data: redeemResult, error: redeemError } = await supabase.rpc('redeem_coupon', {
+          p_code: finalCoupon.code,
+          p_booking_id: bookingId,
+          p_discount: finalDiscount,
+          p_order_total: payableTotal,
+          p_email: email,
+          p_phone: phone,
+          p_name: name,
+          p_share_link_id: shareCtx.shareLinkId,
+        });
+
+        if (redeemError) {
+          console.error('Coupon redemption failed:', redeemError);
+        } else if (!(redeemResult as any)?.ok) {
+          console.warn('Coupon not redeemed:', (redeemResult as any)?.message);
+        }
+      }
+
+      // Mark the agent's capture row as converted.
+      captureShareForm({
+        name, email, phone,
+        selectedDate: flightDate || null,
+        selectedTime,
+        passengerCount: passengers.length,
+        specialRequests,
+        couponCode: finalCoupon?.code ?? null,
+        cartItems: items.map(i => ({ id: i.id, name: i.name, price: i.price, quantity: i.quantity })),
+        cartTotal: total,
+        discountAmount: finalDiscount,
+        stepReached: 'Payment submitted',
+        furthestStep: 3,
+        completed: true,
+        bookingId,
+      });
+
+      trackShareEvent({
+        event_type: 'checkout_start',
+        metadata: { booking_id: bookingId, total: payableTotal, discount: finalDiscount },
+      });
 
       const bookingItems = items.map(item => ({
         booking_id: bookingId,
@@ -2569,55 +2883,55 @@ export const BookingWizard = () => {
                           </div>
                         </div>
 
-                        <div className="rounded-xl border border-gray-100 bg-slate-50/50 p-4 sm:p-5">
+                        <div className="rounded-xl border border-gray-100 bg-amber-50/40 p-4 sm:p-5">
                           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                            <div className="rounded-lg bg-white border border-slate-200/60 p-4 shadow-sm">
-                              <div className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Package</div>
-                              <div className="mt-1.5 text-xs font-medium text-slate-400 uppercase tracking-wider">{basePackageItem?.category_name || "—"}</div>
-                              <div className="mt-0.5 text-sm font-bold text-gray-900 truncate uppercase">{basePackageItem?.name || "—"}</div>
+                            <div className="rounded-lg bg-sky-50/90 border border-sky-100 p-4 shadow-sm">
+                              <div className="text-[11px] font-bold uppercase tracking-wider text-sky-700">Package</div>
+                              <div className="mt-1.5 text-xs font-medium text-sky-600/70 uppercase tracking-wider">{basePackageItem?.category_name || "—"}</div>
+                              <div className="mt-0.5 text-sm font-bold text-sky-900 truncate uppercase">{basePackageItem?.name || "—"}</div>
                               <div className="mt-1 text-sm font-bold text-[#CD5C5C]">
                                 {basePackageItem ? `RM ${(basePackageItem.price * basePackageItem.quantity).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "—"}
                               </div>
                             </div>
-                            <div className="rounded-lg bg-white border border-slate-200/60 p-4 shadow-sm">
-                              <div className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Add-ons</div>
-                              <div className="mt-1.5 text-sm font-bold text-gray-900">{addonItems.length} item(s)</div>
+                            <div className="rounded-lg bg-emerald-50/90 border border-emerald-100 p-4 shadow-sm">
+                              <div className="text-[11px] font-bold uppercase tracking-wider text-emerald-700">Add-ons</div>
+                              <div className="mt-1.5 text-sm font-bold text-emerald-900">{addonItems.length} item(s)</div>
                               <div className="mt-1 text-sm font-bold text-[#CD5C5C]">
                                 RM {addonItems.reduce((sum, it) => sum + it.price * it.quantity, 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                               </div>
                             </div>
-                            <div className="rounded-lg bg-white border border-slate-200/60 p-4 shadow-sm">
-                              <div className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Total</div>
-                              <div className="mt-1.5 text-sm font-bold text-gray-900">Paying now</div>
+                            <div className="rounded-lg bg-rose-50/90 border border-rose-100 p-4 shadow-sm">
+                              <div className="text-[11px] font-bold uppercase tracking-wider text-rose-700">Total</div>
+                              <div className="mt-1.5 text-sm font-bold text-rose-900">Paying now</div>
                               <div className="mt-1 text-sm font-bold text-[#CD5C5C]">RM {total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
                             </div>
                           </div>
 
 
 
-                          <div className="mt-4 rounded-lg bg-slate-100/50 border border-slate-200/60 p-4 shadow-sm">
-                            <div className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Calculation</div>
-                            <div className="mt-2 space-y-1 text-xs text-gray-700">
+                          <div className="mt-4 rounded-lg bg-indigo-50/90 border border-indigo-100 p-4 shadow-sm">
+                            <div className="text-[11px] font-bold uppercase tracking-wider text-indigo-700">Calculation</div>
+                            <div className="mt-2 space-y-1 text-xs text-indigo-900">
                               {basePackageItem && (
                                 <div className="flex items-center justify-between gap-3">
                                   <div className="flex flex-col min-w-0">
-                                    <span className="text-[9px] uppercase tracking-tighter text-slate-400 font-bold">{basePackageItem.category_name}</span>
-                                    <span className="truncate">{basePackageItem.name} × {basePackageItem.quantity}</span>
+                                    <span className="text-[9px] uppercase tracking-tighter text-indigo-500/70 font-bold">{basePackageItem.category_name}</span>
+                                    <span className="truncate font-semibold">{basePackageItem.name} × {basePackageItem.quantity}</span>
                                   </div>
-                                  <span className="shrink-0 font-bold text-gray-900">RM {(basePackageItem.price * basePackageItem.quantity).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                                  <span className="shrink-0 font-bold text-indigo-900">RM {(basePackageItem.price * basePackageItem.quantity).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                                 </div>
                               )}
                               {addonItems.map((it) => (
                                 <div key={`${it.id}-${it.sort_order}`} className="flex items-center justify-between gap-3">
                                   <div className="flex flex-col min-w-0">
-                                    <span className="text-[9px] uppercase tracking-tighter text-slate-400 font-bold">{it.category_name}</span>
-                                    <span className="truncate">{it.name} × {it.quantity}</span>
+                                    <span className="text-[9px] uppercase tracking-tighter text-indigo-500/70 font-bold">{it.category_name}</span>
+                                    <span className="truncate font-semibold">{it.name} × {it.quantity}</span>
                                   </div>
-                                  <span className="shrink-0 font-bold text-gray-900">RM {(it.price * it.quantity).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                                  <span className="shrink-0 font-bold text-indigo-900">RM {(it.price * it.quantity).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                                 </div>
                               ))}
-                              <div className="mt-2 pt-2 border-t border-slate-200 flex items-center justify-between gap-3">
-                                <span className="font-bold text-gray-900">Total</span>
+                              <div className="mt-2 pt-2 border-t border-indigo-200/60 flex items-center justify-between gap-3">
+                                <span className="font-bold text-indigo-900">Total</span>
                                 <span className="shrink-0 font-bold text-[#CD5C5C]">RM {total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                               </div>
                             </div>
@@ -2859,20 +3173,35 @@ export const BookingWizard = () => {
 
                                       {p.id_front ? (
                                         <div className="group relative w-full h-32 rounded-xl overflow-hidden border-2 border-emerald-500 shadow-md">
-                                          <img 
-                                            src={p.id_front} 
-                                            alt="Front ID" 
-                                            className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" 
+                                          <img
+                                            src={p.id_front}
+                                            alt="Front ID"
+                                            className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
                                           />
-                                          <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                                            <Button 
+                                          <div className="absolute inset-0 bg-black/40 flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <Button
                                               type="button"
-                                              variant="secondary" 
+                                              variant="secondary"
                                               size="sm"
                                               className="h-8 font-black uppercase text-[10px] tracking-widest bg-white text-gray-900 hover:bg-white/90"
                                               onClick={() => setUploadMethodSelector({ passengerId: p.id, side: 'front' })}
                                             >
                                               Change
+                                            </Button>
+                                            <Button
+                                              type="button"
+                                              variant="destructive"
+                                              size="sm"
+                                              className="h-8 font-black uppercase text-[10px] tracking-widest bg-red-600 text-white hover:bg-red-700"
+                                              onClick={() => {
+                                                if (p.id_front && p.id_front.startsWith('blob:')) {
+                                                  URL.revokeObjectURL(p.id_front);
+                                                }
+                                                updatePassenger(p.id, 'id_front', undefined);
+                                                updatePassenger(p.id, 'id_front_file', undefined);
+                                              }}
+                                            >
+                                              <Trash2 className="w-3 h-3" />
                                             </Button>
                                           </div>
                                           <div className="absolute top-2 right-2 bg-emerald-500 text-white p-1 rounded-full shadow-lg">
@@ -2891,6 +3220,138 @@ export const BookingWizard = () => {
                                               <ImageIcon className="w-5 h-5 text-slate-500 group-hover:text-[#CD5C5C]" />
                                             </div>
                                             <p className="text-sm font-extrabold text-gray-800 group-hover:text-[#CD5C5C]">Upload Front ID</p>
+                                          </div>
+                                        </Button>
+                                      )}
+                                    </div>
+                                  </div>
+
+                                  {/* Back ID */}
+                                  <div className="space-y-2">
+                                    <div className="flex items-center justify-between gap-2">
+                                      <div className="flex items-center gap-1.5">
+                                        <Label className="font-bold text-gray-700 flex items-center gap-2">
+                                          <ImageIcon className="w-4 h-4" /> ID Document (Back)
+                                        </Label>
+                                        <Popover>
+                                          <PopoverTrigger asChild>
+                                            <button
+                                              type="button"
+                                              className="text-[#CD5C5C] animate-pulse hover:text-[#b54a4a] transition-colors focus:outline-none p-0.5 rounded-full hover:bg-red-50 flex items-center justify-center"
+                                              aria-label="View ID Back Sample"
+                                            >
+                                              <Info className="w-5 h-5" />
+                                            </button>
+                                          </PopoverTrigger>
+                                          <PopoverContent className="w-[95vw] sm:w-[600px] md:w-[700px] max-w-[720px] p-3 bg-white border border-slate-200 shadow-xl rounded-xl z-[9999]" side="top" align="start">
+                                            <div className="space-y-2">
+                                              <p className="text-xs font-bold text-slate-800 border-b border-slate-100 pb-1.5">Sample ID (Back)</p>
+                                              <img
+                                                src="https://kjukdoqkunuifiorcdpz.supabase.co/storage/v1/object/public/media/categories/1782521475043_NRIC.jpg"
+                                                alt="ID Back Sample"
+                                                className="w-full rounded-lg border border-slate-100 shadow-sm"
+                                                width={500}
+                                                height={400}
+                                                loading="lazy"
+                                                decoding="async"
+                                              />
+                                            </div>
+                                          </PopoverContent>
+                                        </Popover>
+                                      </div>
+                                      <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">Max 3MB</span>
+                                    </div>
+                                    <div className="relative">
+                                      <input
+                                        type="file"
+                                        id={`p-${p.id}-back`}
+                                        className="hidden"
+                                        accept="image/*"
+                                        onChange={async (e) => {
+                                          const file = e.target.files?.[0];
+                                          if (file) {
+                                            if (file.size > 3 * 1024 * 1024) {
+                                              toast.error("File is too large. Max 3MB allowed.");
+                                              return;
+                                            }
+                                            const progressKey = `${p.id}-back`;
+                                            setUploadingProgress(prev => ({ ...prev, [progressKey]: true }));
+                                            try {
+                                              const { url, file: watermarkedFile } = await applyWatermark(file);
+                                              if (p.id_back && p.id_back.startsWith('blob:')) {
+                                                URL.revokeObjectURL(p.id_back);
+                                              }
+                                              updatePassenger(p.id, 'id_back', url);
+                                              updatePassenger(p.id, 'id_back_file', watermarkedFile);
+                                            } catch (error) {
+                                              console.error("Watermark error:", error);
+                                              toast.error("Failed to process image");
+                                            } finally {
+                                              setUploadingProgress(prev => ({ ...prev, [progressKey]: false }));
+                                            }
+                                          }
+                                        }}
+                                      />
+
+                                      {uploadingProgress[`${p.id}-back`] && (
+                                        <div className="absolute inset-0 z-10 bg-white/80 backdrop-blur-sm flex flex-col items-center justify-center rounded-xl animate-in fade-in duration-300">
+                                          <div className="relative w-12 h-12">
+                                            <div className="absolute inset-0 border-4 border-slate-100 rounded-full"></div>
+                                            <div className="absolute inset-0 border-4 border-[#CD5C5C] border-t-transparent rounded-full animate-spin"></div>
+                                          </div>
+                                          <p className="mt-2 text-[10px] font-black uppercase tracking-widest text-[#CD5C5C] animate-pulse">Processing...</p>
+                                        </div>
+                                      )}
+
+                                      {p.id_back ? (
+                                        <div className="group relative w-full h-32 rounded-xl overflow-hidden border-2 border-emerald-500 shadow-md">
+                                          <img
+                                            src={p.id_back}
+                                            alt="Back ID"
+                                            className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                                          />
+                                          <div className="absolute inset-0 bg-black/40 flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <Button
+                                              type="button"
+                                              variant="secondary"
+                                              size="sm"
+                                              className="h-8 font-black uppercase text-[10px] tracking-widest bg-white text-gray-900 hover:bg-white/90"
+                                              onClick={() => setUploadMethodSelector({ passengerId: p.id, side: 'back' })}
+                                            >
+                                              Change
+                                            </Button>
+                                            <Button
+                                              type="button"
+                                              variant="destructive"
+                                              size="sm"
+                                              className="h-8 font-black uppercase text-[10px] tracking-widest bg-red-600 text-white hover:bg-red-700"
+                                              onClick={() => {
+                                                if (p.id_back && p.id_back.startsWith('blob:')) {
+                                                  URL.revokeObjectURL(p.id_back);
+                                                }
+                                                updatePassenger(p.id, 'id_back', undefined);
+                                                updatePassenger(p.id, 'id_back_file', undefined);
+                                              }}
+                                            >
+                                              <Trash2 className="w-3 h-3" />
+                                            </Button>
+                                          </div>
+                                          <div className="absolute top-2 right-2 bg-emerald-500 text-white p-1 rounded-full shadow-lg">
+                                            <CheckCircle2 className="w-3.5 h-3.5" />
+                                          </div>
+                                        </div>
+                                      ) : (
+                                        <Button
+                                          type="button"
+                                          variant="outline"
+                                          className="w-full h-32 border-2 border-dashed border-slate-300 hover:border-[#CD5C5C] hover:bg-red-50 group transition-all rounded-xl bg-white"
+                                          onClick={() => setUploadMethodSelector({ passengerId: p.id, side: 'back' })}
+                                        >
+                                          <div className="flex flex-col items-center gap-2">
+                                            <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center group-hover:bg-red-100 transition-colors">
+                                              <ImageIcon className="w-5 h-5 text-slate-500 group-hover:text-[#CD5C5C]" />
+                                            </div>
+                                            <p className="text-sm font-extrabold text-gray-800 group-hover:text-[#CD5C5C]">Upload Back ID</p>
                                           </div>
                                         </Button>
                                       )}
@@ -3011,7 +3472,7 @@ export const BookingWizard = () => {
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 md:gap-8 items-start">
                 <div className="lg:col-span-7 space-y-6 order-2 lg:order-1">
                   {checkoutStep === 1 ? (
-                    <Card className="border-accent/10 shadow-sm overflow-hidden rounded-2xl transition-all duration-500 animate-in fade-in slide-in-from-right-4">
+                    <Card className="border-accent/10 shadow-sm overflow-hidden rounded-2xl transition-all duration-500 animate-in fade-in slide-in-from-right-4 bg-sky-50/70">
                       <CardHeader className="bg-slate-900 text-white py-4">
                         <CardTitle className="text-sm uppercase tracking-widest font-black">Contact Details</CardTitle>
                       </CardHeader>
@@ -3076,7 +3537,7 @@ export const BookingWizard = () => {
                       </CardContent>
                     </Card>
                   ) : checkoutStep === 2 ? (
-                    <Card className="border-accent/10 shadow-sm overflow-hidden rounded-2xl transition-all duration-500 animate-in fade-in slide-in-from-right-4">
+                    <Card className="border-accent/10 shadow-sm overflow-hidden rounded-2xl transition-all duration-500 animate-in fade-in slide-in-from-right-4 bg-emerald-50/70">
                       <CardHeader className="bg-slate-900 text-white py-4">
                         <CardTitle className="text-sm uppercase tracking-widest font-black">Select Flight Schedule</CardTitle>
                       </CardHeader>
@@ -3159,7 +3620,7 @@ export const BookingWizard = () => {
                       </CardContent>
                     </Card>
                   ) : (
-                    <Card className="border-accent/10 shadow-sm overflow-hidden rounded-2xl transition-all duration-500 animate-in fade-in slide-in-from-right-4">
+                    <Card className="border-accent/10 shadow-sm overflow-hidden rounded-2xl transition-all duration-500 animate-in fade-in slide-in-from-right-4 bg-violet-50/70">
                       <CardHeader className="bg-slate-900 text-white py-4">
                         <CardTitle className="text-sm uppercase tracking-widest font-black">Payment Details</CardTitle>
                       </CardHeader>
@@ -3172,6 +3633,83 @@ export const BookingWizard = () => {
                                 <p className="font-bold text-slate-900">{selectedDate} at {formatFlightTime(selectedTime)}</p>
                               </div>
                               <Button type="button" variant="link" size="sm" onClick={() => setCheckoutStep(2)} className="h-auto p-0 text-[#CD5C5C] font-bold text-xs uppercase tracking-wider">Change</Button>
+                            </div>
+
+                            {/* Agent coupon - or, during a challenge, no box at all */}
+                            <div className="space-y-2 pt-2">
+                              <Label htmlFor="coupon" className="text-[10px] uppercase font-black tracking-widest text-slate-500">
+                                {slashActive ? 'Challenge Price' : 'Coupon Code (Optional)'}
+                              </Label>
+
+                              {slashActive ? (
+                                <div className="p-4 rounded-xl border-2 border-emerald-500 bg-emerald-50">
+                                  <p className="font-black text-sm uppercase tracking-tight text-emerald-700 flex items-center gap-2">
+                                    <CheckCircle2 className="w-4 h-4 shrink-0" />
+                                    <span className="truncate">Challenge price</span>
+                                  </p>
+                                  <p className="mt-2 text-[11px] leading-snug text-emerald-700/80">
+                                    The prices listed are the ones the group unlocked by playing, and that
+                                    is what you pay. There is no code involved.
+                                  </p>
+                                </div>
+                              ) : appliedCoupon ? (
+                                <div className="flex items-center justify-between gap-3 p-4 rounded-xl border-2 border-emerald-500 bg-emerald-50">
+                                  <div className="min-w-0">
+                                    <p className="font-black text-sm uppercase tracking-tight text-emerald-700 flex items-center gap-2">
+                                      <CheckCircle2 className="w-4 h-4 shrink-0" />
+                                      <span className="truncate">{appliedCoupon.code}</span>
+                                    </p>
+                                    <p className="text-[11px] font-bold text-emerald-600">
+                                      RM {discountAmount.toFixed(2)} off
+                                      {appliedCoupon.agent_name ? ` · ${appliedCoupon.agent_name}` : ''}
+                                    </p>
+                                    {appliedCoupon.expires_at && (
+                                      <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-500/80">
+                                        Valid until {new Date(appliedCoupon.expires_at).toLocaleString('en-MY', {
+                                          day: 'numeric', month: 'short', year: 'numeric',
+                                          hour: 'numeric', minute: '2-digit',
+                                        })}
+                                      </p>
+                                    )}
+                                  </div>
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={removeCoupon}
+                                    className="shrink-0 h-9 text-emerald-700 hover:text-emerald-900 hover:bg-emerald-100 font-black text-[10px] uppercase tracking-widest"
+                                  >
+                                    <X className="w-3.5 h-3.5 mr-1" /> Remove
+                                  </Button>
+                                </div>
+                              ) : (
+                                <>
+                                  <div className="flex gap-2">
+                                    <Input
+                                      id="coupon"
+                                      value={couponInput}
+                                      onChange={(e) => { setCouponInput(e.target.value.toUpperCase()); setCouponError(null); }}
+                                      onKeyDown={(e) => {
+                                        if (e.key === 'Enter') { e.preventDefault(); validateCoupon(couponInput); }
+                                      }}
+                                      placeholder="Enter your agent's code"
+                                      className="h-12 bg-slate-50 border-slate-200 rounded-xl font-black uppercase tracking-widest"
+                                      disabled={couponChecking}
+                                    />
+                                    <Button
+                                      type="button"
+                                      onClick={() => validateCoupon(couponInput)}
+                                      disabled={couponChecking || !couponInput.trim()}
+                                      className="h-12 px-6 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-black uppercase tracking-[0.2em] text-[11px] shrink-0"
+                                    >
+                                      {couponChecking ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Apply'}
+                                    </Button>
+                                  </div>
+                                  {couponError && (
+                                    <p className="text-[11px] font-bold text-red-600">{couponError}</p>
+                                  )}
+                                </>
+                              )}
                             </div>
 
                             {hasDepositOption && (
@@ -3362,7 +3900,7 @@ export const BookingWizard = () => {
                 </div>
 
                 <div className="lg:col-span-5 space-y-6 order-1 lg:order-2">
-                  <Card className="border-accent/10 shadow-sm overflow-hidden rounded-2xl">
+                  <Card className="border-accent/10 shadow-sm overflow-hidden rounded-2xl bg-slate-50/70">
                     <CardHeader className="bg-slate-50 py-4 border-b border-slate-100">
                       <CardTitle className="text-xs uppercase tracking-[0.15em] font-black text-slate-900 flex items-center gap-2 font-title">
                         <ShoppingBagIcon className="w-4 h-4 text-[#CD5C5C]" /> Order Summary
@@ -3427,6 +3965,13 @@ export const BookingWizard = () => {
                             <span>Subtotal</span>
                             <span>RM {total.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
                           </div>
+                          {discountAmount > 0 && appliedCoupon && (
+                            <div className="flex justify-between text-[11px] font-bold text-emerald-600 uppercase">
+                              <span className="truncate">Coupon {appliedCoupon.code}</span>
+                              <span className="shrink-0">− RM {discountAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                            </div>
+                          )}
+
                           {paymentType === 'deposit' && (
                             <div className="flex justify-between text-[11px] font-bold text-[#CD5C5C] uppercase">
                               <span>Deposit Amount</span>
