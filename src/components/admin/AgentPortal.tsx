@@ -3166,6 +3166,14 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
                         <ul className="mt-1 list-disc pl-4">
                           {scope.packageIds.map(id => <li key={id}>{packageName(id)}</li>)}
                         </ul>
+                        {/* The code is never typed here: the page puts it on the
+                            URL and the wizard applies it. Live is what makes it
+                            count, though - validate_coupon only treats a
+                            published page as carrying the coupon. */}
+                        <p className="mt-1">
+                          The code applies itself at checkout — visitors never type it.
+                          {!editingPage.is_published && ' Set the page Live to switch that on for real visitors.'}
+                        </p>
                       </div>
                     );
                   })()}
