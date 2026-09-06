@@ -364,9 +364,9 @@ const StatCard = ({ label, value, sub, icon: Icon }: {
 
 /** Stacked key/value row used by the mobile card layouts. */
 const Field = ({ label, children }: { label: string; children: React.ReactNode }) => (
-  <div className="flex flex-col items-start gap-1 py-1 sm:flex-row sm:items-baseline sm:justify-between sm:gap-3 sm:py-1">
-    <span className="text-[9px] font-bold uppercase tracking-widest text-slate-400 shrink-0">{label}</span>
-    <span className="text-xs text-slate-700 text-right min-w-0 truncate">{children}</span>
+  <div className="flex flex-col items-start gap-0.5 py-1 sm:flex-row sm:items-baseline sm:justify-between sm:gap-3">
+    <span className="text-[8px] sm:text-[9px] font-bold uppercase tracking-widest text-slate-400 shrink-0">{label}</span>
+    <span className="text-[10px] sm:text-xs text-slate-700 sm:text-right break-words">{children}</span>
   </div>
 );
 
@@ -1275,7 +1275,7 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
                       <button
                         type="button"
                         onClick={() => copyToClipboard(c.code, 'Code')}
-                        className="font-mono font-black text-sm text-slate-900 active:text-[#CD5C5C]"
+                        className="font-mono font-black text-xs sm:text-sm text-slate-900 active:text-[#CD5C5C] truncate"
                       >
                         {c.code}
                       </button>
@@ -1305,17 +1305,17 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
                     </Field>
                   </div>
 
-                  <div className="flex gap-2 pt-1">
-                    <Button variant="outline" size="sm" className="flex-1 h-9 rounded-lg text-[11px] gap-1.5" onClick={() => setEditingCoupon(c)}>
-                      <Eye className="w-3.5 h-3.5" /> {canEdit ? 'Edit' : 'View'}
+                  <div className="flex gap-1.5 sm:gap-2 pt-1">
+                    <Button variant="outline" size="sm" className="flex-1 h-8 sm:h-9 rounded-lg text-[10px] sm:text-[11px] gap-1 sm:gap-1.5" onClick={() => setEditingCoupon(c)}>
+                      <Eye className="w-3 h-3 sm:w-3.5 sm:h-3.5" /> {canEdit ? 'Edit' : 'View'}
                     </Button>
                     {canEdit && (
                       <Button
                         variant="outline" size="icon"
-                        className="h-9 w-9 shrink-0 rounded-lg text-red-500"
+                        className="h-8 w-8 sm:h-9 sm:w-9 shrink-0 rounded-lg text-red-500"
                         onClick={() => setConfirmDelete({ table: 'agent_coupons', id: c.id, label: c.code })}
                       >
-                        <Trash2 className="w-3.5 h-3.5" />
+                        <Trash2 className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
                       </Button>
                     )}
                   </div>
