@@ -20,6 +20,13 @@ interface CartContextType {
   removeItem: (id: string, sortOrder?: number) => void;
   updateQuantity: (id: string, quantity: number, sortOrder?: number) => void;
   clearCart: () => void;
+  /**
+   * Whether the visitor has changed the cart in this session, as opposed to
+   * it being restored from localStorage on load. A restored cart is not
+   * evidence of interest, and treating it as such filed form captures
+   * against visitors who had done nothing but open the page.
+   */
+  touched: boolean;
   total: number;
   isOpen: boolean;
   setIsOpen: (isOpen: boolean) => void;
@@ -30,6 +37,9 @@ const CartContext = createContext<CartContextType | undefined>(undefined);
 export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [items, setItems] = useState<CartItem[]>([]);
   const [isOpen, setIsOpen] = useState(false);
+  // Set by the three mutators below, never by the restore effect or by
+  // clearCart - both of those run without the visitor doing anything.
+  const [touched, setTouched] = useState(false);
 
   // Load cart from localStorage on mount
   useEffect(() => {
@@ -49,6 +59,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [items]);
 
   const addItem = useCallback((item: Omit<CartItem, 'quantity'>) => {
+    setTouched(true);
     setItems(prev => {
       const existing = prev.find(i => i.id === item.id && i.sort_order === item.sort_order);
       if (existing) {
@@ -59,6 +70,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const removeItem = useCallback((id: string, sortOrder?: number) => {
+    setTouched(true);
     setItems(prev => {
       const itemToRemove = prev.find(i => i.id === id && (sortOrder === undefined || i.sort_order === sortOrder));
       if (!itemToRemove) return prev;
@@ -87,6 +99,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       removeItem(id, sortOrder);
       return;
     }
+    setTouched(true);
     setItems(prev => prev.map(i => (i.id === id && (sortOrder === undefined || i.sort_order === sortOrder)) ? { ...i, quantity } : i));
   }, [removeItem]);
 
@@ -97,7 +110,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const total = items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
 
   return (
-    <CartContext.Provider value={{ items, addItem, removeItem, updateQuantity, clearCart, total, isOpen, setIsOpen }}>
+    <CartContext.Provider value={{ items, addItem, removeItem, updateQuantity, clearCart, touched, total, isOpen, setIsOpen }}>
       {children}
     </CartContext.Provider>
   );

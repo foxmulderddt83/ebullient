@@ -801,7 +801,7 @@ export const BookingWizard = ({ allowedPackageIds = null }: BookingWizardProps =
     window.addEventListener("resize", updateMobileView);
     return () => window.removeEventListener("resize", updateMobileView);
   }, []);
-  const { items, total, addItem, updateQuantity, removeItem, clearCart } = useCart();
+  const { items, total, addItem, updateQuantity, removeItem, clearCart, touched: cartTouched } = useCart();
 
   // Agent coupon. Declared here (rather than beside the other checkout state
   // further down) because the payable totals below depend on it.
@@ -1181,7 +1181,15 @@ export const BookingWizard = ({ allowedPackageIds = null }: BookingWizardProps =
   useEffect(() => {
     const ctx = readShareContext();
     if (!ctx.shareLinkId && !ctx.landingPageId) return;
-    if (!contactInfo.name && !contactInfo.email && !contactInfo.phone && items.length === 0) return;
+
+    // Something the visitor actually did. A cart alone used to be enough,
+    // but the cart is restored from localStorage on load, so an item left
+    // over from an earlier visit filed a capture on a plain refresh - the
+    // agent got a row with no name, no contact and no flight, for someone
+    // who had not typed, scrolled or clicked. The cart only counts when
+    // this session is the one that changed it.
+    const typed = !!(contactInfo.name || contactInfo.email || contactInfo.phone);
+    if (!typed && !(cartTouched && items.length > 0)) return;
 
     const timer = setTimeout(() => {
       captureShareForm({
@@ -1204,7 +1212,8 @@ export const BookingWizard = ({ allowedPackageIds = null }: BookingWizardProps =
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [contactInfo.name, contactInfo.email, contactInfo.phone, selectedDate, selectedTime,
-      specialRequests, items, total, discountAmount, step, checkoutStep, appliedCoupon?.code]);
+      specialRequests, items, total, discountAmount, step, checkoutStep, appliedCoupon?.code,
+      cartTouched]);
 
   useEffect(() => {
     let timer: NodeJS.Timeout;

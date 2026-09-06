@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, lazy, Suspense } from "react";
+import { useEffect, useState, lazy, Suspense } from "react";
 import { useParams } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
 import { Header } from "@/components/Header";
@@ -84,36 +84,34 @@ export default function AgentLanding() {
   // to this landing page as well as to the share link the visitor came from.
   useShareTracking(page?.id ?? null);
 
-  // The cart is read through a ref so this can inspect it without the
-  // prune below re-running every time the cart changes - which would fight
-  // the visitor as they add things.
-  const { items: cartItems, removeItem } = useCart();
-  const cartRef = useRef(cartItems);
-  cartRef.current = cartItems;
-  const prunedFor = useRef<string | null>(null);
+  const { clearCart } = useCart();
 
   /**
-   * A landing page sells one category, so the cart has to arrive empty of
-   * everything else.
+   * A landing page starts the visitor from nothing.
    *
-   * Without this, a package left over from another page stays in the cart
-   * as the booking's one permitted sort_order 0 item, and
-   * FlightPackagesSection greys out every package on THIS page - the
-   * visitor lands on a page they cannot buy anything from, with no
-   * explanation. Only foreign items go: anything already added from this
-   * page's own category is the visitor's work and is left alone.
+   * The cart is restored from localStorage on every load, so a package left
+   * over from an earlier visit came back on a plain refresh. That alone was
+   * enough for BookingWizard to file a form capture - its guard treats a
+   * non-empty cart as intent - so the agent got a row for a visitor who had
+   * not typed, scrolled or clicked anything.
+   *
+   * Emptying it also settles what the old category prune was for: a foreign
+   * package could sit in the cart as the booking's one permitted sort_order
+   * 0 item and leave FlightPackagesSection greying out every package on this
+   * page.
+   *
+   * The stored key goes as well as the state. CartProvider sits above this
+   * page, so on a first load React runs this effect before the provider's
+   * own restore, which would otherwise put the old cart straight back.
    */
   useEffect(() => {
-    if (!page?.category_id) return;              // "All packages" pages sell everything
-    if (prunedFor.current === page.id) return;   // once per page, not once per render
-    prunedFor.current = page.id;
-
-    for (const item of cartRef.current) {
-      if (item.category_id && item.category_id !== page.category_id) {
-        removeItem(item.id, item.sort_order);
-      }
+    try {
+      localStorage.removeItem('cart');
+    } catch {
+      // Storage can throw outright in private mode; the state clear still stands.
     }
-  }, [page?.id, page?.category_id, removeItem]);
+    clearCart();
+  }, [clearCart]);
 
   useEffect(() => {
     let cancelled = false;
