@@ -1198,7 +1198,7 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
           <p className="text-[11px] sm:text-xs text-slate-500 font-medium mt-0.5">
             Coupons, trackable share links, agent landing pages and their performance.
           </p>
-          <div className="mt-1 flex flex-col sm:flex-row items-start sm:items-center gap-1.5">
+          <div className="mt-1 flex flex-wrap items-center gap-1.5">
             <p className="inline-flex items-center gap-1.5 rounded-md bg-slate-100 px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-500">
               <Lock className="h-3 w-3" /> Your account only
             </p>
