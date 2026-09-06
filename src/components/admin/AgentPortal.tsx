@@ -1191,21 +1191,21 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
   const uncategorised = packages.filter(p => !p.category_id || !categories.some(c => c.id === p.category_id));
 
   return (
-    <div className="space-y-6 w-full min-w-0 pr-4 sm:pr-0">
-      <div className="flex items-start justify-between gap-3">
+    <div className="space-y-3 sm:space-y-6 w-full min-w-0 pr-4 sm:pr-0">
+      <div className="flex items-start justify-between gap-2 sm:gap-3">
         <div className="min-w-0">
-          <h2 className="text-base sm:text-lg font-black uppercase tracking-tight text-slate-900">Agent Portal</h2>
+          <h2 className="text-sm sm:text-lg font-black uppercase tracking-tight text-slate-900">Agent Portal</h2>
           <p className="text-[11px] sm:text-xs text-slate-500 font-medium mt-0.5">
             Coupons, trackable share links, agent landing pages and their performance.
           </p>
           <div className="mt-1 flex flex-wrap items-center gap-1.5">
-            <p className="inline-flex items-center gap-1.5 rounded-md bg-slate-100 px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-500">
-              <Lock className="h-3 w-3" /> Your account only
+            <p className="inline-flex items-center gap-1 rounded-md bg-slate-100 px-1.5 py-0.5 text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-slate-500">
+              <Lock className="h-2.5 w-2.5 sm:h-3 sm:w-3" /> Your account only
             </p>
-            <div className="inline-flex items-center gap-1.5 rounded-md bg-slate-100 px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-600">
-              <Users className="h-3 w-3" /> {profile.name || '\u2014'}
+            <div className="inline-flex items-center gap-1 rounded-md bg-slate-100 px-1.5 py-0.5 text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-slate-600">
+              <Users className="h-2.5 w-2.5 sm:h-3 sm:w-3" /> {profile.name || '\u2014'}
             </div>
-            <div className="inline-flex items-center gap-1.5 rounded-md bg-slate-100 px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-600">
+            <div className="inline-flex items-center gap-1 rounded-md bg-slate-100 px-1.5 py-0.5 text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-slate-600">
               {profile.phone || '\u2014'}
             </div>
           </div>
@@ -1214,25 +1214,25 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
 
       <Tabs defaultValue="coupons" className="w-full">
         <TabsList className="grid w-full grid-cols-2 gap-1 bg-slate-100 rounded-2xl p-1 h-auto sm:flex sm:w-auto sm:flex-wrap">
-          <TabsTrigger value="coupons" className="rounded-xl text-[11px] sm:text-xs font-bold gap-1.5 px-2 sm:px-4 py-2">
-            <Ticket className="w-3.5 h-3.5 shrink-0" /> Coupons
+          <TabsTrigger value="coupons" className="rounded-xl text-[10px] sm:text-xs font-bold gap-1 sm:gap-1.5 px-1.5 sm:px-4 py-1.5 sm:py-2">
+            <Ticket className="w-3 h-3 sm:w-3.5 sm:h-3.5 shrink-0" /> Coupons
           </TabsTrigger>
-          <TabsTrigger value="slash" className="rounded-xl text-[11px] sm:text-xs font-bold gap-1.5 px-2 sm:px-4 py-2">
-            <Gamepad2 className="w-3.5 h-3.5 shrink-0" /> <span className="truncate">Price Slash</span>
+          <TabsTrigger value="slash" className="rounded-xl text-[10px] sm:text-xs font-bold gap-1 sm:gap-1.5 px-1.5 sm:px-4 py-1.5 sm:py-2">
+            <Gamepad2 className="w-3 h-3 sm:w-3.5 sm:h-3.5 shrink-0" /> <span className="truncate">Price Slash</span>
           </TabsTrigger>
-          <TabsTrigger value="links" className="rounded-xl text-[11px] sm:text-xs font-bold gap-1.5 px-2 sm:px-4 py-2">
-            <Link2 className="w-3.5 h-3.5 shrink-0" /> <span className="truncate">Share Links</span>
+          <TabsTrigger value="links" className="rounded-xl text-[10px] sm:text-xs font-bold gap-1 sm:gap-1.5 px-1.5 sm:px-4 py-1.5 sm:py-2">
+            <Link2 className="w-3 h-3 sm:w-3.5 sm:h-3.5 shrink-0" /> <span className="truncate">Share Links</span>
           </TabsTrigger>
-          <TabsTrigger value="pages" className="rounded-xl text-[11px] sm:text-xs font-bold gap-1.5 px-2 sm:px-4 py-2">
-            <FileCode className="w-3.5 h-3.5 shrink-0" /> <span className="truncate">Landing Pages</span>
+          <TabsTrigger value="pages" className="rounded-xl text-[10px] sm:text-xs font-bold gap-1 sm:gap-1.5 px-1.5 sm:px-4 py-1.5 sm:py-2">
+            <FileCode className="w-3 h-3 sm:w-3.5 sm:h-3.5 shrink-0" /> <span className="truncate">Landing Pages</span>
           </TabsTrigger>
-          <TabsTrigger value="analytics" className="rounded-xl text-[11px] sm:text-xs font-bold gap-1.5 px-2 sm:px-4 py-2">
-            <BarChart3 className="w-3.5 h-3.5 shrink-0" /> Statistics
+          <TabsTrigger value="analytics" className="rounded-xl text-[10px] sm:text-xs font-bold gap-1 sm:gap-1.5 px-1.5 sm:px-4 py-1.5 sm:py-2">
+            <BarChart3 className="w-3 h-3 sm:w-3.5 sm:h-3.5 shrink-0" /> Statistics
           </TabsTrigger>
         </TabsList>
 
         {/* ============================ COUPONS ============================ */}
-        <TabsContent value="coupons" className="space-y-4 mt-5">
+        <TabsContent value="coupons" className="space-y-2 sm:space-y-4 mt-3 sm:mt-5">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-3">
             <p className="text-[11px] sm:text-xs text-slate-500 font-medium">
               {coupons.length} coupon{coupons.length === 1 ? '' : 's'} ·{' '}
@@ -1269,7 +1269,7 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
                   ? c.category_ids.map(id => categories.find(x => x.id === id)?.name ?? '—').join(', ')
                   : 'All packages';
               return (
-                <div key={c.id} className="rounded-2xl border border-slate-200 bg-white p-4 space-y-2 pr-6 sm:pr-4">
+                <div key={c.id} className="rounded-lg border border-slate-200 bg-white p-3 sm:p-4 space-y-1.5 sm:space-y-2 pr-6 sm:pr-4">
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
                       <button
