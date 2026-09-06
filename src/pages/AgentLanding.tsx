@@ -170,6 +170,16 @@ export default function AgentLanding() {
           }
         }
 
+        // No link, or a link that carries no code of its own: the coupon the
+        // page runs is what it sells at, and the visitor should never have to
+        // type it. agent_coupons has no public select policy, so the id is
+        // turned into a code by a definer function rather than read here.
+        if (!who.coupon_code && p.coupon_id) {
+          const { data: pageCode } = await supabase.rpc('landing_page_coupon', { p_page_id: p.id });
+          if (cancelled) return;
+          if (pageCode) who = { ...who, coupon_code: pageCode as string };
+        }
+
         if (cancelled) return;
         setPresenter(who);
 
