@@ -25,8 +25,8 @@ import {
   PieChart, Pie, Cell, Legend,
 } from "recharts";
 import {
-  Loader2, Plus, Trash2, Copy, Ticket, Link2, FileCode, BarChart3, RefreshCw,
-  Save, Eye, ExternalLink, Globe, MousePointerClick, ScrollText, ClipboardList,
+  Loader2, Plus, Trash2, Copy, Ticket, FileCode, BarChart3, RefreshCw,
+  Save, Eye, Globe, MousePointerClick, ScrollText, ClipboardList,
   X, Percent, CheckCircle2, XCircle, Users, QrCode, MessageCircle, Code, Lock,
   Gamepad2, Timer, Trophy, Zap, RotateCcw, HelpCircle,
 } from "lucide-react";
@@ -671,6 +671,9 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
     if (c.discount_type === 'percent' && Number(c.discount_value) > 100) {
       toast.error('A percentage discount cannot exceed 100%'); return;
     }
+    if (c.starts_at && c.expires_at && new Date(c.starts_at) >= new Date(c.expires_at)) {
+      toast.error('The coupon must expire after it starts'); return;
+    }
 
     setSaving(true);
     try {
@@ -950,7 +953,9 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
         destination: l.destination || 'booking',
         package_id: l.package_id || null,
         category_id: l.category_id || null,
-        coupon_id: l.coupon_id || null,
+        // Always null: the page decides the coupon, so a link carrying one of
+        // its own would be a second answer with no UI to see or change it.
+        coupon_id: null,
         landing_page_id: l.landing_page_id || null,
         // Always the account's own number, so a link cannot advertise someone else's.
         whatsapp_number: profile.phone ? profile.phone.replace(/\D/g, '') : null,
@@ -1495,9 +1500,6 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
           <TabsTrigger value="slash" className="rounded-xl text-[10px] sm:text-xs font-bold gap-1 sm:gap-1.5 px-1.5 sm:px-4 py-1.5 sm:py-2">
             <Gamepad2 className="w-3 h-3 sm:w-3.5 sm:h-3.5 shrink-0" /> <span className="truncate">Price Slash</span>
           </TabsTrigger>
-          <TabsTrigger value="links" className="rounded-xl text-[10px] sm:text-xs font-bold gap-1 sm:gap-1.5 px-1.5 sm:px-4 py-1.5 sm:py-2">
-            <Link2 className="w-3 h-3 sm:w-3.5 sm:h-3.5 shrink-0" /> <span className="truncate">Share Links</span>
-          </TabsTrigger>
           <TabsTrigger value="pages" className="rounded-xl text-[10px] sm:text-xs font-bold gap-1 sm:gap-1.5 px-1.5 sm:px-4 py-1.5 sm:py-2">
             <FileCode className="w-3 h-3 sm:w-3.5 sm:h-3.5 shrink-0" /> <span className="truncate">Landing Pages</span>
           </TabsTrigger>
@@ -1958,224 +1960,6 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
           </div>
         </TabsContent>
 
-        {/* ========================== SHARE LINKS ========================== */}
-        <TabsContent value="links" className="space-y-4 mt-5">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-3">
-            <p className="text-[11px] sm:text-xs text-slate-500 font-medium">
-              {shareLinks.length} link{shareLinks.length === 1 ? '' : 's'} ·{' '}
-              {shareLinks.reduce((s, l) => s + l.click_count, 0)} total clicks
-            </p>
-            <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm" onClick={reload} className="gap-2 rounded-xl shrink-0 px-3 sm:px-4">
-                <RefreshCw className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">Refresh</span>
-              </Button>
-              {canEdit && (
-                <Button size="sm" onClick={() => setEditingLink(newShareLink())} className="gap-2 rounded-xl bg-[#CD5C5C] hover:bg-[#A14A4A] shrink-0 px-3 sm:px-4">
-                  <Plus className="w-3.5 h-3.5" />
-                  <span className="hidden sm:inline">New Share Link</span>
-                  <span className="sm:hidden">New</span>
-                </Button>
-              )}
-            </div>
-          </div>
-
-          {/* Stacked cards on phones - the desktop table needs six columns. */}
-          <div className="space-y-2.5 sm:hidden">
-            {shareLinks.length === 0 && (
-              <p className="text-center py-10 text-sm text-slate-400">
-                No share links yet. Create one to track a package you send to a customer.
-              </p>
-            )}
-            {shareLinks.map(l => {
-              const url = buildShareLinkUrl(l.token);
-              const opens = l.destination === 'landing'
-                ? pages.find(p => p.id === l.landing_page_id)?.title ?? 'Landing page'
-                : l.destination === 'packages'
-                  ? 'All packages'
-                  : packageName(l.package_id);
-              return (
-                <div key={l.id} className="rounded-2xl border border-slate-200 bg-white p-4 space-y-2">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2 min-w-0">
-                        <p className="font-bold text-sm text-slate-900 truncate">{l.label || l.token}</p>
-                        <Badge variant="outline" className={`text-[9px] font-bold uppercase shrink-0 ${linkStatus(l).tone}`}>
-                          {linkStatus(l).label}
-                        </Badge>
-                      </div>
-                      {l.agent_name && (
-                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider truncate">{l.agent_name}</p>
-                      )}
-                      {(l.starts_at || l.expires_at) && (
-                        <p className="mt-1.5 flex items-start gap-1.5 text-sm font-semibold leading-snug text-indigo-700">
-                          <Timer className="mt-0.5 h-4 w-4 shrink-0" />
-                          <span>
-                            {l.starts_at && format(new Date(l.starts_at), 'dd MMM yyyy, h:mm a')}
-                            {l.starts_at && l.expires_at && ' until '}
-                            {l.expires_at && format(new Date(l.expires_at), 'dd MMM yyyy, h:mm a')}
-                            {getRemainingTime(l.expires_at) && ` (${getRemainingTime(l.expires_at)} left)`}
-                          </span>
-                        </p>
-                      )}
-                    </div>
-                    <div className="text-right shrink-0">
-                      <p className="text-base font-black text-slate-900 leading-none">{l.click_count}</p>
-                      <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400">clicks</p>
-                    </div>
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={() => copyToClipboard(url)}
-                    className="block w-full text-left text-[11px] font-mono text-slate-400 break-all active:text-[#CD5C5C]"
-                  >
-                    {url}
-                  </button>
-
-                  <div className="divide-y divide-slate-100 border-t border-slate-100 pt-1">
-                    <Field label="Opens">{opens}</Field>
-                    <Field label="Coupon">
-                      <span className="font-mono font-bold text-[#CD5C5C]">
-                        {coupons.find(c => c.id === l.coupon_id)?.code ?? '—'}
-                      </span>
-                    </Field>
-                    <Field label="Visitors">{l.unique_visitors}</Field>
-                  </div>
-
-                  <div className="flex gap-2 pt-1">
-                    <Button variant="outline" size="sm" className="flex-1 h-9 rounded-lg text-[11px] gap-1.5" onClick={() => copyToClipboard(url)}>
-                      <Copy className="w-3.5 h-3.5" /> Copy
-                    </Button>
-                    <Button variant="outline" size="icon" className="h-9 w-9 shrink-0 rounded-lg" onClick={() => setQrLink(l)}>
-                      <QrCode className="w-3.5 h-3.5" />
-                    </Button>
-                    <Button variant="outline" size="icon" className="h-9 w-9 shrink-0 rounded-lg" asChild>
-                      <a href={url} target="_blank" rel="noreferrer"><ExternalLink className="w-3.5 h-3.5" /></a>
-                    </Button>
-                    {canEdit && (
-                      <>
-                        <Button variant="outline" size="icon" className="h-9 w-9 shrink-0 rounded-lg" onClick={() => setEditingLink(l)}>
-                          <Eye className="w-3.5 h-3.5" />
-                        </Button>
-                        <Button
-                          variant="outline" size="icon"
-                          className="h-9 w-9 shrink-0 rounded-lg text-red-500"
-                          onClick={() => setConfirmDelete({ table: 'agent_share_links', id: l.id, label: l.token })}
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </Button>
-                      </>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
-          <div className="hidden sm:block rounded-2xl border border-slate-200 overflow-hidden bg-white">
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow className="bg-slate-50">
-                    <TableHead className="text-[10px] uppercase tracking-widest font-bold">Link</TableHead>
-                    <TableHead className="text-[10px] uppercase tracking-widest font-bold">Status</TableHead>
-                    <TableHead className="text-[10px] uppercase tracking-widest font-bold">Opens</TableHead>
-                    <TableHead className="text-[10px] uppercase tracking-widest font-bold">Coupon</TableHead>
-                    <TableHead className="text-[10px] uppercase tracking-widest font-bold">Clicks</TableHead>
-                    <TableHead className="text-[10px] uppercase tracking-widest font-bold">Visitors</TableHead>
-                    <TableHead className="text-right text-[10px] uppercase tracking-widest font-bold">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {shareLinks.length === 0 && (
-                    <TableRow>
-                      <TableCell colSpan={6} className="text-center py-10 text-sm text-slate-400">
-                        No share links yet. Create one to track a package you send to a customer.
-                      </TableCell>
-                    </TableRow>
-                  )}
-                  {shareLinks.map(l => {
-                    const url = buildShareLinkUrl(l.token);
-                    const opens = l.destination === 'landing'
-                      ? pages.find(p => p.id === l.landing_page_id)?.title ?? 'Landing page'
-                      : l.destination === 'packages'
-                        ? 'All packages'
-                        : packageName(l.package_id);
-                    return (
-                      <TableRow key={l.id} className="hover:bg-slate-50/60">
-                        <TableCell>
-                          <p className="font-bold text-sm text-slate-900">{l.label || l.token}</p>
-                          <button
-                            type="button"
-                            onClick={() => copyToClipboard(url)}
-                            className="text-[11px] font-mono text-slate-400 hover:text-[#CD5C5C] transition-colors"
-                          >
-                            {url}
-                          </button>
-                          {l.agent_name && (
-                            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">{l.agent_name}</p>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="outline" className={`text-[9px] font-bold uppercase ${linkStatus(l).tone}`}>
-                            {linkStatus(l).label}
-                          </Badge>
-                          {(l.starts_at || l.expires_at) && (
-                            <div className="mt-1 space-y-1">
-                              <p className="text-[9px] text-slate-600 font-medium">
-                                {l.starts_at && format(new Date(l.starts_at), 'dd MMM, h:mm a')}
-                                {l.starts_at && l.expires_at && ' → '}
-                                {l.expires_at && format(new Date(l.expires_at), 'dd MMM, h:mm a')}
-                              </p>
-                              {getRemainingTime(l.expires_at) && (
-                                <p className="text-[9px] font-semibold text-indigo-700">
-                                  {getRemainingTime(l.expires_at)} left
-                                </p>
-                              )}
-                            </div>
-                          )}
-                        </TableCell>
-                        <TableCell className="text-xs text-slate-600 max-w-[200px] truncate" title={opens}>{opens}</TableCell>
-                        <TableCell className="text-xs font-mono font-bold text-[#CD5C5C]">
-                          {coupons.find(c => c.id === l.coupon_id)?.code ?? '—'}
-                        </TableCell>
-                        <TableCell className="text-sm font-black text-slate-900">{l.click_count}</TableCell>
-                        <TableCell className="text-sm font-bold text-slate-600">{l.unique_visitors}</TableCell>
-                        <TableCell className="text-right whitespace-nowrap">
-                          <Button variant="ghost" size="icon" className="h-8 w-8" title="Copy link" onClick={() => copyToClipboard(url)}>
-                            <Copy className="w-3.5 h-3.5" />
-                          </Button>
-                          <Button variant="ghost" size="icon" className="h-8 w-8" title="QR code" onClick={() => setQrLink(l)}>
-                            <QrCode className="w-3.5 h-3.5" />
-                          </Button>
-                          <Button variant="ghost" size="icon" className="h-8 w-8" title="Open" asChild>
-                            <a href={url} target="_blank" rel="noreferrer"><ExternalLink className="w-3.5 h-3.5" /></a>
-                          </Button>
-                          {canEdit && (
-                            <>
-                              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setEditingLink(l)}>
-                                <Eye className="w-3.5 h-3.5" />
-                              </Button>
-                              <Button
-                                variant="ghost" size="icon"
-                                className="h-8 w-8 text-red-500 hover:text-red-600"
-                                onClick={() => setConfirmDelete({ table: 'agent_share_links', id: l.id, label: l.token })}
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </Button>
-                            </>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            </div>
-          </div>
-        </TabsContent>
-
         {/* ========================= LANDING PAGES ========================= */}
         <TabsContent value="pages" className="space-y-4 mt-5">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-3">
@@ -2272,10 +2056,9 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
                       </Badge>
                     </div>
 
-                    {/* The same share links the Share Links tab owns, reachable
-                        from the page they promote. Creating and editing still
-                        happen in the one editor, so there is no second copy of
-                        the rules - this only saves the hunt for the right row. */}
+                    {/* Share links now live here and nowhere else. A page is
+                        reachable at its own /p/slug without one; a link is only
+                        for attributing traffic to a particular agent or blast. */}
                     <div className="space-y-1.5 border-t border-slate-100 pt-2.5">
                       <div className="flex items-center justify-between gap-2">
                         <p className="text-[9px] font-bold uppercase tracking-widest text-slate-500">Share links</p>
@@ -2765,12 +2548,33 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
                 </div>
               </div>
 
-              <div className="rounded-xl bg-slate-50 border border-slate-200 p-3">
-                <p className="text-[11px] text-slate-500 font-medium leading-snug">
-                  <span className="font-bold uppercase tracking-wider text-slate-600">When it runs</span> is set
-                  on the share link that carries this code. The coupon stops working at checkout the moment
-                  that link expires — so schedule the campaign on the Share Links tab.
-                </p>
+              {/* The window lives on the coupon itself. It used to be borrowed
+                  from whichever share link carried the code, which left a coupon
+                  with no link unschedulable - and now that pages carry coupons
+                  directly, there is nowhere else for these dates to live. */}
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-1.5">
+                  <Label className="text-[10px] font-bold uppercase tracking-widest text-slate-500">
+                    Starts <span className="normal-case tracking-normal font-medium text-slate-400">(blank = now)</span>
+                  </Label>
+                  <Input
+                    type="datetime-local"
+                    value={toLocalInput(editingCoupon.starts_at ?? null)}
+                    onChange={(e) => setEditingCoupon({ ...editingCoupon, starts_at: fromLocalInput(e.target.value) })}
+                    className="rounded-xl" disabled={!canEdit}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-[10px] font-bold uppercase tracking-widest text-slate-500">
+                    Expires <span className="normal-case tracking-normal font-medium text-slate-400">(blank = never)</span>
+                  </Label>
+                  <Input
+                    type="datetime-local"
+                    value={toLocalInput(editingCoupon.expires_at ?? null)}
+                    onChange={(e) => setEditingCoupon({ ...editingCoupon, expires_at: fromLocalInput(e.target.value) })}
+                    className="rounded-xl" disabled={!canEdit}
+                  />
+                </div>
               </div>
 
               <div className="grid gap-4 sm:grid-cols-2">
@@ -3410,27 +3214,9 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
                 </p>
               </div>
 
-              <div className="space-y-1.5">
-                <Label className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Auto-apply coupon</Label>
-                <Select
-                  value={editingLink.coupon_id || 'none'}
-                  onValueChange={(v) => setEditingLink({ ...editingLink, coupon_id: v === 'none' ? null : v })}
-                  disabled={!canEdit}
-                >
-                  <SelectTrigger className="rounded-xl"><SelectValue placeholder="No coupon" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">No coupon</SelectItem>
-                    {coupons.map(c => (
-                      <SelectItem key={c.id} value={c.id}>
-                        {c.code} — {c.discount_type === 'percent' ? `${c.discount_value}%` : `RM ${c.discount_value}`}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <p className="text-[11px] text-slate-400 font-medium">
-                  The code is pre-filled at checkout for anyone who arrives through this link.
-                </p>
-              </div>
+              {/* No coupon picker here. The page already decides whether it
+                  runs a coupon or a slash game, and a second copy on the link
+                  only created two answers to one question. */}
 
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-1.5">
@@ -3451,11 +3237,7 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
                     onChange={(e) => setEditingLink({ ...editingLink, expires_at: fromLocalInput(e.target.value) })}
                     className="rounded-xl" disabled={!canEdit}
                   />
-                  <p className="text-[11px] text-slate-400 font-medium">
-                    {editingLink.coupon_id
-                      ? 'The coupon on this link stops working at checkout after this.'
-                      : 'Leave empty to run forever.'}
-                  </p>
+                  <p className="text-[11px] text-slate-400 font-medium">Leave empty to run forever.</p>
                 </div>
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-3 pt-6">
                   <Label className="text-xs font-bold text-slate-700">Active</Label>
@@ -3699,10 +3481,10 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
 
                 <div className="rounded-xl bg-slate-50 border border-slate-200 p-3">
                   <p className="text-[10px] text-slate-500 font-medium leading-snug">
-                    <span className="font-bold uppercase tracking-wider text-slate-600">Template only.</span>{' '}
-                    The agent's name, coupon and WhatsApp number come from the share link that
-                    opens this page — set them on the Share Links tab, so one design can serve
-                    several agents.
+                    <span className="font-bold uppercase tracking-wider text-slate-600">This page carries it.</span>{' '}
+                    The coupon and the slash game are decided here, and here only. A share link
+                    made for this page can still put a different agent's name and WhatsApp
+                    number on it, so one design can serve several agents.
                   </p>
                 </div>
 
@@ -3732,17 +3514,18 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
                 {editingPage.id && (
                   <div className="pt-2 border-t border-slate-100 space-y-2">
                     {/* Preview renders the real page - your content plus the
-                        packages and the booking steps - and works on a
-                        draft. It is for proofing the design; the link you
-                        actually give a customer is made on the Share Links tab. */}
+                        packages and the booking steps - and works on a draft.
+                        It is for proofing the design; what you send a customer
+                        is the published /p/slug itself. */}
                     <Button variant="outline" size="sm" className="w-full h-8 rounded-lg text-[11px] gap-1.5" asChild>
                       <a href={`${buildLandingPageUrl(editingPage.slug || '')}?preview=1`} target="_blank" rel="noreferrer">
                         <Eye className="w-3 h-3" /> Preview full page
                       </a>
                     </Button>
                     <p className="text-[10px] text-slate-400 font-medium leading-snug">
-                      Save first — preview loads the stored version. To give this page to a
-                      customer, make a link for it on the Share Links tab.
+                      Save first — preview loads the stored version. Publish it and the page
+                      is live at its own address; add a share link on the page's card only if
+                      you need the visits attributed to a particular agent.
                     </p>
                   </div>
                 )}
