@@ -580,6 +580,12 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
   const [editingPage, setEditingPage] = useState<Partial<LandingPage> | null>(null);
   const [qrLink, setQrLink] = useState<ShareLink | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<{ table: string; id: string; label: string } | null>(null);
+  /**
+   * Set when a save had to switch the packages off because none were ticked.
+   * Shown afterwards rather than blocking the save: the page still saved, and
+   * this only explains why one switch came back different.
+   */
+  const [packagesOffNotice, setPackagesOffNotice] = useState<string | null>(null);
   const [uploadingPageImage, setUploadingPageImage] = useState(false);
   const [pageEditorMode, setPageEditorMode] = useState<'visual' | 'code'>('visual');
   // The page's HTML as it was when the editor opened - the reference the
@@ -1227,6 +1233,19 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
         }
       }
 
+      /**
+       * The packages were asked for, nothing is pricing them, and not one was
+       * ticked. There is no sensible page in that combination - it would show
+       * the booking steps with an empty carousel - so the switch goes off and
+       * the agent is told, rather than the save being refused over something
+       * that has an obvious right answer.
+       */
+      const emptyPackagePick =
+        !p.coupon_id &&
+        !campaignId &&
+        (p.show_wizard ?? true) &&
+        (p.settings?.package_ids?.length ?? 0) === 0;
+
       const payload = {
         slug,
         title: p.title.trim(),
@@ -1243,7 +1262,11 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
         // form: a page saved before this rule existed, or one where the coupon
         // was attached after the switch was turned off, would otherwise keep a
         // stored false and quietly discount packages it never shows.
-        show_wizard: (p.coupon_id || campaignId) ? true : (p.show_wizard ?? true),
+        // On when something prices the page. Off when the packages were asked
+        // for but none were picked - see emptyPackagePick below.
+        show_wizard: (p.coupon_id || campaignId)
+          ? true
+          : emptyPackagePick ? false : (p.show_wizard ?? true),
         show_header: p.show_header ?? true,
         show_footer: p.show_footer ?? true,
         is_published: p.is_published ?? false,
@@ -1284,6 +1307,7 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
         setPages(prev => prev.map(page => page.id === savedId ? { ...page, ...payload } : page));
       }
       setEditingPage(null);
+      if (emptyPackagePick) setPackagesOffNotice(p.title.trim());
     } catch (e: any) {
       const msg = e?.message?.includes('agent_landing_pages_slug_key')
         ? 'That page URL is already taken.'
@@ -3699,8 +3723,8 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
                       Packages on this page
                     </Label>
                     <p className="text-xs font-medium text-slate-500">
-                      Leave everything unticked to offer all of them. Tick some to narrow the page
-                      down to just those.
+                      Tick the ones this page should offer. Saving with none ticked switches the
+                      packages off — a page cannot sell an empty carousel.
                     </p>
                     <ScrollArea className="h-[180px] rounded-xl border border-slate-200 p-3">
                       <div className="space-y-3">
@@ -3739,11 +3763,16 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
                         })}
                       </div>
                     </ScrollArea>
-                    <p className="text-xs font-medium text-slate-500">
-                      {(editingPage.settings?.package_ids?.length ?? 0) === 0
-                        ? 'Showing every package.'
-                        : `Showing ${editingPage.settings!.package_ids!.length} of the packages.`}
-                    </p>
+                    {(editingPage.settings?.package_ids?.length ?? 0) === 0 ? (
+                      <p className="rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-2 text-xs font-medium leading-snug text-amber-800">
+                        Nothing ticked. Saving now will switch the packages off for this page.
+                      </p>
+                    ) : (
+                      <p className="text-xs font-medium text-slate-500">
+                        Offering {editingPage.settings!.package_ids!.length} package
+                        {editingPage.settings!.package_ids!.length === 1 ? '' : 's'}.
+                      </p>
+                    )}
                   </div>
                 )}
 
@@ -3958,6 +3987,30 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
               className="rounded-xl bg-red-600 hover:bg-red-700"
             >
               {clearing ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Delete'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Says what the save quietly changed. Informational only - the page is
+          already saved by the time this appears. */}
+      <AlertDialog open={!!packagesOffNotice} onOpenChange={(o) => !o && setPackagesOffNotice(null)}>
+        <AlertDialogContent className="w-[calc(100vw-2rem)] max-w-md rounded-2xl sm:rounded-3xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Packages switched off</AlertDialogTitle>
+            <AlertDialogDescription>
+              “{packagesOffNotice}” was saved with <strong>Show packages</strong> turned off, because
+              no package was ticked. Showing the booking steps above an empty carousel would have
+              given visitors nothing to choose from.
+              <br /><br />
+              To offer packages, open the page again, turn <strong>Show packages</strong> back on
+              and tick the ones you want. Attaching a coupon or a price slash game also works, and
+              holds the switch on for you, since either one decides the packages itself.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogAction className="rounded-xl bg-[#CD5C5C] hover:bg-[#A14A4A]">
+              Got it
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
