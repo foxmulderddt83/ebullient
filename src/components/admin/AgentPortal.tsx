@@ -104,6 +104,13 @@ interface LandingPage {
   package_id: string | null;
   category_id: string | null;
   coupon_id: string | null;
+  /**
+   * The packages this page offers, written out for the public page to read.
+   * Derived from the coupon or the game when either is attached, and chosen by
+   * hand when neither is. Empty means every package, which is what the wizard
+   * already does with an empty list.
+   */
+  settings: { package_ids?: string[] } | null;
   show_wizard: boolean;
   show_header: boolean;
   show_footer: boolean;
@@ -1133,7 +1140,16 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
         categoryId: packages.find(x => x.id === cm.package_id)?.category_id ?? null,
       };
     }
-    return { packageIds: [] as string[], categoryId: null as string | null };
+    // Neither a coupon nor a game is pricing this page, so whatever was ticked
+    // by hand is the offer. Empty still means every package - that is how the
+    // wizard already reads an empty list, so nothing downstream changes.
+    const picked = p.settings?.package_ids ?? [];
+    return {
+      packageIds: picked,
+      categoryId: picked.length === 1
+        ? packages.find(x => x.id === picked[0])?.category_id ?? null
+        : null,
+    };
   };
 
   const savePage = async () => {
@@ -3671,6 +3687,65 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
                     </p>
                   )}
                 </div>
+
+                {/* With nothing pricing the page, what it offers is a free
+                    choice. A coupon or a game decides this instead, which is
+                    why the picker is not offered alongside them. Only add-on
+                    free packages are listed: the wizard filters the main
+                    carousel only, so ticking an add-on would do nothing. */}
+                {!packagesRequired && (editingPage.show_wizard ?? true) && (
+                  <div className="space-y-2 pt-2 border-t border-slate-100">
+                    <Label className="text-[11px] font-bold uppercase tracking-widest text-slate-500">
+                      Packages on this page
+                    </Label>
+                    <p className="text-xs font-medium text-slate-500">
+                      Leave everything unticked to offer all of them. Tick some to narrow the page
+                      down to just those.
+                    </p>
+                    <ScrollArea className="h-[180px] rounded-xl border border-slate-200 p-3">
+                      <div className="space-y-3">
+                        {packagesByCategory.map(group => {
+                          const items = group.items.filter(x => x.sort_order === 0);
+                          if (!items.length) return null;
+                          return (
+                            <div key={group.id} className="space-y-1.5">
+                              <p className="text-[11px] font-black uppercase tracking-widest text-[#CD5C5C]">{group.name}</p>
+                              {items.map(pkg => {
+                                const chosen = editingPage.settings?.package_ids ?? [];
+                                return (
+                                  <label key={pkg.id} className="flex cursor-pointer items-center gap-2.5 pl-1">
+                                    <Checkbox
+                                      checked={chosen.includes(pkg.id)}
+                                      disabled={!canEdit}
+                                      onCheckedChange={(checked) => setEditingPage({
+                                        ...editingPage,
+                                        settings: {
+                                          ...(editingPage.settings ?? {}),
+                                          package_ids: checked
+                                            ? [...chosen, pkg.id]
+                                            : chosen.filter(x => x !== pkg.id),
+                                        },
+                                      })}
+                                    />
+                                    <span className="text-xs text-slate-700">
+                                      {pkg.name}
+                                      <span className="ml-1.5 text-slate-500">RM {Number(pkg.price).toFixed(0)}</span>
+                                    </span>
+                                  </label>
+                                );
+                              })}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </ScrollArea>
+                    <p className="text-xs font-medium text-slate-500">
+                      {(editingPage.settings?.package_ids?.length ?? 0) === 0
+                        ? 'Showing every package.'
+                        : `Showing ${editingPage.settings!.package_ids!.length} of the packages.`}
+                    </p>
+                  </div>
+                )}
 
                 {editingPage.id && (
                   <div className="pt-2 border-t border-slate-100 space-y-2">
