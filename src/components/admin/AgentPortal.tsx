@@ -442,6 +442,23 @@ const Field = ({ label, children }: { label: string; children: React.ReactNode }
   </div>
 );
 
+/** One figure in a page's results strip. Dimmed at zero so a busy page reads first. */
+const Stat = ({ label, value, tone }: { label: string; value: React.ReactNode; tone?: string }) => (
+  <div className="min-w-0">
+    <p className={`text-sm font-black leading-none ${tone || 'text-slate-900'}`}>{value}</p>
+    <p className="mt-1 text-[9px] font-bold uppercase tracking-widest text-slate-400">{label}</p>
+  </div>
+);
+
+/** Seconds as the shortest thing a person would say out loud. */
+const readableSeconds = (s: number) => {
+  if (!s) return '—';
+  if (s < 60) return `${s}s`;
+  const m = Math.floor(s / 60);
+  const rest = s % 60;
+  return rest ? `${m}m ${rest}s` : `${m}m`;
+};
+
 /**
  * Live "time left" for a challenge. Owns its own interval so a ticking
  * clock re-renders one badge per second rather than the whole portal.
@@ -1382,6 +1399,70 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
     };
   }, [scopedEvents, scopedCaptures, shareLinks, redemptions, analyticsScope]);
 
+  /**
+   * The same figures the Statistics tab reports, but cut per page so each one
+   * can be read on its own card. A row reaches a page either by naming it, or
+   * by naming a link that points at it, so both keys are folded in - counting
+   * only landing_page_id would drop every visit that arrived through a link.
+   */
+  const pageStats = useMemo(() => {
+    const linkToPage = new Map(shareLinks.map(l => [l.id, l.landing_page_id]));
+    const pageOf = (row: { landing_page_id: string | null; share_link_id: string | null }) =>
+      row.landing_page_id ?? (row.share_link_id ? linkToPage.get(row.share_link_id) ?? null : null);
+
+    const blank = () => ({
+      sessions: new Set<string>(), readSessions: new Set<string>(),
+      views: 0, exits: 0, seconds: 0,
+      leads: 0, booked: 0,
+    });
+    const acc = new Map<string, ReturnType<typeof blank>>();
+    const bucket = (id: string) => {
+      const existing = acc.get(id);
+      if (existing) return existing;
+      const fresh = blank();
+      acc.set(id, fresh);
+      return fresh;
+    };
+
+    events.forEach(e => {
+      const id = pageOf(e);
+      if (!id) return;
+      const b = bucket(id);
+      if (e.session_id) b.sessions.add(e.session_id);
+      if (e.scrolled && e.session_id) b.readSessions.add(e.session_id);
+      if (e.event_type === 'view') b.views += 1;
+      if (e.event_type === 'exit') { b.exits += 1; b.seconds += e.read_seconds || 0; }
+    });
+
+    captures.forEach(c => {
+      const id = pageOf(c);
+      if (!id) return;
+      const b = bucket(id);
+      if (c.completed) b.booked += 1;
+      else if (c.name || c.email || c.phone) b.leads += 1;
+    });
+
+    const out = new Map<string, {
+      views: number; visitors: number; readRate: number;
+      avgSeconds: number; leads: number; booked: number; clicks: number;
+    }>();
+    pages.forEach(p => {
+      const b = acc.get(p.id) ?? blank();
+      out.set(p.id, {
+        views: b.views,
+        visitors: b.sessions.size,
+        readRate: b.sessions.size ? Math.round((b.readSessions.size / b.sessions.size) * 100) : 0,
+        avgSeconds: b.exits ? Math.round(b.seconds / b.exits) : 0,
+        leads: b.leads,
+        booked: b.booked,
+        clicks: shareLinks
+          .filter(l => l.landing_page_id === p.id)
+          .reduce((s, l) => s + (l.click_count || 0), 0),
+      });
+    });
+    return out;
+  }, [events, captures, shareLinks, pages]);
+
   /** Region breakdown from the IP lookup, most-visited first. */
   const regionData = useMemo(() => {
     const map = new Map<string, { name: string; sessions: Set<string>; hits: number }>();
@@ -1973,7 +2054,9 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
             </div>
           </div>
 
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          {/* One page per row rather than a grid of tiles: each row carries its
+              own results and its game's progress, which need the full width. */}
+          <div className="space-y-3">
             {pages.length === 0 && (
               <p className="text-sm text-slate-400 col-span-full text-center py-10">
                 No landing pages yet. Build one with the same editor used for document templates.
@@ -1981,7 +2064,8 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
             )}
             {pages.map(p => {
               const pageLinks = shareLinks.filter(l => l.landing_page_id === p.id);
-              const linkCount = pageLinks.length;
+              const s = pageStats.get(p.id);
+              const campaign = campaigns.find(c => c.id === p.slash_campaign_id) || null;
               return (
                 <Card key={p.id} className="border-slate-200 rounded-2xl hover:shadow-md transition-shadow">
                   <CardHeader className="pb-2">
@@ -2026,26 +2110,63 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
                     <CardDescription className="text-[11px] font-mono truncate">/p/{p.slug}</CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-3">
-                    <div className="flex flex-wrap gap-1.5 text-[10px]">
-                      {p.show_wizard && <Badge variant="secondary" className="text-[9px]">Packages</Badge>}
-                      {p.slash_campaign_id && (() => {
-                        const cm = campaigns.find(c => c.id === p.slash_campaign_id);
-                        const g = SLASH_GAMES.find(x => x.id === cm?.game_type);
-                        return cm ? (
-                          <Badge variant="secondary" className="bg-[#CD5C5C]/10 text-[9px] text-[#CD5C5C]">
-                            {g?.icon} {g?.name}
-                          </Badge>
-                        ) : null;
-                      })()}
-                      <Badge
-                        variant="secondary"
-                        className={`text-[9px] ${linkCount === 0 ? 'text-amber-700 bg-amber-50' : ''}`}
-                      >
-                        {linkCount === 0
-                          ? 'No share link yet'
-                          : `${linkCount} share link${linkCount === 1 ? '' : 's'}`}
-                      </Badge>
+                    {/* The game and the link count used to be badges here. Both
+                        now have a panel of their own below saying more, so the
+                        badges only repeated them. */}
+                    {p.show_wizard && (
+                      <div className="flex flex-wrap gap-1.5 text-[10px]">
+                        <Badge variant="secondary" className="text-[9px]">Packages</Badge>
+                      </div>
+                    )}
+
+                    {/* What the page actually did. Same definitions as the
+                        Statistics tab, so the two can never disagree. */}
+                    <div className="grid grid-cols-4 gap-3 rounded-xl border border-slate-100 bg-slate-50/70 px-3 py-2.5 sm:grid-cols-7">
+                      <Stat label="Views" value={s?.views ?? 0} />
+                      <Stat label="Visitors" value={s?.visitors ?? 0} />
+                      <Stat label="Read" value={s?.visitors ? `${s.readRate}%` : '—'} />
+                      <Stat label="Avg time" value={readableSeconds(s?.avgSeconds ?? 0)} />
+                      <Stat label="Enquiries" value={s?.leads ?? 0}
+                        tone={s?.leads ? 'text-amber-600' : undefined} />
+                      <Stat label="Booked" value={s?.booked ?? 0}
+                        tone={s?.booked ? 'text-emerald-600' : undefined} />
+                      <Stat label="Link clicks" value={s?.clicks ?? 0} />
                     </div>
+
+                    {/* The challenge's own progress, for pages running one. The
+                        numbers live on the campaign, so a page sharing a
+                        campaign with another page shows the same figures. */}
+                    {campaign && (() => {
+                      const g = SLASH_GAMES.find(x => x.id === campaign.game_type);
+                      const unit = (v: number) => campaign.reward_type === 'percent'
+                        ? `${Number(v).toFixed(0)}%`
+                        : `RM ${Number(v).toFixed(2)}`;
+                      const running = campaign.is_active && new Date(campaign.expires_at) > new Date();
+                      return (
+                        <div className="rounded-xl border border-[#CD5C5C]/20 bg-[#CD5C5C]/5 px-3 py-2.5">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <p className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-[#CD5C5C]">
+                              <span>{g?.icon}</span> {g?.name}
+                            </p>
+                            <Badge variant="outline" className={`text-[8px] font-bold uppercase ${
+                              running
+                                ? 'border-emerald-200 bg-emerald-50 text-emerald-600'
+                                : 'border-slate-200 bg-slate-100 text-slate-500'}`}>
+                              {running ? 'Running' : 'Stopped'}
+                            </Badge>
+                          </div>
+                          <div className="mt-2 grid grid-cols-4 gap-3">
+                            <Stat label="Players" value={campaign.player_count} />
+                            <Stat label="Drops" value={campaign.tiers_unlocked} />
+                            <Stat label="Price cut" value={unit(campaign.current_reward)}
+                              tone={campaign.current_reward ? 'text-[#CD5C5C]' : undefined} />
+                            <Stat label="Ends" value={
+                              <span className="text-[11px]">{format(new Date(campaign.expires_at), 'dd MMM, h:mm a')}</span>
+                            } />
+                          </div>
+                        </div>
+                      );
+                    })()}
 
                     {/* Share links now live here and nowhere else. A page is
                         reachable at its own /p/slug without one; a link is only
