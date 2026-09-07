@@ -2361,12 +2361,17 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
                         const left = getRemainingTime(l.expires_at);
                         return (
                           <div key={l.id} className="space-y-2 rounded-xl border border-slate-200 bg-slate-50/70 p-2.5">
-                            <div className="flex items-center gap-2">
+                            {/* Badge above the address on a phone, beside it
+                                from sm. The address wraps rather than
+                                truncating down here: truncation cuts the end,
+                                and the end is the token - the only part that
+                                says which link this is. */}
+                            <div className="flex flex-col-reverse items-start gap-1.5 sm:flex-row sm:items-center sm:gap-2">
                               <button
                                 type="button"
                                 onClick={() => copyToClipboard(url)}
                                 title="Copy this link"
-                                className="min-w-0 flex-1 truncate text-left font-mono text-xs font-semibold text-slate-600 hover:text-[#CD5C5C]"
+                                className="w-full min-w-0 break-all text-left font-mono text-xs font-semibold text-slate-600 hover:text-[#CD5C5C] sm:w-auto sm:flex-1 sm:truncate"
                               >
                                 {url}
                               </button>
@@ -2390,21 +2395,21 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
                                   tone={left ? 'text-indigo-700' : 'text-slate-500'}
                                 />
                               </div>
-                              <div className="flex shrink-0 items-center gap-1">
-                                <Button variant="ghost" size="icon" className="h-7 w-7" title="Copy link" onClick={() => copyToClipboard(url)}>
+                              <div className="flex w-full shrink-0 items-center gap-1 border-t border-slate-200/70 pt-2 sm:w-auto sm:border-0 sm:pt-0">
+                                <Button variant="ghost" size="icon" className="h-9 w-9 sm:h-7 sm:w-7" title="Copy link" onClick={() => copyToClipboard(url)}>
                                   <Copy className="h-3.5 w-3.5" />
                                 </Button>
-                                <Button variant="ghost" size="icon" className="h-7 w-7" title="QR code" onClick={() => setQrLink(l)}>
+                                <Button variant="ghost" size="icon" className="h-9 w-9 sm:h-7 sm:w-7" title="QR code" onClick={() => setQrLink(l)}>
                                   <QrCode className="h-3.5 w-3.5" />
                                 </Button>
                                 {canEdit && (
                                   <>
-                                    <Button variant="ghost" size="icon" className="h-7 w-7" title="Edit link" onClick={() => setEditingLink(l)}>
+                                    <Button variant="ghost" size="icon" className="h-9 w-9 sm:h-7 sm:w-7" title="Edit link" onClick={() => setEditingLink(l)}>
                                       <FileCode className="h-3.5 w-3.5" />
                                     </Button>
                                     <Button
                                       variant="ghost" size="icon"
-                                      className="h-7 w-7 text-red-500 hover:bg-red-50 hover:text-red-600"
+                                      className="h-9 w-9 text-red-500 hover:bg-red-50 hover:text-red-600 sm:h-7 sm:w-7"
                                       title="Delete this share link"
                                       onClick={() => setConfirmDelete({ table: 'agent_share_links', id: l.id, label: l.token })}
                                     >
