@@ -367,14 +367,14 @@ const StatCard = ({ label, value, sub, icon: Icon }: {
 }) => (
   <Card className="border-slate-200 bg-white shadow-sm rounded-2xl overflow-hidden">
     <CardHeader className="flex flex-row items-center justify-between space-y-0 gap-2 pb-1.5 sm:pb-2 px-3.5 sm:px-5 pt-3.5 sm:pt-5">
-      <CardTitle className="text-[9px] sm:text-[10px] font-bold text-slate-400 uppercase tracking-[0.15em] sm:tracking-[0.2em] font-mono leading-tight">
+      <CardTitle className="text-[11px] font-bold text-slate-500 uppercase tracking-[0.15em] sm:tracking-[0.2em] font-mono leading-tight">
         {label}
       </CardTitle>
       <Icon className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#CD5C5C] shrink-0" />
     </CardHeader>
     <CardContent className="px-3.5 sm:px-5 pb-3.5 sm:pb-5">
       <div className="text-lg sm:text-2xl font-black text-slate-900">{value}</div>
-      {sub && <p className="text-[10px] sm:text-[11px] text-slate-400 font-medium mt-0.5 sm:mt-1 leading-snug">{sub}</p>}
+      {sub && <p className="text-xs text-slate-500 font-medium mt-0.5 sm:mt-1 leading-snug">{sub}</p>}
     </CardContent>
   </Card>
 );
@@ -416,7 +416,7 @@ type ClearOption = typeof CLEAR_OPTIONS[number];
  * way to read any of this.
  */
 const HintLabel = ({ text, hint }: { text: string; hint: React.ReactNode }) => (
-  <Label className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest text-slate-500">
+  <Label className="flex items-center gap-1 text-[11px] font-bold uppercase tracking-widest text-slate-500">
     {text}
     <Tooltip>
       <TooltipTrigger asChild>
@@ -428,7 +428,7 @@ const HintLabel = ({ text, hint }: { text: string; hint: React.ReactNode }) => (
           <HelpCircle className="h-3 w-3" />
         </button>
       </TooltipTrigger>
-      <TooltipContent side="top" className="max-w-[260px] text-[11px] font-medium normal-case leading-snug tracking-normal">
+      <TooltipContent side="top" className="max-w-[260px] text-xs font-medium normal-case leading-snug tracking-normal">
         {hint}
       </TooltipContent>
     </Tooltip>
@@ -437,10 +437,33 @@ const HintLabel = ({ text, hint }: { text: string; hint: React.ReactNode }) => (
 
 const Field = ({ label, children }: { label: string; children: React.ReactNode }) => (
   <div className="flex flex-col items-start gap-0.5 py-1 sm:flex-row sm:items-baseline sm:justify-between sm:gap-3">
-    <span className="text-[8px] sm:text-[9px] font-bold uppercase tracking-widest text-slate-400 shrink-0">{label}</span>
-    <span className="text-[10px] sm:text-xs text-slate-700 sm:text-right break-words">{children}</span>
+    <span className="text-[11px] font-bold uppercase tracking-widest text-slate-500 shrink-0">{label}</span>
+    <span className="text-xs text-slate-700 sm:text-right break-words">{children}</span>
   </div>
 );
+
+/**
+ * Type and colour scale for this screen. It used to run from 8px to 16px in
+ * five arbitrary steps, several of which were unreadable without zooming, so
+ * everything now lands on three sizes and each colour has one job.
+ *
+ *   text-[11px]  an ALL-CAPS label. Never body text.
+ *   text-xs      body and secondary text. The floor for anything read as prose.
+ *   text-sm      a value, a title, the thing the row is actually about.
+ *   text-base+   section headings only.
+ *
+ * On a white panel:
+ *   text-slate-900  the value itself
+ *   text-slate-700  a heading over it
+ *   text-slate-600  supporting prose
+ *   text-slate-500  labels and hints - the lightest that still passes AA
+ *                   contrast. slate-400 sits at about 2.8:1 on white, under
+ *                   the 4.5:1 floor, which is what made this hard to read.
+ * On the dark shell slate-400 and lighter are correct, and slate-500 is not.
+ *
+ * Colours that carry meaning: #CD5C5C brand and game, emerald live/booked,
+ * amber warning and enquiries, red destructive and expired, indigo scheduling.
+ */
 
 /**
  * The dark shell every tab sits on. The panels inside keep the colours they
@@ -462,7 +485,7 @@ const SHELL_BTN = 'border-white/20 bg-white/5 text-slate-200 hover:bg-white/10 h
 const Stat = ({ label, value, tone }: { label: string; value: React.ReactNode; tone?: string }) => (
   <div className="min-w-0">
     <p className={`text-sm font-black leading-none ${tone || 'text-slate-900'}`}>{value}</p>
-    <p className="mt-1 text-[9px] font-bold uppercase tracking-widest text-slate-400">{label}</p>
+    <p className="mt-1 text-[11px] font-bold uppercase tracking-widest text-slate-500">{label}</p>
   </div>
 );
 
@@ -1547,7 +1570,7 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
     return (
       <div className="flex flex-col items-center justify-center py-24 gap-3">
         <Loader2 className="w-8 h-8 animate-spin text-[#CD5C5C]" />
-        <p className="text-xs font-bold uppercase tracking-widest text-slate-400">Loading agent portal</p>
+        <p className="text-xs font-bold uppercase tracking-widest text-slate-500">Loading agent portal</p>
       </div>
     );
   }
@@ -1563,17 +1586,17 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
       <div className="flex items-start justify-between gap-2 sm:gap-3">
         <div className="min-w-0">
           <h2 className="text-sm sm:text-lg font-black uppercase tracking-tight text-slate-900">Agent Portal</h2>
-          <p className="text-[11px] sm:text-xs text-slate-500 font-medium mt-0.5">
+          <p className="text-xs text-slate-500 font-medium mt-0.5">
             Coupons, trackable share links, agent landing pages and their performance.
           </p>
           <div className="mt-1 flex flex-wrap items-center gap-1.5">
-            <p className="inline-flex items-center gap-1 rounded-md bg-slate-100 px-1.5 py-0.5 text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-slate-500">
+            <p className="inline-flex items-center gap-1 rounded-md bg-slate-100 px-1.5 py-0.5 text-[11px] font-bold uppercase tracking-wider text-slate-500">
               <Lock className="h-2.5 w-2.5 sm:h-3 sm:w-3" /> Your account only
             </p>
-            <div className="inline-flex items-center gap-1 rounded-md bg-slate-100 px-1.5 py-0.5 text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-slate-600">
+            <div className="inline-flex items-center gap-1 rounded-md bg-slate-100 px-1.5 py-0.5 text-[11px] font-bold uppercase tracking-wider text-slate-600">
               <Users className="h-2.5 w-2.5 sm:h-3 sm:w-3" /> {profile.name || '\u2014'}
             </div>
-            <div className="inline-flex items-center gap-1 rounded-md bg-slate-100 px-1.5 py-0.5 text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-slate-600">
+            <div className="inline-flex items-center gap-1 rounded-md bg-slate-100 px-1.5 py-0.5 text-[11px] font-bold uppercase tracking-wider text-slate-600">
               {profile.phone || '\u2014'}
             </div>
           </div>
@@ -1582,19 +1605,19 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
 
       <Tabs defaultValue="coupons" className="w-full">
         <TabsList className="grid w-full grid-cols-2 gap-1 rounded-2xl bg-[#0B0F19] p-1.5 h-auto ring-1 ring-white/10 shadow-lg sm:flex sm:w-auto sm:flex-wrap">
-          <TabsTrigger value="coupons" className="rounded-xl text-[10px] sm:text-xs font-bold gap-1 sm:gap-1.5 px-1.5 sm:px-4 py-1.5 sm:py-2 text-slate-400 hover:text-slate-200 data-[state=active]:text-slate-900">
+          <TabsTrigger value="coupons" className="rounded-xl text-xs font-bold gap-1 sm:gap-1.5 px-1.5 sm:px-4 py-1.5 sm:py-2 text-slate-400 hover:text-slate-200 data-[state=active]:text-slate-900">
             <Ticket className="w-3 h-3 sm:w-3.5 sm:h-3.5 shrink-0" /> Coupons
           </TabsTrigger>
-          <TabsTrigger value="redemptions" className="rounded-xl text-[10px] sm:text-xs font-bold gap-1 sm:gap-1.5 px-1.5 sm:px-4 py-1.5 sm:py-2 text-slate-400 hover:text-slate-200 data-[state=active]:text-slate-900">
+          <TabsTrigger value="redemptions" className="rounded-xl text-xs font-bold gap-1 sm:gap-1.5 px-1.5 sm:px-4 py-1.5 sm:py-2 text-slate-400 hover:text-slate-200 data-[state=active]:text-slate-900">
             <CheckCircle2 className="w-3 h-3 sm:w-3.5 sm:h-3.5 shrink-0" /> <span className="truncate">Redemptions</span>
           </TabsTrigger>
-          <TabsTrigger value="slash" className="rounded-xl text-[10px] sm:text-xs font-bold gap-1 sm:gap-1.5 px-1.5 sm:px-4 py-1.5 sm:py-2 text-slate-400 hover:text-slate-200 data-[state=active]:text-slate-900">
+          <TabsTrigger value="slash" className="rounded-xl text-xs font-bold gap-1 sm:gap-1.5 px-1.5 sm:px-4 py-1.5 sm:py-2 text-slate-400 hover:text-slate-200 data-[state=active]:text-slate-900">
             <Gamepad2 className="w-3 h-3 sm:w-3.5 sm:h-3.5 shrink-0" /> <span className="truncate">Price Slash</span>
           </TabsTrigger>
-          <TabsTrigger value="pages" className="rounded-xl text-[10px] sm:text-xs font-bold gap-1 sm:gap-1.5 px-1.5 sm:px-4 py-1.5 sm:py-2 text-slate-400 hover:text-slate-200 data-[state=active]:text-slate-900">
+          <TabsTrigger value="pages" className="rounded-xl text-xs font-bold gap-1 sm:gap-1.5 px-1.5 sm:px-4 py-1.5 sm:py-2 text-slate-400 hover:text-slate-200 data-[state=active]:text-slate-900">
             <FileCode className="w-3 h-3 sm:w-3.5 sm:h-3.5 shrink-0" /> <span className="truncate">Landing Pages</span>
           </TabsTrigger>
-          <TabsTrigger value="analytics" className="rounded-xl text-[10px] sm:text-xs font-bold gap-1 sm:gap-1.5 px-1.5 sm:px-4 py-1.5 sm:py-2 text-slate-400 hover:text-slate-200 data-[state=active]:text-slate-900">
+          <TabsTrigger value="analytics" className="rounded-xl text-xs font-bold gap-1 sm:gap-1.5 px-1.5 sm:px-4 py-1.5 sm:py-2 text-slate-400 hover:text-slate-200 data-[state=active]:text-slate-900">
             <BarChart3 className="w-3 h-3 sm:w-3.5 sm:h-3.5 shrink-0" /> Statistics
           </TabsTrigger>
         </TabsList>
@@ -1602,7 +1625,7 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
         {/* ============================ COUPONS ============================ */}
         <TabsContent value="coupons" className={TAB_SHELL}>
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-3">
-            <p className="text-[11px] sm:text-xs text-slate-400 font-medium">
+            <p className="text-xs text-slate-400 font-medium">
               {coupons.length} coupon{coupons.length === 1 ? '' : 's'} ·{' '}
               {coupons.filter(c => couponStatus(c, shareLinks).label === 'Active').length} active
             </p>
@@ -1648,10 +1671,10 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
                         {c.code}
                       </button>
                       {c.agent_name && (
-                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider truncate">{c.agent_name}</p>
+                        <p className="text-[11px] text-slate-500 font-bold uppercase tracking-wider truncate">{c.agent_name}</p>
                       )}
                     </div>
-                    <Badge variant="outline" className={`text-[9px] font-bold uppercase tracking-wider shrink-0 ${st.tone}`}>
+                    <Badge variant="outline" className={`text-[11px] font-bold uppercase tracking-wider shrink-0 ${st.tone}`}>
                       {st.label}
                     </Badge>
                   </div>
@@ -1674,7 +1697,7 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
                   </div>
 
                   <div className="flex gap-1.5 sm:gap-2 pt-1">
-                    <Button variant="outline" size="sm" className="flex-1 h-8 sm:h-9 rounded-lg text-[10px] sm:text-[11px] gap-1 sm:gap-1.5" onClick={() => setEditingCoupon(c)}>
+                    <Button variant="outline" size="sm" className="flex-1 h-8 sm:h-9 rounded-lg text-xs gap-1 sm:gap-1.5" onClick={() => setEditingCoupon(c)}>
                       <Eye className="w-3 h-3 sm:w-3.5 sm:h-3.5" /> {canEdit ? 'Edit' : 'View'}
                     </Button>
                     {canEdit && (
@@ -1697,19 +1720,19 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
               <Table>
                 <TableHeader>
                   <TableRow className="bg-slate-50">
-                    <TableHead className="text-[10px] uppercase tracking-widest font-bold">Code</TableHead>
-                    <TableHead className="text-[10px] uppercase tracking-widest font-bold">Discount</TableHead>
-                    <TableHead className="text-[10px] uppercase tracking-widest font-bold">Applies to</TableHead>
-                    <TableHead className="text-[10px] uppercase tracking-widest font-bold">Expires</TableHead>
-                    <TableHead className="text-[10px] uppercase tracking-widest font-bold">Used</TableHead>
-                    <TableHead className="text-[10px] uppercase tracking-widest font-bold">Status</TableHead>
-                    <TableHead className="text-right text-[10px] uppercase tracking-widest font-bold">Actions</TableHead>
+                    <TableHead className="text-[11px] uppercase tracking-widest font-bold">Code</TableHead>
+                    <TableHead className="text-[11px] uppercase tracking-widest font-bold">Discount</TableHead>
+                    <TableHead className="text-[11px] uppercase tracking-widest font-bold">Applies to</TableHead>
+                    <TableHead className="text-[11px] uppercase tracking-widest font-bold">Expires</TableHead>
+                    <TableHead className="text-[11px] uppercase tracking-widest font-bold">Used</TableHead>
+                    <TableHead className="text-[11px] uppercase tracking-widest font-bold">Status</TableHead>
+                    <TableHead className="text-right text-[11px] uppercase tracking-widest font-bold">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {coupons.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={7} className="text-center py-10 text-sm text-slate-400">
+                      <TableCell colSpan={7} className="text-center py-10 text-sm text-slate-500">
                         No coupons yet. Create one to give an agent a discount code.
                       </TableCell>
                     </TableRow>
@@ -1733,7 +1756,7 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
                             {c.code}
                           </button>
                           {c.agent_name && (
-                            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">{c.agent_name}</p>
+                            <p className="text-[11px] text-slate-500 font-bold uppercase tracking-wider">{c.agent_name}</p>
                           )}
                         </TableCell>
                         <TableCell className="text-sm font-bold text-[#CD5C5C] whitespace-nowrap">
@@ -1749,7 +1772,7 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
                           {c.used_count} / {c.max_uses > 0 ? c.max_uses : '∞'}
                         </TableCell>
                         <TableCell>
-                          <Badge variant="outline" className={`text-[10px] font-bold uppercase tracking-wider ${st.tone}`}>
+                          <Badge variant="outline" className={`text-[11px] font-bold uppercase tracking-wider ${st.tone}`}>
                             {st.label}
                           </Badge>
                         </TableCell>
@@ -1787,14 +1810,14 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
               <CardTitle className="text-xs font-black uppercase tracking-widest text-slate-700 flex items-center gap-2">
                 <CheckCircle2 className="w-4 h-4 text-[#CD5C5C]" /> Redemptions
               </CardTitle>
-              <CardDescription className="text-[11px]">
+              <CardDescription className="text-xs">
                 Every time a coupon was accepted at payment. A code that appears here cannot be reused.
               </CardDescription>
             </CardHeader>
             <CardContent className="p-0">
               <div className="sm:hidden max-h-[70vh] overflow-y-auto divide-y divide-slate-100">
                 {redemptions.length === 0 && (
-                  <p className="text-center py-8 text-sm text-slate-400">No coupon has been redeemed yet.</p>
+                  <p className="text-center py-8 text-sm text-slate-500">No coupon has been redeemed yet.</p>
                 )}
                 {redemptions.map(r => (
                   <div key={r.id} className="p-4 space-y-1">
@@ -1807,10 +1830,10 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
                       </span>
                     </div>
                     <p className="text-xs font-bold text-slate-800 truncate">{r.customer_name || '—'}</p>
-                    <p className="text-[11px] text-slate-400 truncate">{r.customer_email || r.customer_phone || ''}</p>
+                    <p className="text-xs text-slate-500 truncate">{r.customer_email || r.customer_phone || ''}</p>
                     <div className="flex items-center justify-between gap-2 pt-1">
-                      <span className="text-[11px] text-slate-600">Order RM {Number(r.order_total).toFixed(2)}</span>
-                      <span className="text-[10px] text-slate-400">
+                      <span className="text-xs text-slate-600">Order RM {Number(r.order_total).toFixed(2)}</span>
+                      <span className="text-xs text-slate-500">
                         {format(new Date(r.redeemed_at), 'dd MMM yyyy, h:mm a')}
                       </span>
                     </div>
@@ -1822,17 +1845,17 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
                 <Table>
                   <TableHeader className="sticky top-0 bg-white z-10">
                     <TableRow>
-                      <TableHead className="text-[10px] uppercase tracking-widest font-bold">Code</TableHead>
-                      <TableHead className="text-[10px] uppercase tracking-widest font-bold">Customer</TableHead>
-                      <TableHead className="text-[10px] uppercase tracking-widest font-bold">Discount</TableHead>
-                      <TableHead className="text-[10px] uppercase tracking-widest font-bold">Order</TableHead>
-                      <TableHead className="text-[10px] uppercase tracking-widest font-bold">When</TableHead>
+                      <TableHead className="text-[11px] uppercase tracking-widest font-bold">Code</TableHead>
+                      <TableHead className="text-[11px] uppercase tracking-widest font-bold">Customer</TableHead>
+                      <TableHead className="text-[11px] uppercase tracking-widest font-bold">Discount</TableHead>
+                      <TableHead className="text-[11px] uppercase tracking-widest font-bold">Order</TableHead>
+                      <TableHead className="text-[11px] uppercase tracking-widest font-bold">When</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {redemptions.length === 0 && (
                       <TableRow>
-                        <TableCell colSpan={5} className="text-center py-8 text-sm text-slate-400">
+                        <TableCell colSpan={5} className="text-center py-8 text-sm text-slate-500">
                           No coupon has been redeemed yet.
                         </TableCell>
                       </TableRow>
@@ -1844,7 +1867,7 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
                         </TableCell>
                         <TableCell className="text-xs">
                           <span className="font-bold text-slate-800">{r.customer_name || '—'}</span>
-                          <span className="block text-slate-400">{r.customer_email || r.customer_phone || ''}</span>
+                          <span className="block text-slate-500">{r.customer_email || r.customer_phone || ''}</span>
                         </TableCell>
                         <TableCell className="text-xs font-bold text-[#CD5C5C]">
                           RM {Number(r.discount_amount).toFixed(2)}
@@ -1875,7 +1898,7 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
                   <Gamepad2 className="h-4 w-4 text-[#E88A8A]" />
                   Price Slash Challenges
                 </h3>
-                <p className="mt-0.5 text-[11px] font-medium text-slate-400">
+                <p className="mt-0.5 text-xs font-medium text-slate-400">
                   {campaigns.length} challenge{campaigns.length === 1 ? '' : 's'} ·{' '}
                   {campaigns.filter(c => c.is_active && new Date(c.expires_at) > new Date()).length} running
                 </p>
@@ -1902,7 +1925,7 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
               </div>
             </div>
 
-            <p className="mt-2 rounded-xl border border-white/10 bg-white/5 p-3 text-[11px] leading-relaxed text-slate-400">
+            <p className="mt-2 rounded-xl border border-white/10 bg-white/5 p-3 text-xs leading-relaxed text-slate-500">
               Set up the game and its terms here, then switch it on for a page in
               <strong className="font-bold text-slate-200"> Landing Pages → Edit → Price slash game</strong>.
               Visitors get one round each to cut the price, every set number of players unlocks a
@@ -1910,7 +1933,7 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
             </p>
 
             {campaigns.length === 0 ? (
-              <p className="py-8 text-center text-sm text-slate-400">
+              <p className="py-8 text-center text-sm text-slate-500">
                 No challenges yet. Create one, then choose it on a landing page.
               </p>
             ) : (
@@ -1931,7 +1954,7 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
                     <div key={c.id} className="rounded-2xl border border-slate-200 bg-white p-4">
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
-                          <p className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-[#CD5C5C]">
+                          <p className="flex items-center gap-1.5 text-[11px] font-black uppercase tracking-widest text-[#CD5C5C]">
                             <span>{game?.icon}</span> {game?.name}
                           </p>
                           <p className="truncate text-sm font-black text-slate-900">{c.title}</p>
@@ -1940,7 +1963,7 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
                           type="button"
                           onClick={() => toggleCampaign(c)}
                           disabled={!canEdit}
-                          className={`shrink-0 rounded-md border px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider transition-all ${
+                          className={`shrink-0 rounded-md border px-2 py-0.5 text-[11px] font-bold uppercase tracking-wider transition-all ${
                             canEdit ? 'cursor-pointer hover:shadow-md active:scale-95' : 'cursor-not-allowed'
                           } ${live
                             ? 'border-emerald-200 bg-emerald-50 text-emerald-600'
@@ -1951,13 +1974,13 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
                       </div>
 
                       {c.goal_text && (
-                        <p className="mt-1.5 line-clamp-2 text-[11px] leading-snug text-slate-500">{c.goal_text}</p>
+                        <p className="mt-1.5 line-clamp-2 text-xs leading-snug text-slate-500">{c.goal_text}</p>
                       )}
 
-                      <div className="mt-3 flex items-center gap-1.5 text-[11px]">
-                        <Timer className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                      <div className="mt-3 flex items-center gap-1.5 text-xs">
+                        <Timer className="h-3.5 w-3.5 shrink-0 text-slate-500" />
                         <SlashCountdown expiresAt={c.expires_at} />
-                        <span className="text-slate-400">left of {c.duration_hours}h</span>
+                        <span className="text-slate-500">left of {c.duration_hours}h</span>
                       </div>
 
                       {/* The window the run below belongs to, both ends of it. A
@@ -1979,7 +2002,7 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
                       </p>
 
                       <div className="mt-2.5">
-                        <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                        <div className="flex items-center justify-between text-[11px] font-bold uppercase tracking-wider text-slate-500">
                           <span>{toNext} more to next drop</span>
                           <span className="tabular-nums">{done}/{c.players_per_tier}</span>
                         </div>
@@ -1993,22 +2016,22 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
 
                       <div className="mt-3 grid grid-cols-3 gap-2 border-t border-slate-100 pt-2.5">
                         <div>
-                          <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400">Players</p>
+                          <p className="text-[11px] font-bold uppercase tracking-widest text-slate-500">Players</p>
                           <p className="flex items-center gap-1 text-xs font-black text-slate-900">
                             <Users className="h-3 w-3" />{c.player_count}
                           </p>
                         </div>
                         <div className="text-center">
-                          <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400">Cut so far</p>
+                          <p className="text-[11px] font-bold uppercase tracking-widest text-slate-500">Cut so far</p>
                           <p className="text-xs font-black text-[#CD5C5C]">{unit(c.current_reward)}</p>
                         </div>
                         <div className="text-right">
-                          <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400">Ceiling</p>
+                          <p className="text-[11px] font-bold uppercase tracking-widest text-slate-500">Ceiling</p>
                           <p className="text-xs font-black text-slate-500">{unit(c.max_reward)}</p>
                         </div>
                       </div>
 
-                      <div className="mt-2.5 space-y-0.5 border-t border-slate-100 pt-2 text-[10px] text-slate-400">
+                      <div className="mt-2.5 space-y-0.5 border-t border-slate-100 pt-2 text-xs text-slate-500">
                         {coupon && (
                           <p className="truncate">
                             Feeds coupon <span className="font-mono font-bold text-slate-600">{coupon.code}</span>
@@ -2025,14 +2048,14 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
                         <div className="mt-3 flex items-center gap-1">
                           <Button
                             variant="outline" size="sm"
-                            className="h-8 flex-1 gap-1.5 rounded-lg border-amber-200 text-[11px] text-amber-700 hover:bg-amber-50 hover:text-amber-800"
+                            className="h-8 flex-1 gap-1.5 rounded-lg border-amber-200 text-xs text-amber-700 hover:bg-amber-50 hover:text-amber-800"
                             onClick={() => setConfirmReset(c)}
                           >
                             <RotateCcw className="h-3 w-3" /> Reset
                           </Button>
                           <Button
                             variant="outline" size="sm"
-                            className="h-8 flex-1 gap-1.5 rounded-lg text-[11px]"
+                            className="h-8 flex-1 gap-1.5 rounded-lg text-xs"
                             onClick={() => setEditingCampaign(c)}
                           >
                             <Code className="h-3 w-3" /> Edit
@@ -2057,7 +2080,7 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
         {/* ========================= LANDING PAGES ========================= */}
         <TabsContent value="pages" className={TAB_SHELL}>
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-3">
-            <p className="text-[11px] sm:text-xs text-slate-400 font-medium">
+            <p className="text-xs text-slate-400 font-medium">
               {pages.length} page{pages.length === 1 ? '' : 's'} ·{' '}
               {pages.filter(p => p.is_published).length} published
             </p>
@@ -2120,7 +2143,7 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
                           }
                         }}
                         disabled={!canEdit || saving}
-                        className={`px-2 py-0.5 rounded-md text-[9px] font-bold uppercase shrink-0 transition-all ${
+                        className={`px-2 py-0.5 rounded-md text-[11px] font-bold uppercase shrink-0 transition-all ${
                           canEdit ? 'cursor-pointer hover:shadow-md active:scale-95' : 'cursor-not-allowed'
                         } ${p.is_published
                           ? 'bg-emerald-50 text-emerald-600 border border-emerald-200'
@@ -2129,15 +2152,15 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
                         {p.is_published ? 'Live' : 'Draft'}
                       </button>
                     </div>
-                    <CardDescription className="text-[11px] font-mono truncate">/p/{p.slug}</CardDescription>
+                    <CardDescription className="text-xs font-mono truncate">/p/{p.slug}</CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-3">
                     {/* The game and the link count used to be badges here. Both
                         now have a panel of their own below saying more, so the
                         badges only repeated them. */}
                     {p.show_wizard && (
-                      <div className="flex flex-wrap gap-1.5 text-[10px]">
-                        <Badge variant="secondary" className="text-[9px]">Packages</Badge>
+                      <div className="flex flex-wrap gap-1.5 text-xs">
+                        <Badge variant="secondary" className="text-xs">Packages</Badge>
                       </div>
                     )}
 
@@ -2167,10 +2190,10 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
                       return (
                         <div className="rounded-xl border border-[#CD5C5C]/20 bg-[#CD5C5C]/5 px-3 py-2.5">
                           <div className="flex flex-wrap items-center justify-between gap-2">
-                            <p className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-[#CD5C5C]">
+                            <p className="flex items-center gap-1.5 text-[11px] font-black uppercase tracking-widest text-[#CD5C5C]">
                               <span>{g?.icon}</span> {g?.name}
                             </p>
-                            <Badge variant="outline" className={`text-[8px] font-bold uppercase ${
+                            <Badge variant="outline" className={`text-[11px] font-bold uppercase ${
                               running
                                 ? 'border-emerald-200 bg-emerald-50 text-emerald-600'
                                 : 'border-slate-200 bg-slate-100 text-slate-500'}`}>
@@ -2183,7 +2206,7 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
                             <Stat label="Price cut" value={unit(campaign.current_reward)}
                               tone={campaign.current_reward ? 'text-[#CD5C5C]' : undefined} />
                             <Stat label="Ends" value={
-                              <span className="text-[11px]">{format(new Date(campaign.expires_at), 'dd MMM, h:mm a')}</span>
+                              <span className="text-xs">{format(new Date(campaign.expires_at), 'dd MMM, h:mm a')}</span>
                             } />
                           </div>
                         </div>
@@ -2195,12 +2218,12 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
                         for attributing traffic to a particular agent or blast. */}
                     <div className="space-y-1.5 border-t border-slate-100 pt-2.5">
                       <div className="flex items-center justify-between gap-2">
-                        <p className="text-[9px] font-bold uppercase tracking-widest text-slate-500">Share links</p>
+                        <p className="text-[11px] font-bold uppercase tracking-widest text-slate-500">Share links</p>
                         {canEdit && (
                           <button
                             type="button"
                             onClick={() => setEditingLink({ ...newShareLink(), ...fromLandingPage(p) })}
-                            className="flex items-center gap-1 text-[10px] font-bold text-[#CD5C5C] hover:underline"
+                            className="flex items-center gap-1 text-xs font-bold text-[#CD5C5C] hover:underline"
                           >
                             <Plus className="h-3 w-3" /> New
                           </button>
@@ -2208,7 +2231,7 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
                       </div>
 
                       {pageLinks.length === 0 ? (
-                        <p className="text-[10px] font-medium text-slate-400">
+                        <p className="text-xs font-medium text-slate-500">
                           None yet — a visitor can only reach this page through one.
                         </p>
                       ) : pageLinks.map(l => {
@@ -2220,7 +2243,7 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
                               type="button"
                               onClick={() => copyToClipboard(url)}
                               title={url}
-                              className="min-w-0 flex-1 truncate text-left text-[10px] font-mono font-semibold text-slate-600 hover:text-[#CD5C5C]"
+                              className="min-w-0 flex-1 truncate text-left text-xs font-mono font-semibold text-slate-600 hover:text-[#CD5C5C]"
                             >
                               {/* The token, not the label: every link here is
                                   named after this page, whose title is already
@@ -2228,7 +2251,7 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
                               {l.token}
                               {left && <span className="ml-1 font-sans font-medium text-indigo-700">· {left} left</span>}
                             </button>
-                            <Badge variant="outline" className={`shrink-0 text-[8px] font-bold uppercase ${linkStatus(l).tone}`}>
+                            <Badge variant="outline" className={`shrink-0 text-[11px] font-bold uppercase ${linkStatus(l).tone}`}>
                               {linkStatus(l).label}
                             </Badge>
                             <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0" title="Copy link" onClick={() => copyToClipboard(url)}>
@@ -2248,7 +2271,7 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
                     </div>
 
                     <div className="flex items-center gap-1">
-                      <Button variant="outline" size="sm" className="flex-1 h-8 text-[11px] rounded-lg gap-1.5" onClick={() => openPage(p)}>
+                      <Button variant="outline" size="sm" className="flex-1 h-8 text-xs rounded-lg gap-1.5" onClick={() => openPage(p)}>
                         <FileCode className="w-3 h-3" /> Edit
                       </Button>
                       <Button variant="ghost" size="icon" className="h-8 w-8" title="Preview" asChild>
@@ -2276,7 +2299,7 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
         {/* =========================== ANALYTICS =========================== */}
         <TabsContent value="analytics" className={TAB_SHELL}>
           <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:gap-3">
-            <Label className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Scope</Label>
+            <Label className="text-[11px] font-bold uppercase tracking-widest text-slate-400">Scope</Label>
             <Select value={analyticsScope} onValueChange={setAnalyticsScope}>
               <SelectTrigger className="w-full sm:w-[280px] h-9 rounded-xl text-xs">
                 <SelectValue />
@@ -2302,14 +2325,14 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
               names it either way. */}
           <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
             <div className="flex flex-wrap items-center gap-1.5">
-              <Label className="mr-1 text-[10px] font-bold uppercase tracking-widest text-slate-400">Show</Label>
+              <Label className="mr-1 text-[11px] font-bold uppercase tracking-widest text-slate-400">Show</Label>
               {ANALYTICS_RANGES.map(r => (
                 <Button
                   key={r.key}
                   size="sm"
                   variant={analyticsRange === r.key ? 'default' : 'outline'}
                   onClick={() => setAnalyticsRange(r.key)}
-                  className={`h-8 rounded-xl px-2.5 text-[11px] font-bold ${
+                  className={`h-8 rounded-xl px-2.5 text-xs font-bold ${
                     analyticsRange === r.key ? '' : SHELL_BTN}`}
                 >
                   {r.label}
@@ -2318,14 +2341,14 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
             </div>
 
             <div className="flex flex-wrap items-center gap-1.5">
-              <Label className="mr-1 text-[10px] font-bold uppercase tracking-widest text-slate-400">Clear</Label>
+              <Label className="mr-1 text-[11px] font-bold uppercase tracking-widest text-slate-400">Clear</Label>
               {CLEAR_OPTIONS.map(o => (
                 <Button
                   key={o.key}
                   size="sm"
                   variant="outline"
                   onClick={() => setConfirmClear(o)}
-                  className="h-8 gap-1 rounded-xl border-red-400/40 bg-red-500/10 px-2.5 text-[11px] font-bold text-red-300 hover:bg-red-500/20 hover:text-red-200"
+                  className="h-8 gap-1 rounded-xl border-red-400/40 bg-red-500/10 px-2.5 text-xs font-bold text-red-300 hover:bg-red-500/20 hover:text-red-200"
                 >
                   <Trash2 className="h-3 w-3" /> {o.short}
                 </Button>
@@ -2346,11 +2369,11 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
                 <CardTitle className="text-xs font-black uppercase tracking-widest text-slate-700 flex items-center gap-2">
                   <BarChart3 className="w-4 h-4 text-[#CD5C5C]" /> Most-clicked packages
                 </CardTitle>
-                <CardDescription className="text-[11px]">Which package the visitors opened the most.</CardDescription>
+                <CardDescription className="text-xs">Which package the visitors opened the most.</CardDescription>
               </CardHeader>
               <CardContent className="h-[260px] sm:h-[300px] px-2 sm:px-6">
                 {packageClickData.length === 0 ? (
-                  <div className="h-full flex items-center justify-center text-sm text-slate-400">No package clicks yet</div>
+                  <div className="h-full flex items-center justify-center text-sm text-slate-500">No package clicks yet</div>
                 ) : (
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={packageClickData} layout="vertical" margin={{ left: 4, right: 16 }}>
@@ -2375,13 +2398,13 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
                 <CardTitle className="text-xs font-black uppercase tracking-widest text-slate-700 flex items-center gap-2">
                   <ScrollText className="w-4 h-4 text-[#CD5C5C]" /> Did they read it?
                 </CardTitle>
-                <CardDescription className="text-[11px]">
+                <CardDescription className="text-xs">
                   A session counts as read once the visitor scrolls past a quarter of the page.
                 </CardDescription>
               </CardHeader>
               <CardContent className="h-[260px] sm:h-[300px] px-2 sm:px-6">
                 {stats.sessions === 0 ? (
-                  <div className="h-full flex items-center justify-center text-sm text-slate-400">No visits yet</div>
+                  <div className="h-full flex items-center justify-center text-sm text-slate-500">No visits yet</div>
                 ) : (
                   <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
@@ -2411,21 +2434,21 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
                 <CardTitle className="text-xs font-black uppercase tracking-widest text-slate-700 flex items-center gap-2">
                   <Globe className="w-4 h-4 text-[#CD5C5C]" /> Where they opened it
                 </CardTitle>
-                <CardDescription className="text-[11px]">Derived from the visitor's IP address.</CardDescription>
+                <CardDescription className="text-xs">Derived from the visitor's IP address.</CardDescription>
               </CardHeader>
               <CardContent className="p-0">
                 <div className="max-h-[300px] overflow-y-auto overflow-x-auto">
                   <Table>
                     <TableHeader className="sticky top-0 bg-white z-10">
                       <TableRow>
-                        <TableHead className="text-[10px] uppercase tracking-widest font-bold">Location</TableHead>
-                        <TableHead className="text-[10px] uppercase tracking-widest font-bold text-right">Visitors</TableHead>
-                        <TableHead className="text-[10px] uppercase tracking-widest font-bold text-right">Events</TableHead>
+                        <TableHead className="text-[11px] uppercase tracking-widest font-bold">Location</TableHead>
+                        <TableHead className="text-[11px] uppercase tracking-widest font-bold text-right">Visitors</TableHead>
+                        <TableHead className="text-[11px] uppercase tracking-widest font-bold text-right">Events</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {regionData.length === 0 && (
-                        <TableRow><TableCell colSpan={3} className="text-center py-8 text-sm text-slate-400">No visits yet</TableCell></TableRow>
+                        <TableRow><TableCell colSpan={3} className="text-center py-8 text-sm text-slate-500">No visits yet</TableCell></TableRow>
                       )}
                       {regionData.map(r => (
                         <TableRow key={r.name}>
@@ -2445,11 +2468,11 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
                 <CardTitle className="text-xs font-black uppercase tracking-widest text-slate-700 flex items-center gap-2">
                   <Users className="w-4 h-4 text-[#CD5C5C]" /> By country
                 </CardTitle>
-                <CardDescription className="text-[11px]">Share of traffic per country.</CardDescription>
+                <CardDescription className="text-xs">Share of traffic per country.</CardDescription>
               </CardHeader>
               <CardContent className="h-[260px] sm:h-[300px] px-2 sm:px-6">
                 {countryData.length === 0 ? (
-                  <div className="h-full flex items-center justify-center text-sm text-slate-400">No visits yet</div>
+                  <div className="h-full flex items-center justify-center text-sm text-slate-500">No visits yet</div>
                 ) : (
                   <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
@@ -2476,28 +2499,28 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
               <CardTitle className="text-xs font-black uppercase tracking-widest text-slate-700 flex items-center gap-2">
                 <ClipboardList className="w-4 h-4 text-[#CD5C5C]" /> What visitors filled in
               </CardTitle>
-              <CardDescription className="text-[11px]">
+              <CardDescription className="text-xs">
                 Captured as they type, whether or not they went through with the payment.
               </CardDescription>
             </CardHeader>
             <CardContent className="p-0">
               <div className="sm:hidden max-h-[460px] overflow-y-auto divide-y divide-slate-100">
                 {scopedCaptures.length === 0 && (
-                  <p className="text-center py-10 text-sm text-slate-400">Nothing captured yet.</p>
+                  <p className="text-center py-10 text-sm text-slate-500">Nothing captured yet.</p>
                 )}
                 {scopedCaptures.map(c => (
                   <div key={c.id} className={`p-4 space-y-1.5 ${c.completed ? '' : 'bg-amber-50/40'}`}>
                     <div className="flex items-start justify-between gap-2">
                       <p className="text-sm font-bold text-slate-800 truncate min-w-0">{c.name || 'Anonymous'}</p>
-                      <span className="shrink-0 flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider">
+                      <span className="shrink-0 flex items-center gap-1 text-[11px] font-bold uppercase tracking-wider">
                         {c.completed
                           ? <><CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" /> <span className="text-emerald-600">Paid</span></>
-                          : <><XCircle className="w-3.5 h-3.5 text-slate-300" /> <span className="text-slate-400">Unpaid</span></>}
+                          : <><XCircle className="w-3.5 h-3.5 text-slate-300" /> <span className="text-slate-500">Unpaid</span></>}
                       </span>
                     </div>
 
                     {(c.email || c.phone) && (
-                      <p className="text-[11px] text-slate-500 truncate">
+                      <p className="text-xs text-slate-500 truncate">
                         {[c.email, c.phone].filter(Boolean).join(' · ')}
                       </p>
                     )}
@@ -2531,20 +2554,20 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
                 <Table>
                   <TableHeader className="sticky top-0 bg-white z-10">
                     <TableRow>
-                      <TableHead className="text-[10px] uppercase tracking-widest font-bold">Name</TableHead>
-                      <TableHead className="text-[10px] uppercase tracking-widest font-bold">Contact</TableHead>
-                      <TableHead className="text-[10px] uppercase tracking-widest font-bold">Flight</TableHead>
-                      <TableHead className="text-[10px] uppercase tracking-widest font-bold">Cart</TableHead>
-                      <TableHead className="text-[10px] uppercase tracking-widest font-bold">Coupon</TableHead>
-                      <TableHead className="text-[10px] uppercase tracking-widest font-bold">Location</TableHead>
-                      <TableHead className="text-[10px] uppercase tracking-widest font-bold">Reached</TableHead>
-                      <TableHead className="text-[10px] uppercase tracking-widest font-bold">Paid</TableHead>
+                      <TableHead className="text-[11px] uppercase tracking-widest font-bold">Name</TableHead>
+                      <TableHead className="text-[11px] uppercase tracking-widest font-bold">Contact</TableHead>
+                      <TableHead className="text-[11px] uppercase tracking-widest font-bold">Flight</TableHead>
+                      <TableHead className="text-[11px] uppercase tracking-widest font-bold">Cart</TableHead>
+                      <TableHead className="text-[11px] uppercase tracking-widest font-bold">Coupon</TableHead>
+                      <TableHead className="text-[11px] uppercase tracking-widest font-bold">Location</TableHead>
+                      <TableHead className="text-[11px] uppercase tracking-widest font-bold">Reached</TableHead>
+                      <TableHead className="text-[11px] uppercase tracking-widest font-bold">Paid</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {scopedCaptures.length === 0 && (
                       <TableRow>
-                        <TableCell colSpan={8} className="text-center py-10 text-sm text-slate-400">
+                        <TableCell colSpan={8} className="text-center py-10 text-sm text-slate-500">
                           Nothing captured yet.
                         </TableCell>
                       </TableRow>
@@ -2554,7 +2577,7 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
                         <TableCell className="text-xs font-bold text-slate-800">{c.name || '—'}</TableCell>
                         <TableCell className="text-xs text-slate-600">
                           {c.email && <span className="block">{c.email}</span>}
-                          {c.phone && <span className="block text-slate-400">{c.phone}</span>}
+                          {c.phone && <span className="block text-slate-500">{c.phone}</span>}
                           {!c.email && !c.phone && '—'}
                         </TableCell>
                         <TableCell className="text-xs text-slate-600 whitespace-nowrap">
@@ -2566,7 +2589,7 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
                             {(c.cart_items || []).map((i: any) => i?.name).filter(Boolean).join(', ') || '—'}
                           </span>
                           {c.cart_total > 0 && (
-                            <span className="text-[10px] font-bold text-[#CD5C5C]">RM {Number(c.cart_total).toFixed(2)}</span>
+                            <span className="text-xs font-bold text-[#CD5C5C]">RM {Number(c.cart_total).toFixed(2)}</span>
                           )}
                         </TableCell>
                         <TableCell className="text-xs font-mono">{c.coupon_code || '—'}</TableCell>
@@ -2607,7 +2630,7 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
             <div className="space-y-4">
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-1.5">
-                  <Label className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Code</Label>
+                  <Label className="text-[11px] font-bold uppercase tracking-widest text-slate-500">Code</Label>
                   <div className="flex gap-2">
                     <Input
                       value={editingCoupon.code || ''}
@@ -2630,7 +2653,7 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
               </div>
 
               <div className="space-y-1.5">
-                <Label className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Description</Label>
+                <Label className="text-[11px] font-bold uppercase tracking-widest text-slate-500">Description</Label>
                 <Textarea
                   value={editingCoupon.description || ''}
                   onChange={(e) => setEditingCoupon({ ...editingCoupon, description: e.target.value })}
@@ -2641,7 +2664,7 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
 
               <div className="grid gap-4 sm:grid-cols-3">
                 <div className="space-y-1.5">
-                  <Label className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Type</Label>
+                  <Label className="text-[11px] font-bold uppercase tracking-widest text-slate-500">Type</Label>
                   <Select
                     value={editingCoupon.discount_type || 'fixed'}
                     onValueChange={(v) => setEditingCoupon({ ...editingCoupon, discount_type: v as 'fixed' | 'percent' })}
@@ -2655,7 +2678,7 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
                   </Select>
                 </div>
                 <div className="space-y-1.5">
-                  <Label className="text-[10px] font-bold uppercase tracking-widest text-slate-500">
+                  <Label className="text-[11px] font-bold uppercase tracking-widest text-slate-500">
                     {editingCoupon.discount_type === 'percent' ? 'Percent off' : 'Amount off (RM)'}
                   </Label>
                   <Input
@@ -2666,7 +2689,7 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <Label className="text-[10px] font-bold uppercase tracking-widest text-slate-500">
+                  <Label className="text-[11px] font-bold uppercase tracking-widest text-slate-500">
                     {editingCoupon.discount_type === 'percent' ? 'Max discount (RM)' : 'Min spend (RM)'}
                   </Label>
                   <Input
@@ -2692,8 +2715,8 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
                   directly, there is nowhere else for these dates to live. */}
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-1.5">
-                  <Label className="text-[10px] font-bold uppercase tracking-widest text-slate-500">
-                    Starts <span className="normal-case tracking-normal font-medium text-slate-400">(blank = now)</span>
+                  <Label className="text-[11px] font-bold uppercase tracking-widest text-slate-500">
+                    Starts <span className="normal-case tracking-normal font-medium text-slate-500">(blank = now)</span>
                   </Label>
                   <Input
                     type="datetime-local"
@@ -2703,8 +2726,8 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <Label className="text-[10px] font-bold uppercase tracking-widest text-slate-500">
-                    Expires <span className="normal-case tracking-normal font-medium text-slate-400">(blank = never)</span>
+                  <Label className="text-[11px] font-bold uppercase tracking-widest text-slate-500">
+                    Expires <span className="normal-case tracking-normal font-medium text-slate-500">(blank = never)</span>
                   </Label>
                   <Input
                     type="datetime-local"
@@ -2717,8 +2740,8 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
 
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-1.5">
-                  <Label className="text-[10px] font-bold uppercase tracking-widest text-slate-500">
-                    Max uses <span className="normal-case tracking-normal font-medium text-slate-400">(0 = unlimited)</span>
+                  <Label className="text-[11px] font-bold uppercase tracking-widest text-slate-500">
+                    Max uses <span className="normal-case tracking-normal font-medium text-slate-500">(0 = unlimited)</span>
                   </Label>
                   <Input
                     type="number" min={0}
@@ -2727,7 +2750,7 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
                     className="rounded-xl" disabled={!canEdit}
                   />
                   {typeof editingCoupon.used_count === 'number' && (
-                    <p className="text-[11px] text-slate-400 font-medium">
+                    <p className="text-xs text-slate-500 font-medium">
                       Used {editingCoupon.used_count} time{editingCoupon.used_count === 1 ? '' : 's'} so far.
                     </p>
                   )}
@@ -2753,17 +2776,17 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
               </div>
 
               <div className="space-y-2">
-                <Label className="text-[10px] font-bold uppercase tracking-widest text-slate-500">
+                <Label className="text-[11px] font-bold uppercase tracking-widest text-slate-500">
                   Applies to these packages
                 </Label>
-                <p className="text-[11px] text-slate-400 font-medium">
+                <p className="text-xs text-slate-500 font-medium">
                   Leave everything unticked to let the coupon work on any package.
                 </p>
                 <ScrollArea className="h-[200px] rounded-xl border border-slate-200 p-3">
                   <div className="space-y-3">
                     {packagesByCategory.map(group => (
                       <div key={group.id} className="space-y-1.5">
-                        <p className="text-[10px] font-black uppercase tracking-widest text-[#CD5C5C]">{group.name}</p>
+                        <p className="text-[11px] font-black uppercase tracking-widest text-[#CD5C5C]">{group.name}</p>
                         {group.items.map(p => (
                           <label key={p.id} className="flex items-center gap-2.5 pl-1 cursor-pointer">
                             <Checkbox
@@ -2779,7 +2802,7 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
                             />
                             <span className="text-xs text-slate-700">
                               {p.name}
-                              <span className="text-slate-400 ml-1.5">RM {Number(p.price).toFixed(0)}</span>
+                              <span className="text-slate-500 ml-1.5">RM {Number(p.price).toFixed(0)}</span>
                               {p.sort_order > 0 && <span className="text-slate-300 ml-1.5">(add-on)</span>}
                             </span>
                           </label>
@@ -2788,7 +2811,7 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
                     ))}
                     {uncategorised.length > 0 && (
                       <div className="space-y-1.5">
-                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Uncategorised</p>
+                        <p className="text-[11px] font-black uppercase tracking-widest text-slate-500">Uncategorised</p>
                         {uncategorised.map(p => (
                           <label key={p.id} className="flex items-center gap-2.5 pl-1 cursor-pointer">
                             <Checkbox
@@ -2841,7 +2864,7 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
           {editingCampaign && (
             <div className="space-y-4">
               <div className="space-y-1.5">
-                <Label className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Title</Label>
+                <Label className="text-[11px] font-bold uppercase tracking-widest text-slate-500">Title</Label>
                 <Input
                   value={editingCampaign.title || ''}
                   onChange={(e) => setEditingCampaign({ ...editingCampaign, title: e.target.value })}
@@ -2851,7 +2874,7 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
               </div>
 
               <div className="space-y-1.5">
-                <Label className="text-[10px] font-bold uppercase tracking-widest text-slate-500">
+                <Label className="text-[11px] font-bold uppercase tracking-widest text-slate-500">
                   The goal, in your words
                 </Label>
                 <Textarea
@@ -2860,14 +2883,14 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
                   placeholder="Get 10 friends to play and we take RM 50 off for everyone. Ends in 48 hours."
                   className="min-h-[60px] rounded-xl" disabled={!canEdit}
                 />
-                <p className="text-[11px] font-medium text-slate-400">
+                <p className="text-xs font-medium text-slate-500">
                   Shown at the top of the game so nobody has to guess what the task is.
                 </p>
               </div>
 
               {/* --- game picker --- */}
               <div className="space-y-2">
-                <Label className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Game</Label>
+                <Label className="text-[11px] font-bold uppercase tracking-widest text-slate-500">Game</Label>
                 <div className="grid gap-2 sm:grid-cols-3">
                   {SLASH_GAMES.map(g => {
                     const active = (editingCampaign.game_type || 'slash') === g.id;
@@ -2887,7 +2910,7 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
                         <p className={`mt-1 text-xs font-black uppercase tracking-tight ${active ? 'text-[#CD5C5C]' : 'text-slate-900'}`}>
                           {g.name}
                         </p>
-                        <p className="mt-0.5 text-[10px] leading-snug text-slate-500">{g.blurb}</p>
+                        <p className="mt-0.5 text-xs leading-snug text-slate-500">{g.blurb}</p>
                       </button>
                     );
                   })}
@@ -2896,10 +2919,10 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
 
               {/* --- where the price comes from --- */}
               <div className="space-y-1.5">
-                <Label className="text-[10px] font-bold uppercase tracking-widest text-slate-500">
+                <Label className="text-[11px] font-bold uppercase tracking-widest text-slate-500">
                   Discount
                 </Label>
-                <p className="rounded-lg bg-emerald-50 p-2 text-[11px] leading-snug text-emerald-700">
+                <p className="rounded-lg bg-emerald-50 p-2 text-xs leading-snug text-emerald-700">
                   No coupon needed. The game sets the package price directly — the cards, the
                   cart and the amount charged all follow whatever price the players reach.
                 </p>
@@ -2908,7 +2931,7 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
               {/* --- the price on show --- */}
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-1.5">
-                  <Label className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Package shown</Label>
+                  <Label className="text-[11px] font-bold uppercase tracking-widest text-slate-500">Package shown</Label>
                   <Select
                     value={editingCampaign.package_id || 'none'}
                     onValueChange={(v) => {
@@ -2927,7 +2950,7 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
                       <SelectItem value="none">None</SelectItem>
                       {packagesByCategory.map(group => (
                         <div key={group.id}>
-                          <p className="px-2 py-1.5 text-[10px] font-black uppercase tracking-widest text-[#CD5C5C]">{group.name}</p>
+                          <p className="px-2 py-1.5 text-[11px] font-black uppercase tracking-widest text-[#CD5C5C]">{group.name}</p>
                           {group.items.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
                         </div>
                       ))}
@@ -2935,7 +2958,7 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
                   </Select>
                 </div>
                 <div className="space-y-1.5">
-                  <Label className="text-[10px] font-bold uppercase tracking-widest text-slate-500">
+                  <Label className="text-[11px] font-bold uppercase tracking-widest text-slate-500">
                     Headline price (RM)
                   </Label>
                   <Input
@@ -2944,7 +2967,7 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
                     onChange={(e) => setEditingCampaign({ ...editingCampaign, base_price: Number(e.target.value) })}
                     className="rounded-xl" disabled={!canEdit}
                   />
-                  <p className="text-[11px] font-medium text-slate-400">The number the game visibly slices.</p>
+                  <p className="text-xs font-medium text-slate-500">The number the game visibly slices.</p>
                 </div>
               </div>
 
@@ -2952,7 +2975,7 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
               <div className="rounded-xl border border-slate-200 p-3 space-y-4">
                 <div className="flex items-center gap-2">
                   <Trophy className="h-3.5 w-3.5 text-[#CD5C5C]" />
-                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-600">How the price falls</p>
+                  <p className="text-[11px] font-black uppercase tracking-widest text-slate-600">How the price falls</p>
                 </div>
 
                 <div className="space-y-1.5">
@@ -3038,7 +3061,7 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
                     onChange={(e) => setEditingCampaign({ ...editingCampaign, max_reward: Number(e.target.value) })}
                     className="rounded-xl" disabled={!canEdit}
                   />
-                  <p className="text-[11px] font-medium text-slate-400">
+                  <p className="text-xs font-medium text-slate-500">
                     The hard ceiling. The campaign stops discounting here however many people play.
                   </p>
                 </div>
@@ -3048,7 +3071,7 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
               <div className="space-y-4 rounded-xl border border-slate-200 p-3">
                 <div className="flex items-center gap-2">
                   <Lock className="h-3.5 w-3.5 text-[#CD5C5C]" />
-                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-600">
+                  <p className="text-[11px] font-black uppercase tracking-widest text-slate-600">
                     One turn per device
                   </p>
                 </div>
@@ -3056,7 +3079,7 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <Label className="text-xs font-bold text-slate-700">Lock across browsers</Label>
-                    <p className="mt-0.5 text-[11px] leading-snug text-slate-400">
+                    <p className="mt-0.5 text-xs leading-snug text-slate-500">
                       Stops the same phone or laptop playing again in a different browser, by
                       matching its hardware profile against the network it is on.
                     </p>
@@ -3069,7 +3092,7 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
                 </div>
 
                 <div className="space-y-1.5">
-                  <Label className="text-[10px] font-bold uppercase tracking-widest text-slate-500">
+                  <Label className="text-[11px] font-bold uppercase tracking-widest text-slate-500">
                     Max turns from one network (0 = no limit)
                   </Label>
                   <Input
@@ -3078,14 +3101,14 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
                     onChange={(e) => setEditingCampaign({ ...editingCampaign, max_plays_per_ip: Number(e.target.value) })}
                     className="rounded-xl" disabled={!canEdit}
                   />
-                  <p className="text-[11px] font-medium leading-snug text-slate-400">
+                  <p className="text-xs font-medium leading-snug text-slate-500">
                     The last line of defence, for someone who clears everything and switches
                     browser. Keep it above 1: a household, an office or a mobile carrier can put
                     many genuine players behind one address.
                   </p>
                 </div>
 
-                <p className="rounded-lg bg-amber-50 p-2 text-[11px] leading-snug text-amber-700">
+                <p className="rounded-lg bg-amber-50 p-2 text-xs leading-snug text-amber-700">
                   No website can read a real device id — these are strong signals, not proof.
                   Locking across browsers can occasionally catch two identical handsets on the
                   same wifi; switch it off if your audience shares connections heavily.
@@ -3095,7 +3118,7 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
               {/* --- the clock --- */}
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-1.5">
-                  <Label className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-slate-500">
+                  <Label className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-widest text-slate-500">
                     <Timer className="h-3 w-3" /> Runs for (hours)
                   </Label>
                   <Input
@@ -3104,7 +3127,7 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
                     onChange={(e) => setEditingCampaign({ ...editingCampaign, duration_hours: Number(e.target.value) })}
                     className="rounded-xl" disabled={!canEdit}
                   />
-                  <p className="text-[11px] font-medium text-slate-400">
+                  <p className="text-xs font-medium text-slate-500">
                     {editingCampaign.id
                       ? 'Counted from when this challenge started, so editing this moves the deadline.'
                       : 'The countdown starts the moment you save.'}
@@ -3124,10 +3147,10 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
 
               {/* --- what the agent is actually offering --- */}
               <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-                <p className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-slate-600">
+                <p className="flex items-center gap-1.5 text-[11px] font-black uppercase tracking-widest text-slate-600">
                   <Zap className="h-3 w-3 text-[#CD5C5C]" /> In plain words
                 </p>
-                <p className="mt-1.5 text-[11px] leading-relaxed text-slate-600">
+                <p className="mt-1.5 text-xs leading-relaxed text-slate-600">
                   Every <strong>{editingCampaign.players_per_tier || 10}</strong> people who play cut{' '}
                   <strong>
                     {editingCampaign.reward_type === 'percent'
@@ -3183,19 +3206,19 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
                   title names the link and the agent comes from the account. */}
               <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 space-y-2">
                 <div className="flex items-baseline justify-between gap-3">
-                  <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Links to</span>
+                  <span className="text-[11px] font-bold uppercase tracking-widest text-slate-500">Links to</span>
                   <span className="min-w-0 truncate text-xs font-bold text-slate-800">
                     {selectedLandingPage?.title || 'A landing page'}
                   </span>
                 </div>
                 <div className="flex items-baseline justify-between gap-3">
-                  <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Agent</span>
+                  <span className="text-[11px] font-bold uppercase tracking-widest text-slate-500">Agent</span>
                   <span className="min-w-0 truncate text-xs font-bold text-slate-800">
                     {profile.name || 'Set your name under “My details”'}
                   </span>
                 </div>
                 {selectedLandingPage && !selectedLandingPage.is_published && (
-                  <p className="text-[11px] font-medium text-amber-600">
+                  <p className="text-xs font-medium text-amber-600">
                     This page is still a draft. Publish it before sharing the link, or visitors
                     land on the homepage instead.
                   </p>
@@ -3203,7 +3226,7 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
               </div>
 
               <div className="space-y-1.5">
-                <Label className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Link address</Label>
+                <Label className="text-[11px] font-bold uppercase tracking-widest text-slate-500">Link address</Label>
                 <div className="flex gap-2">
                   <Input
                     value={buildShareLinkUrl(editingLink.token || '…')}
@@ -3220,13 +3243,13 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
                     </Button>
                   )}
                 </div>
-                <p className="text-[11px] font-medium text-slate-400">
+                <p className="text-xs font-medium text-slate-500">
                   Generated for you. Use the arrows to roll a different one.
                 </p>
               </div>
 
               <div className="space-y-1.5 pt-2 border-t border-slate-100">
-                <Label className="text-[10px] font-bold uppercase tracking-widest text-slate-500 flex items-center gap-1.5">
+                <Label className="text-[11px] font-bold uppercase tracking-widest text-slate-500 flex items-center gap-1.5">
                   <MessageCircle className="w-3 h-3 text-[#25D366]" /> Agent WhatsApp number
                 </Label>
                 <Input
@@ -3234,20 +3257,20 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
                   readOnly
                   className="rounded-xl text-xs bg-slate-50 text-slate-500 cursor-not-allowed"
                 />
-                <p className="text-[11px] text-slate-400 font-medium leading-snug">
+                <p className="text-xs text-slate-500 font-medium leading-snug">
                   From your account. Visitors on this link see a WhatsApp button to this number.
                 </p>
               </div>
 
               <div className="space-y-1.5">
-                <Label className="text-[10px] font-bold uppercase tracking-widest text-slate-500">WhatsApp first message</Label>
+                <Label className="text-[11px] font-bold uppercase tracking-widest text-slate-500">WhatsApp first message</Label>
                 <Textarea
                   value={editingLink.whatsapp_message || ''}
                   onChange={(e) => setEditingLink({ ...editingLink, whatsapp_message: e.target.value })}
                   placeholder="Hi, I saw your Raya flight offer…"
                   className="rounded-xl min-h-[56px] text-xs" disabled={!canEdit}
                 />
-                <p className="text-[11px] text-slate-400 font-medium leading-snug">
+                <p className="text-xs text-slate-500 font-medium leading-snug">
                   Pre-filled in the visitor's WhatsApp. Left empty, one is written from the
                   agent name and the page title.
                 </p>
@@ -3259,24 +3282,24 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
 
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-1.5">
-                  <Label className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Campaign starts</Label>
+                  <Label className="text-[11px] font-bold uppercase tracking-widest text-slate-500">Campaign starts</Label>
                   <Input
                     type="datetime-local"
                     value={toLocalInput(editingLink.starts_at ?? null)}
                     onChange={(e) => setEditingLink({ ...editingLink, starts_at: fromLocalInput(e.target.value) })}
                     className="rounded-xl" disabled={!canEdit}
                   />
-                  <p className="text-[11px] text-slate-400 font-medium">Leave empty to start immediately.</p>
+                  <p className="text-xs text-slate-500 font-medium">Leave empty to start immediately.</p>
                 </div>
                 <div className="space-y-1.5">
-                  <Label className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Campaign expires</Label>
+                  <Label className="text-[11px] font-bold uppercase tracking-widest text-slate-500">Campaign expires</Label>
                   <Input
                     type="datetime-local"
                     value={toLocalInput(editingLink.expires_at ?? null)}
                     onChange={(e) => setEditingLink({ ...editingLink, expires_at: fromLocalInput(e.target.value) })}
                     className="rounded-xl" disabled={!canEdit}
                   />
-                  <p className="text-[11px] text-slate-400 font-medium">Leave empty to run forever.</p>
+                  <p className="text-xs text-slate-500 font-medium">Leave empty to run forever.</p>
                 </div>
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-3 pt-6">
                   <Label className="text-xs font-bold text-slate-700">Active</Label>
@@ -3321,7 +3344,7 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
               type="button"
               onClick={() => setEditingPage(null)}
               aria-label="Close editor"
-              className="absolute right-3 top-3 sm:right-4 sm:top-4 flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-900"
+              className="absolute right-3 top-3 sm:right-4 sm:top-4 flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-900"
             >
               <X className="h-4 w-4" />
             </button>
@@ -3337,7 +3360,7 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
                   Settings rail: */}
               <div className="w-full lg:w-[320px] shrink-0 border-b lg:border-b-0 lg:border-r border-slate-100 p-4 sm:p-5 space-y-4 lg:overflow-y-auto">
                 <div className="space-y-1.5">
-                  <Label className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Title</Label>
+                  <Label className="text-[11px] font-bold uppercase tracking-widest text-slate-500">Title</Label>
                   <Input
                     value={editingPage.title || ''}
                     onChange={(e) => setEditingPage({
@@ -3350,9 +3373,9 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
                 </div>
 
                 <div className="space-y-1.5">
-                  <Label className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Page URL</Label>
+                  <Label className="text-[11px] font-bold uppercase tracking-widest text-slate-500">Page URL</Label>
                   <div className="flex items-center gap-1">
-                    <span className="text-xs text-slate-400 font-mono shrink-0">/p/</span>
+                    <span className="text-xs text-slate-500 font-mono shrink-0">/p/</span>
                     <Input
                       value={editingPage.slug || ''}
                       onChange={(e) => setEditingPage({ ...editingPage, slug: slugify(e.target.value) })}
@@ -3366,7 +3389,7 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
                     package and category are derived from it - they are what
                     narrow the wizard and scope the cart. */}
                 <div className="space-y-1.5">
-                  <Label className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Coupon this page runs</Label>
+                  <Label className="text-[11px] font-bold uppercase tracking-widest text-slate-500">Coupon this page runs</Label>
                   <Select
                     value={editingPage.coupon_id || 'none'}
                     onValueChange={(v) => {
@@ -3397,7 +3420,7 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
                   {(() => {
                     if (!editingPage.coupon_id) {
                       return (
-                        <p className="text-[10px] font-medium leading-snug text-slate-400">
+                        <p className="text-xs font-medium leading-snug text-slate-500">
                           Without a coupon the page shows every package and visitors pay the
                           normal price.
                         </p>
@@ -3406,14 +3429,14 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
                     const scope = couponScope(editingPage.coupon_id);
                     if (!scope.packageIds.length) {
                       return (
-                        <p className="rounded-lg bg-amber-50 p-2 text-[11px] leading-snug text-amber-700">
+                        <p className="rounded-lg bg-amber-50 p-2 text-xs leading-snug text-amber-700">
                           This coupon is not limited to any package, so the page will show all of
                           them. Set its packages or categories on the Coupons tab to narrow it.
                         </p>
                       );
                     }
                     return (
-                      <div className="rounded-lg bg-emerald-50 p-2 text-[11px] leading-snug text-emerald-700">
+                      <div className="rounded-lg bg-emerald-50 p-2 text-xs leading-snug text-emerald-700">
                         <p className="font-bold uppercase tracking-wider">This page will show</p>
                         <ul className="mt-1 list-disc pl-4">
                           {scope.packageIds.map(id => <li key={id}>{packageName(id)}</li>)}
@@ -3436,7 +3459,7 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
                     compound, and a game whose price can still be undercut
                     by a code is not really setting the price. */}
                 <div className="space-y-1.5">
-                  <Label className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-slate-500">
+                  <Label className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-widest text-slate-500">
                     <Gamepad2 className="w-3 h-3 text-[#CD5C5C]" /> Price slash game
                   </Label>
                   <Select
@@ -3480,14 +3503,14 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
                     // is a campaign that targets nothing at all.
                     if (!cm.package_id) {
                       return (
-                        <p className="rounded-lg bg-amber-50 p-2 text-[11px] leading-snug text-amber-700">
+                        <p className="rounded-lg bg-amber-50 p-2 text-xs leading-snug text-amber-700">
                           This challenge has no package set, so it cannot move any price. Open it on
                           the Price Slash tab and choose the package it is cutting.
                         </p>
                       );
                     }
                     return (
-                      <div className="rounded-lg bg-emerald-50 p-2 text-[11px] leading-snug text-emerald-700">
+                      <div className="rounded-lg bg-emerald-50 p-2 text-xs leading-snug text-emerald-700">
                         <p className="font-bold uppercase tracking-wider">This page will show</p>
                         <ul className="mt-1 list-disc pl-4">
                           <li>{packageName(cm.package_id)}</li>
@@ -3497,12 +3520,12 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
                     );
                   })()}
                   {campaigns.length === 0 ? (
-                    <p className="text-[10px] font-medium leading-snug text-slate-400">
+                    <p className="text-xs font-medium leading-snug text-slate-500">
                       No challenges built yet. Make one on the{' '}
                       <span className="font-bold text-slate-600">Price Slash</span> tab first.
                     </p>
                   ) : (
-                    <p className="text-[10px] font-medium leading-snug text-slate-400">
+                    <p className="text-xs font-medium leading-snug text-slate-500">
                       A page runs one or the other: choosing a game here clears the coupon above,
                       and choosing a coupon clears the game.
                     </p>
@@ -3510,7 +3533,7 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
                 </div>
 
                 <div className="space-y-1.5">
-                  <Label className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Meta description</Label>
+                  <Label className="text-[11px] font-bold uppercase tracking-widest text-slate-500">Meta description</Label>
                   <Textarea
                     value={editingPage.meta_description || ''}
                     onChange={(e) => setEditingPage({ ...editingPage, meta_description: e.target.value })}
@@ -3519,7 +3542,7 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
                 </div>
 
                 <div className="rounded-xl bg-slate-50 border border-slate-200 p-3">
-                  <p className="text-[10px] text-slate-500 font-medium leading-snug">
+                  <p className="text-xs text-slate-500 font-medium leading-snug">
                     <span className="font-bold uppercase tracking-wider text-slate-600">This page carries it.</span>{' '}
                     The coupon and the slash game are decided here, and here only. A share link
                     made for this page can still put a different agent's name and WhatsApp
@@ -3543,7 +3566,7 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
                     </div>
                   ))}
 
-                  <p className="text-[10px] text-slate-400 font-medium leading-snug">
+                  <p className="text-xs text-slate-500 font-medium leading-snug">
                     <span className="font-bold text-slate-600">Show packages</span> appends the package
                     carousel and the booking steps below your content, so the page ends at the same
                     payment step as the main site.
@@ -3556,12 +3579,12 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
                         packages and the booking steps - and works on a draft.
                         It is for proofing the design; what you send a customer
                         is the published /p/slug itself. */}
-                    <Button variant="outline" size="sm" className="w-full h-8 rounded-lg text-[11px] gap-1.5" asChild>
+                    <Button variant="outline" size="sm" className="w-full h-8 rounded-lg text-xs gap-1.5" asChild>
                       <a href={`${buildLandingPageUrl(editingPage.slug || '')}?preview=1`} target="_blank" rel="noreferrer">
                         <Eye className="w-3 h-3" /> Preview full page
                       </a>
                     </Button>
-                    <p className="text-[10px] text-slate-400 font-medium leading-snug">
+                    <p className="text-xs text-slate-500 font-medium leading-snug">
                       Save first — preview loads the stored version. Publish it and the page
                       is live at its own address; add a share link on the page's card only if
                       you need the visits attributed to a particular agent.
@@ -3611,7 +3634,7 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
                   {pageEditorMode === 'code' && (
                     <div className="flex items-center gap-2">
                       {lockedCount > 0 && (
-                        <span className="flex items-center gap-1 rounded-md bg-amber-50 px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-amber-700">
+                        <span className="flex items-center gap-1 rounded-md bg-amber-50 px-2 py-1 text-[11px] font-bold uppercase tracking-wider text-amber-700">
                           <Lock className="h-3 w-3" /> {lockedCount} locked
                         </span>
                       )}
@@ -3636,10 +3659,10 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
                       onChange={(e) => setEditingPage(prev => (prev ? { ...prev, html_content: e.target.value } : prev))}
                       spellCheck={false}
                       disabled={!canEdit}
-                      className="flex-1 min-h-0 resize-none rounded-xl border-slate-200 bg-white font-mono text-[12px] leading-relaxed"
+                      className="flex-1 min-h-0 resize-none rounded-xl border-slate-200 bg-white font-mono text-xs leading-relaxed"
                       placeholder="<div>…</div>"
                     />
-                    <p className="text-[10px] text-slate-500 font-medium leading-snug shrink-0">
+                    <p className="text-xs text-slate-500 font-medium leading-snug shrink-0">
                       {lockedCount > 0 ? (
                         <>
                           <Lock className="mr-1 inline h-3 w-3 text-amber-600" />
