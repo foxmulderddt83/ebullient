@@ -877,48 +877,37 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
   // ------------------------------------------------------------------
   // Share links
   // ------------------------------------------------------------------
-  /** Pages worth pointing a link at, live ones first. */
-  const linkablePages = useMemo(
-    () => [...pages].sort((a, b) => Number(b.is_published) - Number(a.is_published)),
-    [pages],
-  );
-
   /**
-   * Everything a link inherits when it is aimed at a landing page: the page
-   * already carries the campaign name, the agent and the coupon, so the link
-   * should not ask the agent to type them a second time.
+   * Everything a link inherits from the page it opens. The page decides the
+   * coupon and the game; the agent name and number come from the account. So
+   * the link asks for none of them, and its title is simply the page's.
    */
   const fromLandingPage = (page: LandingPage): Partial<ShareLink> => ({
     destination: 'landing',
     landing_page_id: page.id,
-    // Only the name is borrowed, as a starting label. The agent, the coupon and
-    // the WhatsApp number belong to the link, not the template.
     label: page.title,
     package_id: null,
     category_id: null,
   });
 
-  const newShareLink = (): Partial<ShareLink> => {
-    const base = {
-      token: randomToken(),
-      label: '',
-      destination: 'booking' as ShareLink['destination'],
-      whatsapp_message: '',
-      starts_at: null,
-      package_id: null,
-      category_id: null,
-      coupon_id: null,
-      landing_page_id: null,
-      is_active: true,
-      expires_at: null,
-    };
-
-    // A share link almost always promotes a landing page, so open on the first
-    // live one already filled in. Only an agent with no pages starts on the
-    // package picker.
-    const page = linkablePages.find(pg => pg.is_published);
-    return page ? { ...base, ...fromLandingPage(page) } : base;
-  };
+  /**
+   * Links are only ever created from a page's own card, which spreads
+   * fromLandingPage() over this - so the destination is always a landing page
+   * and the caller supplies which one. Nothing here has to be guessed.
+   */
+  const newShareLink = (): Partial<ShareLink> => ({
+    token: randomToken(),
+    label: '',
+    destination: 'landing' as ShareLink['destination'],
+    whatsapp_message: '',
+    starts_at: null,
+    package_id: null,
+    category_id: null,
+    coupon_id: null,
+    landing_page_id: null,
+    is_active: true,
+    expires_at: null,
+  });
 
   const saveShareLink = async () => {
     if (!editingLink || !supabase) return;
@@ -948,9 +937,11 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
     try {
       const payload = {
         token: l.token.trim().toLowerCase(),
-        label: l.label || null,
+        // No longer typed: the page it opens is the only sensible name, and
+        // asking for one meant retyping the page title into a second box.
+        label: l.label?.trim() || pages.find(p => p.id === l.landing_page_id)?.title || null,
         agent_name: profile.name || null,
-        destination: l.destination || 'booking',
+        destination: l.destination || 'landing',
         package_id: l.package_id || null,
         category_id: l.category_id || null,
         // Always null: the page decides the coupon, so a link carrying one of
@@ -2086,10 +2077,13 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
                               type="button"
                               onClick={() => copyToClipboard(url)}
                               title={url}
-                              className="min-w-0 flex-1 truncate text-left text-[10px] font-semibold text-slate-600 hover:text-[#CD5C5C]"
+                              className="min-w-0 flex-1 truncate text-left text-[10px] font-mono font-semibold text-slate-600 hover:text-[#CD5C5C]"
                             >
-                              {l.label || l.token}
-                              {left && <span className="ml-1 font-medium text-indigo-700">· {left} left</span>}
+                              {/* The token, not the label: every link here is
+                                  named after this page, whose title is already
+                                  the heading two lines up. */}
+                              {l.token}
+                              {left && <span className="ml-1 font-sans font-medium text-indigo-700">· {left} left</span>}
                             </button>
                             <Badge variant="outline" className={`shrink-0 text-[8px] font-bold uppercase ${linkStatus(l).tone}`}>
                               {linkStatus(l).label}
@@ -3040,151 +3034,52 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
 
           {editingLink && (
             <div className="space-y-4">
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-1.5">
-                  <Label className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Label</Label>
-                  <Input
-                    value={editingLink.label || ''}
-                    onChange={(e) => setEditingLink({ ...editingLink, label: e.target.value })}
-                    placeholder="e.g. Ramli — Instagram bio"
-                    className="rounded-xl" disabled={!canEdit}
-                  />
+              {/* Everything the page already answers is shown, not asked. The
+                  link is opened from a page's card, so the page is fixed; its
+                  title names the link and the agent comes from the account. */}
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 space-y-2">
+                <div className="flex items-baseline justify-between gap-3">
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Links to</span>
+                  <span className="min-w-0 truncate text-xs font-bold text-slate-800">
+                    {selectedLandingPage?.title || 'A landing page'}
+                  </span>
                 </div>
-                <div className="space-y-1.5">
-                  <Label className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Agent name</Label>
-                  <Input
-                    value={profile.name || 'Set your name below'}
-                    readOnly
-                    className="rounded-xl bg-slate-50 text-slate-500 cursor-not-allowed"
-                  />
-                  <p className="text-[11px] text-slate-400 font-medium">
-                    Taken from your account. Change it under “My details”.
+                <div className="flex items-baseline justify-between gap-3">
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Agent</span>
+                  <span className="min-w-0 truncate text-xs font-bold text-slate-800">
+                    {profile.name || 'Set your name under “My details”'}
+                  </span>
+                </div>
+                {selectedLandingPage && !selectedLandingPage.is_published && (
+                  <p className="text-[11px] font-medium text-amber-600">
+                    This page is still a draft. Publish it before sharing the link, or visitors
+                    land on the homepage instead.
                   </p>
-                </div>
+                )}
               </div>
 
               <div className="space-y-1.5">
-                <Label className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Link token</Label>
+                <Label className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Link address</Label>
                 <div className="flex gap-2">
                   <Input
-                    value={editingLink.token || ''}
-                    onChange={(e) => setEditingLink({ ...editingLink, token: e.target.value.toLowerCase() })}
-                    className="font-mono rounded-xl" disabled={!canEdit}
+                    value={buildShareLinkUrl(editingLink.token || '…')}
+                    readOnly
+                    className="rounded-xl bg-slate-50 font-mono text-xs text-slate-500"
                   />
                   {canEdit && (
                     <Button
                       type="button" variant="outline" size="icon" className="rounded-xl shrink-0"
+                      title="Generate a different address"
                       onClick={() => setEditingLink({ ...editingLink, token: randomToken() })}
                     >
                       <RefreshCw className="w-3.5 h-3.5" />
                     </Button>
                   )}
                 </div>
-                <p className="text-[11px] font-mono text-slate-400">{buildShareLinkUrl(editingLink.token || '…')}</p>
+                <p className="text-[11px] font-medium text-slate-400">
+                  Generated for you. Use the arrows to roll a different one.
+                </p>
               </div>
-
-              <div className="space-y-1.5">
-                <Label className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Opens</Label>
-                <Select
-                  value={editingLink.destination || 'booking'}
-                  onValueChange={(v) => {
-                    const dest = v as ShareLink['destination'];
-                    setEditingLink(prev => {
-                      if (!prev) return prev;
-                      if (dest === 'landing') {
-                        const page = linkablePages.find(pg => pg.id === prev.landing_page_id)
-                          ?? linkablePages.find(pg => pg.is_published);
-                        return page
-                          ? { ...prev, ...fromLandingPage(page) }
-                          : { ...prev, destination: dest, package_id: null, category_id: null };
-                      }
-                      // Clear the target that no longer applies, so a stale id
-                      // can never be saved against the wrong destination.
-                      return {
-                        ...prev,
-                        destination: dest,
-                        landing_page_id: null,
-                        package_id: dest === 'booking' ? prev.package_id ?? null : null,
-                        category_id: dest === 'booking' ? prev.category_id ?? null : null,
-                      };
-                    });
-                  }}
-                  disabled={!canEdit}
-                >
-                  <SelectTrigger className="rounded-xl"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="booking">A package on the booking page</SelectItem>
-                    <SelectItem value="landing">One of my landing pages</SelectItem>
-                    <SelectItem value="packages">The full packages page</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {editingLink.destination === 'landing' ? (
-                <div className="space-y-1.5">
-                  <Label className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Landing page</Label>
-                  <Select
-                    value={editingLink.landing_page_id || ''}
-                    onValueChange={(v) => {
-                      const page = pages.find(pg => pg.id === v);
-                      setEditingLink(prev => (prev && page ? { ...prev, ...fromLandingPage(page) } : prev));
-                    }}
-                    disabled={!canEdit || linkablePages.length === 0}
-                  >
-                    <SelectTrigger className="rounded-xl">
-                      <SelectValue placeholder={linkablePages.length ? 'Choose a page' : 'No landing pages yet'} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {linkablePages.map(pg => (
-                        <SelectItem key={pg.id} value={pg.id}>
-                          {pg.title}{pg.is_published ? '' : '  \u2014 draft'}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  {linkablePages.length === 0 ? (
-                    <p className="text-[11px] text-amber-600 font-medium">
-                      Build a page on the Landing Pages tab first, then point a link at it.
-                    </p>
-                  ) : selectedLandingPage && !selectedLandingPage.is_published ? (
-                    <p className="text-[11px] text-amber-600 font-medium">
-                      This page is still a draft. Publish it before sharing the link, or visitors land on
-                      the homepage instead.
-                    </p>
-                  ) : (
-                    <p className="text-[11px] text-slate-400 font-medium">
-                      The link takes its name, agent and coupon from this page.
-                    </p>
-                  )}
-                </div>
-              ) : editingLink.destination === 'booking' ? (
-                <div className="space-y-1.5">
-                  <Label className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Package</Label>
-                  <Select
-                    value={editingLink.package_id || ''}
-                    onValueChange={(v) => {
-                      const pkg = packages.find(p => p.id === v);
-                      setEditingLink({ ...editingLink, package_id: v, category_id: pkg?.category_id ?? null });
-                    }}
-                    disabled={!canEdit}
-                  >
-                    <SelectTrigger className="rounded-xl"><SelectValue placeholder="Choose a package" /></SelectTrigger>
-                    <SelectContent>
-                      {packagesByCategory.map(group => (
-                        <div key={group.id}>
-                          <p className="px-2 py-1.5 text-[10px] font-black uppercase tracking-widest text-[#CD5C5C]">{group.name}</p>
-                          {group.items.filter(p => p.sort_order === 0).map(p => (
-                            <SelectItem key={p.id} value={p.id}>{p.name} — RM {Number(p.price).toFixed(0)}</SelectItem>
-                          ))}
-                        </div>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <p className="text-[11px] text-slate-400 font-medium">
-                    Only main packages can be shared — add-ons are chosen inside the booking flow.
-                  </p>
-                </div>
-              ) : null}
 
               <div className="space-y-1.5 pt-2 border-t border-slate-100">
                 <Label className="text-[10px] font-bold uppercase tracking-widest text-slate-500 flex items-center gap-1.5">
