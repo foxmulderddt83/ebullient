@@ -1253,6 +1253,17 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
       } else if (confirmDelete.table === 'agent_share_links') {
         setShareLinks(prev => prev.filter(l => l.id !== confirmDelete.id));
       } else if (confirmDelete.table === 'agent_landing_pages') {
+        // The page's links go with it. agent_share_links.landing_page_id is
+        // ON DELETE SET NULL, so leaving them would strand a link that still
+        // resolves but belongs to no page - and since links are only reachable
+        // from a page's card, nothing could ever list or delete it again.
+        const orphans = shareLinks.filter(l => l.landing_page_id === confirmDelete.id);
+        if (orphans.length) {
+          const { error: linkError } = await supabase
+            .from('agent_share_links').delete().eq('landing_page_id', confirmDelete.id);
+          if (linkError) throw linkError;
+          setShareLinks(prev => prev.filter(l => l.landing_page_id !== confirmDelete.id));
+        }
         setPages(prev => prev.filter(p => p.id !== confirmDelete.id));
       } else if (confirmDelete.table === 'slash_campaigns') {
         setCampaigns(prev => prev.filter(c => c.id !== confirmDelete.id));
@@ -2116,41 +2127,56 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
                   <CardHeader className="pb-2">
                     <div className="flex items-start justify-between gap-2">
                       <CardTitle className="text-sm font-black text-slate-900 leading-tight">{p.title}</CardTitle>
-                      <button
-                        type="button"
-                        onClick={async () => {
-                          if (!canEdit || !supabase) return;
-                          setSaving(true);
-                          try {
-                            const newPublishedState = !p.is_published;
-                            setPages(prev => prev.map(page =>
-                              page.id === p.id ? { ...page, is_published: newPublishedState } : page
-                            ));
-                            const { error } = await supabase
-                              .from('agent_landing_pages')
-                              .update({ is_published: newPublishedState })
-                              .eq('id', p.id);
-                            if (error) throw error;
-                            toast.success(newPublishedState ? 'Page published' : 'Page unpublished');
-                            logActivity(supabase, 'update', 'agent_landing_pages', p.id, { is_published: newPublishedState });
-                          } catch (e: any) {
-                            toast.error(e?.message || 'Failed to update page');
-                            setPages(prev => prev.map(page =>
-                              page.id === p.id ? { ...page, is_published: p.is_published } : page
-                            ));
-                          } finally {
-                            setSaving(false);
-                          }
-                        }}
-                        disabled={!canEdit || saving}
-                        className={`px-2 py-0.5 rounded-md text-[11px] font-bold uppercase shrink-0 transition-all ${
-                          canEdit ? 'cursor-pointer hover:shadow-md active:scale-95' : 'cursor-not-allowed'
-                        } ${p.is_published
-                          ? 'bg-emerald-50 text-emerald-600 border border-emerald-200'
-                          : 'bg-slate-100 text-slate-500 border border-slate-200'}`}
-                      >
-                        {p.is_published ? 'Live' : 'Draft'}
-                      </button>
+                      {/* Publish state and delete sit together: both act on the
+                          page as a whole, unlike the row of buttons below which
+                          act on its content. */}
+                      <div className="flex shrink-0 items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            if (!canEdit || !supabase) return;
+                            setSaving(true);
+                            try {
+                              const newPublishedState = !p.is_published;
+                              setPages(prev => prev.map(page =>
+                                page.id === p.id ? { ...page, is_published: newPublishedState } : page
+                              ));
+                              const { error } = await supabase
+                                .from('agent_landing_pages')
+                                .update({ is_published: newPublishedState })
+                                .eq('id', p.id);
+                              if (error) throw error;
+                              toast.success(newPublishedState ? 'Page published' : 'Page unpublished');
+                              logActivity(supabase, 'update', 'agent_landing_pages', p.id, { is_published: newPublishedState });
+                            } catch (e: any) {
+                              toast.error(e?.message || 'Failed to update page');
+                              setPages(prev => prev.map(page =>
+                                page.id === p.id ? { ...page, is_published: p.is_published } : page
+                              ));
+                            } finally {
+                              setSaving(false);
+                            }
+                          }}
+                          disabled={!canEdit || saving}
+                          className={`px-2 py-0.5 rounded-md text-[11px] font-bold uppercase shrink-0 transition-all ${
+                            canEdit ? 'cursor-pointer hover:shadow-md active:scale-95' : 'cursor-not-allowed'
+                          } ${p.is_published
+                            ? 'bg-emerald-50 text-emerald-600 border border-emerald-200'
+                            : 'bg-slate-100 text-slate-500 border border-slate-200'}`}
+                        >
+                          {p.is_published ? 'Live' : 'Draft'}
+                        </button>
+                        {canEdit && (
+                          <Button
+                            variant="ghost" size="icon"
+                            className="h-7 w-7 text-red-500 hover:bg-red-50 hover:text-red-600"
+                            title="Delete this page"
+                            onClick={() => setConfirmDelete({ table: 'agent_landing_pages', id: p.id, label: p.title })}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        )}
+                      </div>
                     </div>
                     <CardDescription className="text-xs font-mono truncate">/p/{p.slug}</CardDescription>
                   </CardHeader>
@@ -2216,55 +2242,85 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
                     {/* Share links now live here and nowhere else. A page is
                         reachable at its own /p/slug without one; a link is only
                         for attributing traffic to a particular agent or blast. */}
-                    <div className="space-y-1.5 border-t border-slate-100 pt-2.5">
+                    <div className="space-y-2 border-t border-slate-100 pt-2.5">
                       <div className="flex items-center justify-between gap-2">
-                        <p className="text-[11px] font-bold uppercase tracking-widest text-slate-500">Share links</p>
-                        {canEdit && (
+                        <p className="text-[11px] font-bold uppercase tracking-widest text-slate-500">Share link</p>
+                        {/* One is enough: the link exists to attribute this
+                            page's traffic, and a second would only split the
+                            same page's numbers across two rows. Any extras that
+                            already exist are still listed and still deletable. */}
+                        {canEdit && pageLinks.length === 0 && (
                           <button
                             type="button"
                             onClick={() => setEditingLink({ ...newShareLink(), ...fromLandingPage(p) })}
                             className="flex items-center gap-1 text-xs font-bold text-[#CD5C5C] hover:underline"
                           >
-                            <Plus className="h-3 w-3" /> New
+                            <Plus className="h-3 w-3" /> Create
                           </button>
                         )}
                       </div>
 
                       {pageLinks.length === 0 ? (
                         <p className="text-xs font-medium text-slate-500">
-                          None yet — a visitor can only reach this page through one.
+                          None yet. The page already works at /p/{p.slug} — a link only adds
+                          tracking on top.
                         </p>
                       ) : pageLinks.map(l => {
                         const url = buildShareLinkUrl(l.token);
                         const left = getRemainingTime(l.expires_at);
                         return (
-                          <div key={l.id} className="flex items-center gap-1">
-                            <button
-                              type="button"
-                              onClick={() => copyToClipboard(url)}
-                              title={url}
-                              className="min-w-0 flex-1 truncate text-left text-xs font-mono font-semibold text-slate-600 hover:text-[#CD5C5C]"
-                            >
-                              {/* The token, not the label: every link here is
-                                  named after this page, whose title is already
-                                  the heading two lines up. */}
-                              {l.token}
-                              {left && <span className="ml-1 font-sans font-medium text-indigo-700">· {left} left</span>}
-                            </button>
-                            <Badge variant="outline" className={`shrink-0 text-[11px] font-bold uppercase ${linkStatus(l).tone}`}>
-                              {linkStatus(l).label}
-                            </Badge>
-                            <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0" title="Copy link" onClick={() => copyToClipboard(url)}>
-                              <Copy className="h-3 w-3" />
-                            </Button>
-                            <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0" title="QR code" onClick={() => setQrLink(l)}>
-                              <QrCode className="h-3 w-3" />
-                            </Button>
-                            {canEdit && (
-                              <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0" title="Edit link" onClick={() => setEditingLink(l)}>
-                                <FileCode className="h-3 w-3" />
-                              </Button>
-                            )}
+                          <div key={l.id} className="space-y-2 rounded-xl border border-slate-200 bg-slate-50/70 p-2.5">
+                            <div className="flex items-center gap-2">
+                              <button
+                                type="button"
+                                onClick={() => copyToClipboard(url)}
+                                title="Copy this link"
+                                className="min-w-0 flex-1 truncate text-left font-mono text-xs font-semibold text-slate-600 hover:text-[#CD5C5C]"
+                              >
+                                {url}
+                              </button>
+                              <Badge variant="outline" className={`shrink-0 text-[11px] font-bold uppercase ${linkStatus(l).tone}`}>
+                                {linkStatus(l).label}
+                              </Badge>
+                            </div>
+
+                            <div className="flex items-end justify-between gap-3">
+                              {/* The link's own counters, which the page-level
+                                  strip above cannot show: those count every
+                                  visit, these only the ones through this link. */}
+                              <div className="flex gap-5">
+                                <Stat label="Clicks" value={l.click_count} />
+                                <Stat label="Visitors" value={l.unique_visitors} />
+                                <Stat
+                                  label={left ? 'Time left' : 'Runs'}
+                                  value={<span className="text-xs">{left || 'No end date'}</span>}
+                                  tone={left ? 'text-indigo-700' : 'text-slate-500'}
+                                />
+                              </div>
+                              <div className="flex shrink-0 items-center gap-1">
+                                <Button variant="ghost" size="icon" className="h-7 w-7" title="Copy link" onClick={() => copyToClipboard(url)}>
+                                  <Copy className="h-3.5 w-3.5" />
+                                </Button>
+                                <Button variant="ghost" size="icon" className="h-7 w-7" title="QR code" onClick={() => setQrLink(l)}>
+                                  <QrCode className="h-3.5 w-3.5" />
+                                </Button>
+                                {canEdit && (
+                                  <>
+                                    <Button variant="ghost" size="icon" className="h-7 w-7" title="Edit link" onClick={() => setEditingLink(l)}>
+                                      <FileCode className="h-3.5 w-3.5" />
+                                    </Button>
+                                    <Button
+                                      variant="ghost" size="icon"
+                                      className="h-7 w-7 text-red-500 hover:bg-red-50 hover:text-red-600"
+                                      title="Delete this share link"
+                                      onClick={() => setConfirmDelete({ table: 'agent_share_links', id: l.id, label: l.token })}
+                                    >
+                                      <Trash2 className="h-3.5 w-3.5" />
+                                    </Button>
+                                  </>
+                                )}
+                              </div>
+                            </div>
                           </div>
                         );
                       })}
@@ -2279,15 +2335,6 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
                           <Eye className="w-3.5 h-3.5" />
                         </a>
                       </Button>
-                      {canEdit && (
-                        <Button
-                          variant="ghost" size="icon"
-                          className="h-8 w-8 text-red-500 hover:text-red-600"
-                          onClick={() => setConfirmDelete({ table: 'agent_landing_pages', id: p.id, label: p.title })}
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </Button>
-                      )}
                     </div>
                   </CardContent>
                 </Card>
@@ -3795,6 +3842,11 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
             <AlertDialogTitle>Delete “{confirmDelete?.label}”?</AlertDialogTitle>
             <AlertDialogDescription>
               This cannot be undone. Any statistics already recorded against it are removed too.
+              {confirmDelete?.table === 'agent_landing_pages' && (() => {
+                const n = shareLinks.filter(l => l.landing_page_id === confirmDelete.id).length;
+                return n ? ` Its share link${n === 1 ? '' : 's'} will be deleted as well, so
+                  ${n === 1 ? 'it stops' : 'they stop'} working for anyone who still has the address.` : '';
+              })()}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter className="gap-2">
