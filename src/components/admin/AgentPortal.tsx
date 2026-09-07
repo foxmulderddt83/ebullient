@@ -442,6 +442,22 @@ const Field = ({ label, children }: { label: string; children: React.ReactNode }
   </div>
 );
 
+/**
+ * The dark shell every tab sits on. The panels inside keep the colours they
+ * have always had - white cards on near-black read as lit, which is the whole
+ * point - so only the chrome around them is restyled for the dark ground.
+ */
+const TAB_SHELL =
+  'mt-4 space-y-4 rounded-3xl bg-gradient-to-b from-[#0B0F19] via-[#111827] to-[#0B0F19] ' +
+  'p-4 shadow-2xl ring-1 ring-white/10 sm:mt-5 sm:p-5';
+
+/** Muted body text on the dark shell. */
+const SHELL_MUTED = 'text-slate-400';
+/** A note or sub-panel that is chrome rather than content. */
+const SHELL_NOTE = 'rounded-xl border border-white/10 bg-white/5 p-3';
+/** Outline buttons on the dark shell, which would otherwise be white blocks. */
+const SHELL_BTN = 'border-white/20 bg-white/5 text-slate-200 hover:bg-white/10 hover:text-white';
+
 /** One figure in a page's results strip. Dimmed at zero so a busy page reads first. */
 const Stat = ({ label, value, tone }: { label: string; value: React.ReactNode; tone?: string }) => (
   <div className="min-w-0">
@@ -1565,30 +1581,33 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
       </div>
 
       <Tabs defaultValue="coupons" className="w-full">
-        <TabsList className="grid w-full grid-cols-2 gap-1 bg-slate-100 rounded-2xl p-1 h-auto sm:flex sm:w-auto sm:flex-wrap">
-          <TabsTrigger value="coupons" className="rounded-xl text-[10px] sm:text-xs font-bold gap-1 sm:gap-1.5 px-1.5 sm:px-4 py-1.5 sm:py-2">
+        <TabsList className="grid w-full grid-cols-2 gap-1 rounded-2xl bg-[#0B0F19] p-1.5 h-auto ring-1 ring-white/10 shadow-lg sm:flex sm:w-auto sm:flex-wrap">
+          <TabsTrigger value="coupons" className="rounded-xl text-[10px] sm:text-xs font-bold gap-1 sm:gap-1.5 px-1.5 sm:px-4 py-1.5 sm:py-2 text-slate-400 hover:text-slate-200 data-[state=active]:text-slate-900">
             <Ticket className="w-3 h-3 sm:w-3.5 sm:h-3.5 shrink-0" /> Coupons
           </TabsTrigger>
-          <TabsTrigger value="slash" className="rounded-xl text-[10px] sm:text-xs font-bold gap-1 sm:gap-1.5 px-1.5 sm:px-4 py-1.5 sm:py-2">
+          <TabsTrigger value="redemptions" className="rounded-xl text-[10px] sm:text-xs font-bold gap-1 sm:gap-1.5 px-1.5 sm:px-4 py-1.5 sm:py-2 text-slate-400 hover:text-slate-200 data-[state=active]:text-slate-900">
+            <CheckCircle2 className="w-3 h-3 sm:w-3.5 sm:h-3.5 shrink-0" /> <span className="truncate">Redemptions</span>
+          </TabsTrigger>
+          <TabsTrigger value="slash" className="rounded-xl text-[10px] sm:text-xs font-bold gap-1 sm:gap-1.5 px-1.5 sm:px-4 py-1.5 sm:py-2 text-slate-400 hover:text-slate-200 data-[state=active]:text-slate-900">
             <Gamepad2 className="w-3 h-3 sm:w-3.5 sm:h-3.5 shrink-0" /> <span className="truncate">Price Slash</span>
           </TabsTrigger>
-          <TabsTrigger value="pages" className="rounded-xl text-[10px] sm:text-xs font-bold gap-1 sm:gap-1.5 px-1.5 sm:px-4 py-1.5 sm:py-2">
+          <TabsTrigger value="pages" className="rounded-xl text-[10px] sm:text-xs font-bold gap-1 sm:gap-1.5 px-1.5 sm:px-4 py-1.5 sm:py-2 text-slate-400 hover:text-slate-200 data-[state=active]:text-slate-900">
             <FileCode className="w-3 h-3 sm:w-3.5 sm:h-3.5 shrink-0" /> <span className="truncate">Landing Pages</span>
           </TabsTrigger>
-          <TabsTrigger value="analytics" className="rounded-xl text-[10px] sm:text-xs font-bold gap-1 sm:gap-1.5 px-1.5 sm:px-4 py-1.5 sm:py-2">
+          <TabsTrigger value="analytics" className="rounded-xl text-[10px] sm:text-xs font-bold gap-1 sm:gap-1.5 px-1.5 sm:px-4 py-1.5 sm:py-2 text-slate-400 hover:text-slate-200 data-[state=active]:text-slate-900">
             <BarChart3 className="w-3 h-3 sm:w-3.5 sm:h-3.5 shrink-0" /> Statistics
           </TabsTrigger>
         </TabsList>
 
         {/* ============================ COUPONS ============================ */}
-        <TabsContent value="coupons" className="space-y-2 sm:space-y-4 mt-3 sm:mt-5">
+        <TabsContent value="coupons" className={TAB_SHELL}>
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-3">
-            <p className="text-[11px] sm:text-xs text-slate-500 font-medium">
+            <p className="text-[11px] sm:text-xs text-slate-400 font-medium">
               {coupons.length} coupon{coupons.length === 1 ? '' : 's'} ·{' '}
               {coupons.filter(c => couponStatus(c, shareLinks).label === 'Active').length} active
             </p>
             <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm" onClick={reload} className="gap-2 rounded-xl shrink-0 px-3 sm:px-4">
+              <Button variant="outline" size="sm" onClick={reload} className={`gap-2 rounded-xl shrink-0 px-3 sm:px-4 ${SHELL_BTN}`}>
                 <RefreshCw className="w-3.5 h-3.5" />
                 <span className="hidden sm:inline">Refresh</span>
               </Button>
@@ -1755,7 +1774,13 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
               </Table>
             </div>
           </div>
+        </TabsContent>
 
+        {/* ========================= REDEMPTIONS ========================= */}
+        {/* Lifted out of the Coupons tab: the ledger is a different question
+            - not "what am I offering?" but "what has already been spent?" -
+            and it was pushing the coupon list off the screen. */}
+        <TabsContent value="redemptions" className={TAB_SHELL}>
           {/* Redemption ledger — the proof a code was already used */}
           <Card className="border-slate-200 rounded-2xl">
             <CardHeader className="pb-3">
@@ -1767,7 +1792,7 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
               </CardDescription>
             </CardHeader>
             <CardContent className="p-0">
-              <div className="sm:hidden max-h-[360px] overflow-y-auto divide-y divide-slate-100">
+              <div className="sm:hidden max-h-[70vh] overflow-y-auto divide-y divide-slate-100">
                 {redemptions.length === 0 && (
                   <p className="text-center py-8 text-sm text-slate-400">No coupon has been redeemed yet.</p>
                 )}
@@ -1793,7 +1818,7 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
                 ))}
               </div>
 
-              <div className="hidden sm:block overflow-x-auto max-h-[320px] overflow-y-auto">
+              <div className="hidden sm:block overflow-x-auto max-h-[70vh] overflow-y-auto">
                 <Table>
                   <TableHeader className="sticky top-0 bg-white z-10">
                     <TableRow>
@@ -1841,10 +1866,7 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
         {/* Dark shell so the white challenge panels read as lit cards against
             it. Only the chrome around them is restyled - the panels keep the
             colours they have everywhere else. */}
-        <TabsContent
-          value="slash"
-          className="mt-5 space-y-4 rounded-3xl bg-gradient-to-b from-[#0B0F19] via-[#111827] to-[#0B0F19] p-4 shadow-2xl ring-1 ring-white/10 sm:p-5"
-        >
+        <TabsContent value="slash" className={TAB_SHELL}>
           {/* ================= PRICE SLASH CHALLENGES ================= */}
           <div>
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-3">
@@ -2033,14 +2055,14 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
         </TabsContent>
 
         {/* ========================= LANDING PAGES ========================= */}
-        <TabsContent value="pages" className="space-y-4 mt-5">
+        <TabsContent value="pages" className={TAB_SHELL}>
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-3">
-            <p className="text-[11px] sm:text-xs text-slate-500 font-medium">
+            <p className="text-[11px] sm:text-xs text-slate-400 font-medium">
               {pages.length} page{pages.length === 1 ? '' : 's'} ·{' '}
               {pages.filter(p => p.is_published).length} published
             </p>
             <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm" onClick={reload} className="gap-2 rounded-xl shrink-0 px-3 sm:px-4">
+              <Button variant="outline" size="sm" onClick={reload} className={`gap-2 rounded-xl shrink-0 px-3 sm:px-4 ${SHELL_BTN}`}>
                 <RefreshCw className="w-3.5 h-3.5" />
                 <span className="hidden sm:inline">Refresh</span>
               </Button>
@@ -2252,9 +2274,9 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
         </TabsContent>
 
         {/* =========================== ANALYTICS =========================== */}
-        <TabsContent value="analytics" className="space-y-5 mt-5">
+        <TabsContent value="analytics" className={TAB_SHELL}>
           <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:gap-3">
-            <Label className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Scope</Label>
+            <Label className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Scope</Label>
             <Select value={analyticsScope} onValueChange={setAnalyticsScope}>
               <SelectTrigger className="w-full sm:w-[280px] h-9 rounded-xl text-xs">
                 <SelectValue />
@@ -2269,7 +2291,7 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
                 ))}
               </SelectContent>
             </Select>
-            <Button variant="outline" size="sm" onClick={reload} className="gap-2 rounded-xl shrink-0 px-3 sm:px-4 sm:ml-auto">
+            <Button variant="outline" size="sm" onClick={reload} className={`gap-2 rounded-xl shrink-0 px-3 sm:px-4 sm:ml-auto ${SHELL_BTN}`}>
               <RefreshCw className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">Refresh</span>
             </Button>
@@ -2280,14 +2302,15 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
               names it either way. */}
           <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
             <div className="flex flex-wrap items-center gap-1.5">
-              <Label className="mr-1 text-[10px] font-bold uppercase tracking-widest text-slate-500">Show</Label>
+              <Label className="mr-1 text-[10px] font-bold uppercase tracking-widest text-slate-400">Show</Label>
               {ANALYTICS_RANGES.map(r => (
                 <Button
                   key={r.key}
                   size="sm"
                   variant={analyticsRange === r.key ? 'default' : 'outline'}
                   onClick={() => setAnalyticsRange(r.key)}
-                  className="h-8 rounded-xl px-2.5 text-[11px] font-bold"
+                  className={`h-8 rounded-xl px-2.5 text-[11px] font-bold ${
+                    analyticsRange === r.key ? '' : SHELL_BTN}`}
                 >
                   {r.label}
                 </Button>
@@ -2295,14 +2318,14 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
             </div>
 
             <div className="flex flex-wrap items-center gap-1.5">
-              <Label className="mr-1 text-[10px] font-bold uppercase tracking-widest text-slate-500">Clear</Label>
+              <Label className="mr-1 text-[10px] font-bold uppercase tracking-widest text-slate-400">Clear</Label>
               {CLEAR_OPTIONS.map(o => (
                 <Button
                   key={o.key}
                   size="sm"
                   variant="outline"
                   onClick={() => setConfirmClear(o)}
-                  className="h-8 gap-1 rounded-xl border-red-200 px-2.5 text-[11px] font-bold text-red-600 hover:bg-red-50 hover:text-red-700"
+                  className="h-8 gap-1 rounded-xl border-red-400/40 bg-red-500/10 px-2.5 text-[11px] font-bold text-red-300 hover:bg-red-500/20 hover:text-red-200"
                 >
                   <Trash2 className="h-3 w-3" /> {o.short}
                 </Button>
