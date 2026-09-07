@@ -2196,7 +2196,8 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
               </p>
             )}
             {pages.map(p => {
-              const linkCount = shareLinks.filter(l => l.landing_page_id === p.id).length;
+              const pageLinks = shareLinks.filter(l => l.landing_page_id === p.id);
+              const linkCount = pageLinks.length;
               return (
                 <Card key={p.id} className="border-slate-200 rounded-2xl hover:shadow-md transition-shadow">
                   <CardHeader className="pb-2">
@@ -2261,6 +2262,62 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
                           : `${linkCount} share link${linkCount === 1 ? '' : 's'}`}
                       </Badge>
                     </div>
+
+                    {/* The same share links the Share Links tab owns, reachable
+                        from the page they promote. Creating and editing still
+                        happen in the one editor, so there is no second copy of
+                        the rules - this only saves the hunt for the right row. */}
+                    <div className="space-y-1.5 border-t border-slate-100 pt-2.5">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-[9px] font-bold uppercase tracking-widest text-slate-500">Share links</p>
+                        {canEdit && (
+                          <button
+                            type="button"
+                            onClick={() => setEditingLink({ ...newShareLink(), ...fromLandingPage(p) })}
+                            className="flex items-center gap-1 text-[10px] font-bold text-[#CD5C5C] hover:underline"
+                          >
+                            <Plus className="h-3 w-3" /> New
+                          </button>
+                        )}
+                      </div>
+
+                      {pageLinks.length === 0 ? (
+                        <p className="text-[10px] font-medium text-slate-400">
+                          None yet — a visitor can only reach this page through one.
+                        </p>
+                      ) : pageLinks.map(l => {
+                        const url = buildShareLinkUrl(l.token);
+                        const left = getRemainingTime(l.expires_at);
+                        return (
+                          <div key={l.id} className="flex items-center gap-1">
+                            <button
+                              type="button"
+                              onClick={() => copyToClipboard(url)}
+                              title={url}
+                              className="min-w-0 flex-1 truncate text-left text-[10px] font-semibold text-slate-600 hover:text-[#CD5C5C]"
+                            >
+                              {l.label || l.token}
+                              {left && <span className="ml-1 font-medium text-indigo-700">· {left} left</span>}
+                            </button>
+                            <Badge variant="outline" className={`shrink-0 text-[8px] font-bold uppercase ${linkStatus(l).tone}`}>
+                              {linkStatus(l).label}
+                            </Badge>
+                            <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0" title="Copy link" onClick={() => copyToClipboard(url)}>
+                              <Copy className="h-3 w-3" />
+                            </Button>
+                            <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0" title="QR code" onClick={() => setQrLink(l)}>
+                              <QrCode className="h-3 w-3" />
+                            </Button>
+                            {canEdit && (
+                              <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0" title="Edit link" onClick={() => setEditingLink(l)}>
+                                <FileCode className="h-3 w-3" />
+                              </Button>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+
                     <div className="flex items-center gap-1">
                       <Button variant="outline" size="sm" className="flex-1 h-8 text-[11px] rounded-lg gap-1.5" onClick={() => openPage(p)}>
                         <FileCode className="w-3 h-3" /> Edit
