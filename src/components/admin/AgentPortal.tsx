@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
@@ -27,7 +28,7 @@ import {
   Loader2, Plus, Trash2, Copy, Ticket, Link2, FileCode, BarChart3, RefreshCw,
   Save, Eye, ExternalLink, Globe, MousePointerClick, ScrollText, ClipboardList,
   X, Percent, CheckCircle2, XCircle, Users, QrCode, MessageCircle, Code, Lock,
-  Gamepad2, Timer, Trophy, Zap, RotateCcw,
+  Gamepad2, Timer, Trophy, Zap, RotateCcw, HelpCircle,
 } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
@@ -386,6 +387,37 @@ const CLEAR_OPTIONS = [
 ] as const;
 
 type ClearOption = typeof CLEAR_OPTIONS[number];
+
+/**
+ * A field label with the rule behind it one tap away.
+ *
+ * The numbers under "How the price falls" compound - a player's own round
+ * and the group's drops both add into the same running total - so the label
+ * alone leaves the agent guessing what raising one will actually do.
+ *
+ * The trigger is a real button so it takes focus, and focus is what opens a
+ * Radix tooltip on a touch screen; hover alone would leave phones with no
+ * way to read any of this.
+ */
+const HintLabel = ({ text, hint }: { text: string; hint: React.ReactNode }) => (
+  <Label className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest text-slate-500">
+    {text}
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <button
+          type="button"
+          aria-label={`What "${text}" means`}
+          className="text-slate-300 transition-colors hover:text-[#CD5C5C] focus:text-[#CD5C5C] focus:outline-none"
+        >
+          <HelpCircle className="h-3 w-3" />
+        </button>
+      </TooltipTrigger>
+      <TooltipContent side="top" className="max-w-[260px] text-[11px] font-medium normal-case leading-snug tracking-normal">
+        {hint}
+      </TooltipContent>
+    </Tooltip>
+  </Label>
+);
 
 const Field = ({ label, children }: { label: string; children: React.ReactNode }) => (
   <div className="flex flex-col items-start gap-0.5 py-1 sm:flex-row sm:items-baseline sm:justify-between sm:gap-3">
@@ -2886,7 +2918,10 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
                 </div>
 
                 <div className="space-y-1.5">
-                  <Label className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Discount is measured in</Label>
+                  <HintLabel
+                    text="Discount is measured in"
+                    hint="The unit for every number below. Ringgit takes a flat amount off; percent takes a share of the package price, and is capped at 100% however high you set the ceiling."
+                  />
                   <Select
                     value={editingCampaign.reward_type || 'fixed'}
                     onValueChange={(v) => setEditingCampaign({ ...editingCampaign, reward_type: v as 'fixed' | 'percent' })}
@@ -2902,7 +2937,10 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
 
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-1.5">
-                    <Label className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Players per drop</Label>
+                    <HintLabel
+                      text="Players per drop"
+                      hint="How many finished rounds it takes to unlock one drop for everybody. Drops are counted off the running total, so a new one lands each time the player count passes another multiple of this. Set it to 1 and every single player unlocks a drop."
+                    />
                     <Input
                       type="number" min={1}
                       value={editingCampaign.players_per_tier ?? 10}
@@ -2911,7 +2949,10 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
                     />
                   </div>
                   <div className="space-y-1.5">
-                    <Label className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Each drop is worth</Label>
+                    <HintLabel
+                      text="Each drop is worth"
+                      hint="What one unlocked drop takes off the price. This is the group half of the discount, and it adds on top of what players earn from their own rounds — the two stack."
+                    />
                     <Input
                       type="number" min={0} step="0.01"
                       value={editingCampaign.reward_per_tier ?? 0}
@@ -2923,7 +2964,10 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
 
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-1.5">
-                    <Label className="text-[10px] font-bold uppercase tracking-widest text-slate-500">A perfect round is worth</Label>
+                    <HintLabel
+                      text="A perfect round is worth"
+                      hint="The most one player's own round can add. They only get the full amount for a perfect round; land half the hits and they add half of this. Every player's share is kept and counted, so this accumulates across everyone who plays."
+                    />
                     <Input
                       type="number" min={0} step="0.01"
                       value={editingCampaign.reward_per_player ?? 0}
@@ -2932,7 +2976,10 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
                     />
                   </div>
                   <div className="space-y-1.5">
-                    <Label className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Hits for a perfect round</Label>
+                    <HintLabel
+                      text="Hits for a perfect round"
+                      hint="The score that counts as perfect. A player adds hits ÷ this share of the amount on the left, so raising it makes a full share harder to earn. Hits beyond it are ignored, never extra."
+                    />
                     <Input
                       type="number" min={1}
                       value={editingCampaign.hits_target ?? 20}
@@ -2943,9 +2990,10 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
                 </div>
 
                 <div className="space-y-1.5">
-                  <Label className="text-[10px] font-bold uppercase tracking-widest text-slate-500">
-                    Never cut more than
-                  </Label>
+                  <HintLabel
+                    text="Never cut more than"
+                    hint="The ceiling on the whole discount — every player's round and every group drop added together. Leave it at 0 for no ceiling at all, which lets the price keep falling as long as people keep playing."
+                  />
                   <Input
                     type="number" min={0} step="0.01"
                     value={editingCampaign.max_reward ?? 0}
