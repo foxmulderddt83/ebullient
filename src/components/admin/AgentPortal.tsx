@@ -478,8 +478,10 @@ const Field = ({ label, children }: { label: string; children: React.ReactNode }
  * point - so only the chrome around them is restyled for the dark ground.
  */
 const TAB_SHELL =
-  'mt-4 space-y-4 rounded-3xl bg-gradient-to-b from-[#0B0F19] via-[#111827] to-[#0B0F19] ' +
-  'p-4 shadow-2xl ring-1 ring-white/10 sm:mt-5 sm:p-5';
+  'mt-4 space-y-4 rounded-2xl bg-gradient-to-b from-[#0B0F19] via-[#111827] to-[#0B0F19] ' +
+  // Tighter on a phone: at 360px the shell's padding and each card's own were
+  // together taking about a fifth of the width away from the content.
+  'p-2.5 shadow-2xl ring-1 ring-white/10 sm:mt-5 sm:rounded-3xl sm:p-5';
 
 /** Muted body text on the dark shell. */
 const SHELL_MUTED = 'text-slate-400';
@@ -1730,7 +1732,7 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
 
           {/* Phones get stacked cards - a seven-column table cannot be read on a
               360px screen, and horizontal scrolling hides the status badge. */}
-          <div className="space-y-2.5 sm:hidden">
+          <div className="space-y-2.5 lg:hidden">
             {coupons.length === 0 && (
               <p className="text-center py-10 text-sm text-slate-400">
                 No coupons yet. Create one to give an agent a discount code.
@@ -1799,7 +1801,7 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
             })}
           </div>
 
-          <div className="hidden sm:block rounded-2xl border border-slate-200 overflow-hidden bg-white">
+          <div className="hidden lg:block rounded-2xl border border-slate-200 overflow-hidden bg-white">
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
@@ -2265,7 +2267,7 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
 
                     {/* What the page actually did. Same definitions as the
                         Statistics tab, so the two can never disagree. */}
-                    <div className="grid grid-cols-4 gap-3 rounded-xl border border-slate-100 bg-slate-50/70 px-3 py-2.5 sm:grid-cols-7">
+                    <div className="grid grid-cols-3 gap-x-3 gap-y-3 rounded-xl border border-slate-100 bg-slate-50/70 px-3 py-2.5 sm:grid-cols-4 lg:grid-cols-7">
                       <Stat label="Views" value={s?.views ?? 0} />
                       <Stat label="Visitors" value={s?.visitors ?? 0} />
                       <Stat label="Read" value={s?.visitors ? `${s.readRate}%` : '—'} />
@@ -2299,7 +2301,7 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
                               {running ? 'Running' : 'Stopped'}
                             </Badge>
                           </div>
-                          <div className="mt-2 grid grid-cols-4 gap-3">
+                          <div className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-4">
                             <Stat label="Players" value={campaign.player_count} />
                             <Stat label="Drops" value={campaign.tiers_unlocked} />
                             <Stat label="Price cut" value={unit(campaign.current_reward)}
@@ -2357,11 +2359,13 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
                               </Badge>
                             </div>
 
-                            <div className="flex items-end justify-between gap-3">
+                            {/* Stacked on a phone: three figures and four
+                                buttons on one line left nothing readable. */}
+                            <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
                               {/* The link's own counters, which the page-level
                                   strip above cannot show: those count every
                                   visit, these only the ones through this link. */}
-                              <div className="flex gap-5">
+                              <div className="grid grid-cols-3 gap-3 sm:flex sm:gap-5">
                                 <Stat label="Clicks" value={l.click_count} />
                                 <Stat label="Visitors" value={l.unique_visitors} />
                                 <Stat
