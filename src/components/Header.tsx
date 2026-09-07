@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useLocation, Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/lib/supabase";
+import { getSiteSettings } from "@/lib/siteSettings";
 import { motion, AnimatePresence, useScroll, useSpring } from "framer-motion";
 import { Menu, X, Phone, Mail, ChevronRight, Plane, Home, Briefcase, Compass, Aperture, ShieldCheck, MessageSquare, Calendar, Award } from "lucide-react";
 
@@ -69,9 +70,7 @@ export const Header = () => {
 
     const fetchSettings = async () => {
       if (!supabase) return;
-      const { data } = await supabase
-        .from("site_settings")
-        .select("*");
+      const data = await getSiteSettings();
 
       if (data) {
         const newSettings = { ...settings };
@@ -107,10 +106,11 @@ export const Header = () => {
         const logoUrl = newSettings.site_logo_main || "/logo.png";
         const siteTitle = (newSettings as any).site_title || "OneDayPilot";
         document.title = siteTitle;
-        const favicon = document.getElementById('favicon') as HTMLLinkElement;
-        if (favicon) favicon.href = logoUrl;
-        const appleIcon = document.getElementById('apple-touch-icon') as HTMLLinkElement;
-        if (appleIcon) appleIcon.href = logoUrl;
+        // The favicon and the touch icon are deliberately left alone. These
+        // two looked up ids that index.html does not define, so they had never
+        // run - and wiring them up would have swapped a real multi-size .ico
+        // for logo.png, which is 263x191 and not square. The icons are static
+        // and correct; rebuild them with `npm run favicon` if the logo changes.
         const ogImage = document.getElementById('og-image') as HTMLMetaElement;
         if (ogImage) ogImage.content = logoUrl;
         const twitterImage = document.getElementById('twitter-image') as HTMLMetaElement;
@@ -167,13 +167,13 @@ export const Header = () => {
             />
             <div className={`hidden lg:flex flex-col leading-none pl-1 border-l ${isScrolled ? 'border-slate-200/70' : 'border-white/30'}`}>
               <span
-                className={`font-medium tracking-[0.32em] text-[9px] uppercase pl-3 transition-colors duration-500 ${isScrolled ? 'text-slate-500' : 'text-white/80'}`}
+                className={`font-medium tracking-[0.32em] text-[9px] uppercase pl-3 transition-colors duration-500 ${isScrolled ? 'text-slate-500' : 'text-slate-400'}`}
                 style={{ fontFamily: "'Barlow Condensed', sans-serif" }}
               >
                 Est. Subang · KUL
               </span>
               <span
-                className={`font-black tracking-[0.18em] text-[15px] uppercase leading-none pl-3 mt-0.5 transition-colors duration-500 ${isScrolled ? 'text-slate-900' : 'text-white'}`}
+                className={`font-black tracking-[0.18em] text-[15px] uppercase leading-none pl-3 mt-0.5 transition-colors duration-500 ${isScrolled ? 'text-slate-900' : 'text-slate-400'}`}
                 style={{ fontFamily: "'Bebas Neue', sans-serif" }}
               >
                 Flight Experience
@@ -222,7 +222,7 @@ export const Header = () => {
           <div className="hidden lg:flex items-center gap-6 shrink-0">
             <a
               href={`tel:${settings.contact_phone.replace(/\s+/g, '')}`}
-              className={`flex items-center gap-2 transition-colors text-xs group whitespace-nowrap ${isScrolled ? 'text-slate-900 hover:text-slate-700' : 'text-white hover:text-white/90'}`}
+              className={`flex items-center gap-2 transition-colors text-xs group whitespace-nowrap ${isScrolled ? 'text-slate-900 hover:text-slate-700' : 'text-slate-400 hover:text-slate-500'}`}
               style={{ fontFamily: "'Barlow Condensed', sans-serif", letterSpacing: '0.08em' }}
             >
               <span className={`w-7 h-7 rounded-full flex items-center justify-center transition-colors shrink-0 ${isScrolled ? 'bg-slate-100 border border-slate-200 group-hover:bg-slate-200' : 'bg-white/10 border border-white/20 group-hover:bg-white/20'}`}>
