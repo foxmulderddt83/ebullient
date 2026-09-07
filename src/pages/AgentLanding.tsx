@@ -286,7 +286,13 @@ export default function AgentLanding() {
   }
 
   return (
-    <div className="min-h-screen bg-white">
+    // Deliberately no background here. A page's own CSS often paints one with
+    // a fixed, negative z-index layer behind everything, and a negative-z
+    // element renders behind its ancestor's background - so an opaque wrapper
+    // hid it completely. The document body is already white by default
+    // (index.css sets bg-background), so pages that paint nothing look the
+    // same, while a page that sets its own body background now wins.
+    <div className="min-h-screen">
       {page.show_header && <Header />}
 
       <main className={page.show_header ? "pt-16" : ""}>
