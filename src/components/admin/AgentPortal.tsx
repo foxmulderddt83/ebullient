@@ -1807,15 +1807,22 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
                         <span className="text-slate-400">left of {c.duration_hours}h</span>
                       </div>
 
-                      {/* When the run below actually began. A challenge starts its
-                          clock when it is created, editing one leaves that alone,
-                          and a reset moves it to the moment of the reset - so this
-                          single line says which run the players and the discount
-                          underneath belong to. */}
-                      <p className="mt-1.5 flex items-center gap-1.5 text-[10px] font-medium text-slate-400">
-                        <RotateCcw className="h-3 w-3 shrink-0" />
-                        {new Date(c.starts_at) > new Date() ? 'Starts ' : 'Running since '}
-                        {format(new Date(c.starts_at), 'dd MMM yyyy, h:mm a')}
+                      {/* The window the run below belongs to, both ends of it. A
+                          challenge starts its clock when it is created, editing one
+                          leaves that alone, and a reset moves it to the moment of
+                          the reset - so starts_at says which run the players and the
+                          discount underneath were earned in, and expires_at says when
+                          that run stops. The countdown above gives the same end as a
+                          duration; this gives the date, which is what you need to
+                          answer "is it still on tomorrow?". */}
+                      <p className="mt-1.5 flex items-start gap-1.5 text-[10px] font-medium leading-snug text-slate-400">
+                        <RotateCcw className="mt-0.5 h-3 w-3 shrink-0" />
+                        <span>
+                          {new Date(c.starts_at) > new Date() ? 'Starts ' : 'Running since '}
+                          {format(new Date(c.starts_at), 'dd MMM yyyy, h:mm a')}
+                          {' until '}
+                          {format(new Date(c.expires_at), 'dd MMM yyyy, h:mm a')}
+                        </span>
                       </p>
 
                       <div className="mt-2.5">
