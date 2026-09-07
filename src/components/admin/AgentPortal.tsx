@@ -1764,22 +1764,31 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
         </TabsContent>
 
         {/* ======================= PRICE SLASH ======================= */}
-        <TabsContent value="slash" className="space-y-4 mt-5">
+        {/* Dark shell so the white challenge panels read as lit cards against
+            it. Only the chrome around them is restyled - the panels keep the
+            colours they have everywhere else. */}
+        <TabsContent
+          value="slash"
+          className="mt-5 space-y-4 rounded-3xl bg-gradient-to-b from-[#0B0F19] via-[#111827] to-[#0B0F19] p-4 shadow-2xl ring-1 ring-white/10 sm:p-5"
+        >
           {/* ================= PRICE SLASH CHALLENGES ================= */}
           <div>
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-3">
               <div className="min-w-0">
-                <h3 className="flex items-center gap-2 text-sm font-black uppercase tracking-tight text-slate-900">
-                  <Gamepad2 className="h-4 w-4 text-[#CD5C5C]" />
+                <h3 className="flex items-center gap-2 text-sm font-black uppercase tracking-tight text-white">
+                  <Gamepad2 className="h-4 w-4 text-[#E88A8A]" />
                   Price Slash Challenges
                 </h3>
-                <p className="mt-0.5 text-[11px] font-medium text-slate-500">
+                <p className="mt-0.5 text-[11px] font-medium text-slate-400">
                   {campaigns.length} challenge{campaigns.length === 1 ? '' : 's'} ·{' '}
                   {campaigns.filter(c => c.is_active && new Date(c.expires_at) > new Date()).length} running
                 </p>
               </div>
               <div className="flex items-center gap-2">
-                <Button variant="outline" size="sm" onClick={reload} className="gap-2 rounded-xl shrink-0 px-3 sm:px-4">
+                <Button
+                  variant="outline" size="sm" onClick={reload}
+                  className="shrink-0 gap-2 rounded-xl border-white/20 bg-white/5 px-3 text-slate-200 hover:bg-white/10 hover:text-white sm:px-4"
+                >
                   <RefreshCw className="w-3.5 h-3.5" />
                   <span className="hidden sm:inline">Refresh</span>
                 </Button>
@@ -1787,7 +1796,7 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
                   <Button
                     size="sm"
                     onClick={() => setEditingCampaign(newCampaign())}
-                    className="shrink-0 gap-2 rounded-xl bg-slate-900 px-3 hover:bg-slate-800 sm:px-4"
+                    className="shrink-0 gap-2 rounded-xl bg-[#CD5C5C] px-3 text-white hover:bg-[#B84F4F] sm:px-4"
                   >
                     <Plus className="h-3.5 w-3.5" />
                     <span className="hidden sm:inline">New Challenge</span>
@@ -1797,9 +1806,9 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
               </div>
             </div>
 
-            <p className="mt-2 rounded-xl border border-slate-200 bg-slate-50 p-3 text-[11px] leading-relaxed text-slate-500">
+            <p className="mt-2 rounded-xl border border-white/10 bg-white/5 p-3 text-[11px] leading-relaxed text-slate-400">
               Set up the game and its terms here, then switch it on for a page in
-              <strong className="font-bold text-slate-600"> Landing Pages → Edit → Price slash game</strong>.
+              <strong className="font-bold text-slate-200"> Landing Pages → Edit → Price slash game</strong>.
               Visitors get one round each to cut the price, every set number of players unlocks a
               further drop for everyone, and the challenge rewrites its coupon's value as it runs.
             </p>
