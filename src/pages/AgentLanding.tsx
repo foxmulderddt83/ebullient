@@ -1,4 +1,4 @@
-import { useEffect, useState, lazy, Suspense } from "react";
+import { useEffect, useRef, useState, lazy, Suspense } from "react";
 import { useParams } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
 import { Header } from "@/components/Header";
@@ -80,6 +80,9 @@ export default function AgentLanding() {
    */
   const [couponNotice, setCouponNotice] = useState<string | null>(null);
 
+  /** The element holding the agent's own markup, so its scripts can be run. */
+  const contentRef = useRef<HTMLElement>(null);
+
   // Starts once the page id is known, so the view/scroll rows are attributed
   // to this landing page as well as to the share link the visitor came from.
   useShareTracking(page?.id ?? null);
@@ -112,6 +115,38 @@ export default function AgentLanding() {
     }
     clearCart();
   }, [clearCart]);
+
+  /**
+   * Runs the scripts inside the agent's markup.
+   *
+   * innerHTML parses a <script> into the DOM but never executes it - that is a
+   * browser rule, not a React one - so a page whose design depends on script
+   * arrived complete and inert. The common case is a scroll reveal: elements
+   * ship at opacity 0 and a class added by IntersectionObserver brings them
+   * in, which without the script leaves the whole page permanently blank.
+   *
+   * Replacing each node with a fresh one is what makes it run; the parser only
+   * marks nodes it created itself as already-executed. The flag stops a second
+   * pass re-running anything, since the replacement is a <script> too.
+   */
+  useEffect(() => {
+    const host = contentRef.current;
+    if (!host || !page?.html_content) return;
+
+    host.querySelectorAll<HTMLScriptElement>('script:not([data-ran])').forEach(old => {
+      const fresh = document.createElement('script');
+      for (const { name, value } of Array.from(old.attributes)) {
+        fresh.setAttribute(name, value);
+      }
+      fresh.setAttribute('data-ran', '');
+      fresh.textContent = old.textContent;
+      old.replaceWith(fresh);
+    });
+    // `loading` belongs here: the page object is set well before loading is
+    // cleared, and until it is, this component renders the loader instead of
+    // the content - so on the first pass there is no element to search. The
+    // effect has to run again once the markup is actually on the page.
+  }, [page?.html_content, loading]);
 
   useEffect(() => {
     let cancelled = false;
@@ -298,6 +333,7 @@ export default function AgentLanding() {
       <main className={page.show_header ? "pt-16" : ""}>
         {/* The agent's own markup, exactly as written in the admin editor. */}
         <section
+          ref={contentRef}
           className="agent-landing-content"
           dangerouslySetInnerHTML={{ __html: page.html_content || '' }}
         />
