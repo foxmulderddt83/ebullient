@@ -308,6 +308,22 @@ const couponStatus = (c: Coupon, links: ShareLink[]): { label: string; tone: str
   return { label: 'Off', tone: 'bg-slate-100 text-slate-500 border-slate-200' };
 };
 
+const getRemainingTime = (expiresAt: string | null): string => {
+  if (!expiresAt) return '';
+  const now = Date.now();
+  const expiryTime = new Date(expiresAt).getTime();
+  if (expiryTime <= now) return '';
+  const diff = expiryTime - now;
+  const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+  const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+  const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+  const parts = [];
+  if (days > 0) parts.push(`${days}d`);
+  if (hours > 0) parts.push(`${hours}h`);
+  if (minutes > 0) parts.push(`${minutes}m`);
+  return parts.join(' ');
+};
+
 /**
  * Parts of a page an agent must not touch are marked in the HTML with a
  * `data-locked` attribute, e.g.
@@ -1982,10 +1998,15 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
                       {l.agent_name && (
                         <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider truncate">{l.agent_name}</p>
                       )}
-                      {l.expires_at && (
-                        <p className="text-[10px] text-slate-400 font-medium">
-                          {linkStatus(l).label === 'Expired' ? 'Expired ' : 'Expires '}
-                          {format(new Date(l.expires_at), 'dd MMM yyyy, h:mm a')}
+                      {(l.starts_at || l.expires_at) && (
+                        <p className="mt-1.5 flex items-start gap-1.5 text-sm font-semibold leading-snug text-indigo-700">
+                          <Timer className="mt-0.5 h-4 w-4 shrink-0" />
+                          <span>
+                            {l.starts_at && format(new Date(l.starts_at), 'dd MMM yyyy, h:mm a')}
+                            {l.starts_at && l.expires_at && ' until '}
+                            {l.expires_at && format(new Date(l.expires_at), 'dd MMM yyyy, h:mm a')}
+                            {getRemainingTime(l.expires_at) && ` (${getRemainingTime(l.expires_at)} left)`}
+                          </span>
                         </p>
                       )}
                     </div>
@@ -2091,10 +2112,19 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
                           <Badge variant="outline" className={`text-[9px] font-bold uppercase ${linkStatus(l).tone}`}>
                             {linkStatus(l).label}
                           </Badge>
-                          {l.expires_at && (
-                            <p className="mt-1 text-[10px] text-slate-400 font-medium whitespace-nowrap">
-                              {format(new Date(l.expires_at), 'dd MMM yyyy')}
-                            </p>
+                          {(l.starts_at || l.expires_at) && (
+                            <div className="mt-1 space-y-1">
+                              <p className="text-[9px] text-slate-600 font-medium">
+                                {l.starts_at && format(new Date(l.starts_at), 'dd MMM, h:mm a')}
+                                {l.starts_at && l.expires_at && ' → '}
+                                {l.expires_at && format(new Date(l.expires_at), 'dd MMM, h:mm a')}
+                              </p>
+                              {getRemainingTime(l.expires_at) && (
+                                <p className="text-[9px] font-semibold text-indigo-700">
+                                  {getRemainingTime(l.expires_at)} left
+                                </p>
+                              )}
+                            </div>
                           )}
                         </TableCell>
                         <TableCell className="text-xs text-slate-600 max-w-[200px] truncate" title={opens}>{opens}</TableCell>
