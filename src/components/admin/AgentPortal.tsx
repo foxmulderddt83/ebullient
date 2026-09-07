@@ -509,9 +509,15 @@ const TabCount = ({ n }: { n: number }) =>
 
 /** One figure in a page's results strip. Dimmed at zero so a busy page reads first. */
 const Stat = ({ label, value, tone }: { label: string; value: React.ReactNode; tone?: string }) => (
-  <div className="min-w-0">
-    <p className={`text-sm font-black leading-none ${tone || 'text-slate-900'}`}>{value}</p>
-    <p className="mt-1 text-[11px] font-bold uppercase tracking-widest text-slate-500">{label}</p>
+  // A row on a phone and a stacked block from `sm` up. Columns of figures
+  // stop working on a 360px screen - the labels are the widest part, so
+  // "Link clicks" set in tracking-widest wraps under its own number. Read as
+  // rows they stay one to a line with the value aligned down the right.
+  // The markup is value-then-label so the block form needs no reordering;
+  // row-reverse is what puts the label on the left in the row form.
+  <div className="flex min-w-0 flex-row-reverse items-baseline justify-between gap-3 py-1.5 sm:block sm:py-0">
+    <p className={`shrink-0 text-sm font-black leading-none ${tone || 'text-slate-900'}`}>{value}</p>
+    <p className="min-w-0 text-[11px] font-bold uppercase tracking-widest text-slate-500 sm:mt-1">{label}</p>
   </div>
 );
 
@@ -2199,9 +2205,9 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
               const campaign = campaigns.find(c => c.id === p.slash_campaign_id) || null;
               return (
                 <Card key={p.id} className="border-slate-200 rounded-2xl hover:shadow-md transition-shadow">
-                  <CardHeader className="pb-2">
+                  <CardHeader className="p-3 pb-2 sm:p-5 sm:pb-2">
                     <div className="flex items-start justify-between gap-2">
-                      <CardTitle className="text-sm font-black text-slate-900 leading-tight">{p.title}</CardTitle>
+                      <CardTitle className="min-w-0 break-words text-sm font-black leading-tight text-slate-900">{p.title}</CardTitle>
                       {/* Publish state and delete sit together: both act on the
                           page as a whole, unlike the row of buttons below which
                           act on its content. */}
@@ -2255,7 +2261,7 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
                     </div>
                     <CardDescription className="text-xs font-mono truncate">/p/{p.slug}</CardDescription>
                   </CardHeader>
-                  <CardContent className="space-y-3">
+                  <CardContent className="space-y-3 p-3 pt-0 sm:p-5 sm:pt-0">
                     {/* The game and the link count used to be badges here. Both
                         now have a panel of their own below saying more, so the
                         badges only repeated them. */}
@@ -2267,7 +2273,7 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
 
                     {/* What the page actually did. Same definitions as the
                         Statistics tab, so the two can never disagree. */}
-                    <div className="grid grid-cols-3 gap-x-3 gap-y-3 rounded-xl border border-slate-100 bg-slate-50/70 px-3 py-2.5 sm:grid-cols-4 lg:grid-cols-7">
+                    <div className="divide-y divide-slate-200/60 rounded-xl border border-slate-100 bg-slate-50/70 px-3 py-1 sm:grid sm:grid-cols-4 sm:gap-3 sm:divide-y-0 sm:py-2.5 lg:grid-cols-7">
                       <Stat label="Views" value={s?.views ?? 0} />
                       <Stat label="Visitors" value={s?.visitors ?? 0} />
                       <Stat label="Read" value={s?.visitors ? `${s.readRate}%` : '—'} />
@@ -2301,7 +2307,7 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
                               {running ? 'Running' : 'Stopped'}
                             </Badge>
                           </div>
-                          <div className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                          <div className="mt-1 divide-y divide-[#CD5C5C]/15 sm:mt-2 sm:grid sm:grid-cols-4 sm:gap-3 sm:divide-y-0">
                             <Stat label="Players" value={campaign.player_count} />
                             <Stat label="Drops" value={campaign.tiers_unlocked} />
                             <Stat label="Price cut" value={unit(campaign.current_reward)}
@@ -2365,7 +2371,7 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
                               {/* The link's own counters, which the page-level
                                   strip above cannot show: those count every
                                   visit, these only the ones through this link. */}
-                              <div className="grid grid-cols-3 gap-3 sm:flex sm:gap-5">
+                              <div className="divide-y divide-slate-200/60 sm:flex sm:gap-5 sm:divide-y-0">
                                 <Stat label="Clicks" value={l.click_count} />
                                 <Stat label="Visitors" value={l.unique_visitors} />
                                 <Stat
