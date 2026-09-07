@@ -1847,8 +1847,8 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
                           that run stops. The countdown above gives the same end as a
                           duration; this gives the date, which is what you need to
                           answer "is it still on tomorrow?". */}
-                      <p className="mt-1.5 flex items-start gap-1.5 text-[10px] font-medium leading-snug text-slate-400">
-                        <RotateCcw className="mt-0.5 h-3 w-3 shrink-0" />
+                      <p className="mt-2 flex items-start gap-2 text-sm font-semibold leading-snug text-indigo-700">
+                        <RotateCcw className="mt-0.5 h-4 w-4 shrink-0" />
                         <span>
                           {new Date(c.starts_at) > new Date() ? 'Starts ' : 'Running since '}
                           {format(new Date(c.starts_at), 'dd MMM yyyy, h:mm a')}
