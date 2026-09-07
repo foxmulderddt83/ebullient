@@ -597,6 +597,14 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
     [pages, editingLink?.landing_page_id],
   );
 
+  /**
+   * Whether the page being edited must show its packages. Both a coupon and a
+   * slash game price the packages, so either one turns "Show packages" into a
+   * requirement rather than a choice - a discount on a hidden package is a
+   * discount the visitor can neither see nor spend.
+   */
+  const packagesRequired = !!(editingPage?.coupon_id || editingPage?.slash_campaign_id);
+
   const packageName = useCallback(
     (id: string | null) => packages.find(p => p.id === id)?.name ?? '—',
     [packages],
@@ -1215,7 +1223,11 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
         // Visitors cannot read agent_coupons, so the packages the coupon
         // covers are resolved here and stored on the page, which is public.
         settings: { package_ids: pageScope(p).packageIds },
-        show_wizard: p.show_wizard ?? true,
+        // Forced on when the page prices anything, not just disabled in the
+        // form: a page saved before this rule existed, or one where the coupon
+        // was attached after the switch was turned off, would otherwise keep a
+        // stored false and quietly discount packages it never shows.
+        show_wizard: (p.coupon_id || campaignId) ? true : (p.show_wizard ?? true),
         show_header: p.show_header ?? true,
         show_footer: p.show_footer ?? true,
         is_published: p.is_published ?? false,
@@ -3471,6 +3483,8 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
                         // it, exactly as picking it by hand used to.
                         package_id: scope.packageIds.length === 1 ? scope.packageIds[0] : null,
                         category_id: scope.categoryId,
+                        // A coupon prices the packages, so they have to be on.
+                        ...(v === 'none' ? {} : { show_wizard: true }),
                       });
                     }}
                     disabled={!canEdit}
@@ -3541,6 +3555,8 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
                         // follows the package that game is cutting.
                         ...(v === 'none' ? {} : {
                           coupon_id: null,
+                          // The game prices the packages, so they have to be on.
+                          show_wizard: true,
                           package_id: cm?.package_id ?? null,
                           category_id: cm?.package_id
                             ? packages.find(x => x.id === cm.package_id)?.category_id ?? null
@@ -3623,22 +3639,37 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
                     ['show_wizard', 'Show packages'],
                     ['show_header', 'Show site header'],
                     ['show_footer', 'Show site footer'],
-                  ] as const).map(([key, label]) => (
-                    <div key={key} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-3">
-                      <Label className="text-xs font-bold text-slate-700">{label}</Label>
-                      <Switch
-                        checked={(editingPage as any)[key] ?? true}
-                        onCheckedChange={(v) => setEditingPage({ ...editingPage, [key]: v })}
-                        disabled={!canEdit}
-                      />
-                    </div>
-                  ))}
+                  ] as const).map(([key, label]) => {
+                    // A coupon discounts packages and the game cuts their
+                    // price. Either one with the packages hidden is a discount
+                    // on something the visitor cannot see or buy, so the switch
+                    // is held on rather than left as a way to break the page.
+                    const locked = key === 'show_wizard' && packagesRequired;
+                    return (
+                      <div key={key} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-3">
+                        <Label className="text-xs font-bold text-slate-700">{label}</Label>
+                        <Switch
+                          checked={locked ? true : (editingPage as any)[key] ?? true}
+                          onCheckedChange={(v) => setEditingPage({ ...editingPage, [key]: v })}
+                          disabled={!canEdit || locked}
+                        />
+                      </div>
+                    );
+                  })}
 
                   <p className="text-xs text-slate-500 font-medium leading-snug">
                     <span className="font-bold text-slate-600">Show packages</span> appends the package
                     carousel and the booking steps below your content, so the page ends at the same
                     payment step as the main site.
                   </p>
+
+                  {packagesRequired && (
+                    <p className="rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-2 text-xs font-medium leading-snug text-amber-800">
+                      Held on because this page runs {editingPage.slash_campaign_id ? 'a price slash game' : 'a coupon'}.
+                      The discount applies to the packages, so hiding them would leave nothing for it to
+                      come off. Remove the {editingPage.slash_campaign_id ? 'game' : 'coupon'} above to turn it back off.
+                    </p>
+                  )}
                 </div>
 
                 {editingPage.id && (
