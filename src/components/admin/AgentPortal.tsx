@@ -2053,7 +2053,7 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
                     c.reward_type === 'percent' ? `${Number(v).toFixed(0)}%` : `RM ${Number(v).toFixed(2)}`;
 
                   return (
-                    <div key={c.id} className="rounded-2xl border border-slate-200 bg-white p-4">
+                    <div key={c.id} className="rounded-2xl border border-slate-200 bg-white p-3 sm:p-4">
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
                           <p className="flex items-center gap-1.5 text-[11px] font-black uppercase tracking-widest text-[#CD5C5C]">
@@ -2093,7 +2093,7 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
                           that run stops. The countdown above gives the same end as a
                           duration; this gives the date, which is what you need to
                           answer "is it still on tomorrow?". */}
-                      <p className="mt-2 flex items-start gap-2 text-sm font-semibold leading-snug text-indigo-700">
+                      <p className="mt-2 flex items-start gap-2 text-xs font-semibold leading-snug text-indigo-700 sm:text-sm">
                         <RotateCcw className="mt-0.5 h-4 w-4 shrink-0" />
                         <span>
                           {new Date(c.starts_at) > new Date() ? 'Starts ' : 'Running since '}
@@ -2116,21 +2116,17 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
                         </div>
                       </div>
 
-                      <div className="mt-3 grid grid-cols-3 gap-2 border-t border-slate-100 pt-2.5">
-                        <div>
-                          <p className="text-[11px] font-bold uppercase tracking-widest text-slate-500">Players</p>
-                          <p className="flex items-center gap-1 text-xs font-black text-slate-900">
-                            <Users className="h-3 w-3" />{c.player_count}
-                          </p>
-                        </div>
-                        <div className="text-center">
-                          <p className="text-[11px] font-bold uppercase tracking-widest text-slate-500">Cut so far</p>
-                          <p className="text-xs font-black text-[#CD5C5C]">{unit(c.current_reward)}</p>
-                        </div>
-                        <div className="text-right">
-                          <p className="text-[11px] font-bold uppercase tracking-widest text-slate-500">Ceiling</p>
-                          <p className="text-xs font-black text-slate-500">{unit(c.max_reward)}</p>
-                        </div>
+                      {/* Rows on a phone, three across from sm - the same
+                          shape the landing page figures use, and for the same
+                          reason: "Cut so far" in tracking-widest is wider than
+                          a third of a 360px card. */}
+                      <div className="mt-3 divide-y divide-slate-100 border-t border-slate-100 pt-1 sm:grid sm:grid-cols-3 sm:gap-2 sm:divide-y-0 sm:pt-2.5">
+                        <Stat
+                          label="Players"
+                          value={<span className="flex items-center gap-1"><Users className="h-3 w-3" />{c.player_count}</span>}
+                        />
+                        <Stat label="Cut so far" value={unit(c.current_reward)} tone="text-[#CD5C5C]" />
+                        <Stat label="Ceiling" value={unit(c.max_reward)} tone="text-slate-500" />
                       </div>
 
                       <div className="mt-2.5 space-y-0.5 border-t border-slate-100 pt-2 text-xs text-slate-500">
@@ -2139,7 +2135,7 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
                             Feeds coupon <span className="font-mono font-bold text-slate-600">{coupon.code}</span>
                           </p>
                         )}
-                        <p className="truncate">
+                        <p className="break-words sm:truncate">
                           {hostPages.length === 0
                             ? 'Not on any page yet — pick it in a landing page'
                             : `On ${hostPages.map(p => `/p/${p.slug}`).join(', ')}`}
@@ -2150,21 +2146,21 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
                         <div className="mt-3 flex items-center gap-1">
                           <Button
                             variant="outline" size="sm"
-                            className="h-8 flex-1 gap-1.5 rounded-lg border-amber-200 text-xs text-amber-700 hover:bg-amber-50 hover:text-amber-800"
+                            className="h-9 flex-1 gap-1.5 rounded-lg border-amber-200 text-xs text-amber-700 hover:bg-amber-50 hover:text-amber-800 sm:h-8"
                             onClick={() => setConfirmReset(c)}
                           >
                             <RotateCcw className="h-3 w-3" /> Reset
                           </Button>
                           <Button
                             variant="outline" size="sm"
-                            className="h-8 flex-1 gap-1.5 rounded-lg text-xs"
+                            className="h-9 flex-1 gap-1.5 rounded-lg text-xs sm:h-8"
                             onClick={() => setEditingCampaign(c)}
                           >
                             <Code className="h-3 w-3" /> Edit
                           </Button>
                           <Button
                             variant="ghost" size="icon"
-                            className="h-8 w-8 text-red-500 hover:text-red-600"
+                            className="h-9 w-9 text-red-500 hover:text-red-600 sm:h-8 sm:w-8"
                             onClick={() => setConfirmDelete({ table: 'slash_campaigns', id: c.id, label: c.title })}
                           >
                             <Trash2 className="h-3.5 w-3.5" />
