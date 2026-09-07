@@ -1315,7 +1315,17 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
         setPages(prev => prev.map(page => page.id === savedId ? { ...page, ...payload } : page));
       }
       setEditingPage(null);
-      if (emptyPackagePick) setPackagesOffNotice(p.title.trim());
+      // Deferred, not fired alongside the close above. Both of these are Radix
+      // dialogs, and each one owns document.body's pointer-events and a focus
+      // scope while it is open. Closing one and opening another in the same
+      // commit lets the first dialog's teardown run after the second has
+      // mounted, which takes the new dialog's pointer-events fix with it - the
+      // box either never appears or appears and cannot be dismissed. Waiting
+      // for the close animation to finish keeps the two apart.
+      if (emptyPackagePick) {
+        const name = p.title.trim();
+        setTimeout(() => setPackagesOffNotice(name), 250);
+      }
     } catch (e: any) {
       const msg = e?.message?.includes('agent_landing_pages_slug_key')
         ? 'That page URL is already taken.'
