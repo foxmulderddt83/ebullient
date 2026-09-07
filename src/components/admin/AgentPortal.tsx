@@ -1807,6 +1807,17 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
                         <span className="text-slate-400">left of {c.duration_hours}h</span>
                       </div>
 
+                      {/* When the run below actually began. A challenge starts its
+                          clock when it is created, editing one leaves that alone,
+                          and a reset moves it to the moment of the reset - so this
+                          single line says which run the players and the discount
+                          underneath belong to. */}
+                      <p className="mt-1.5 flex items-center gap-1.5 text-[10px] font-medium text-slate-400">
+                        <RotateCcw className="h-3 w-3 shrink-0" />
+                        {new Date(c.starts_at) > new Date() ? 'Starts ' : 'Running since '}
+                        {format(new Date(c.starts_at), 'dd MMM yyyy, h:mm a')}
+                      </p>
+
                       <div className="mt-2.5">
                         <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-slate-400">
                           <span>{toNext} more to next drop</span>
