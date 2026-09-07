@@ -481,6 +481,21 @@ const SHELL_NOTE = 'rounded-xl border border-white/10 bg-white/5 p-3';
 /** Outline buttons on the dark shell, which would otherwise be white blocks. */
 const SHELL_BTN = 'border-white/20 bg-white/5 text-slate-200 hover:bg-white/10 hover:text-white';
 
+/**
+ * How many things sit behind a tab, shown on the tab itself.
+ *
+ * Hidden at zero: a badge reading 0 tells you less than no badge does, and
+ * each of these tabs already explains its own empty state once opened. The two
+ * colour pairs are the active and inactive trigger - the active tab is a white
+ * pill, the rest are on the dark bar, so one set of colours cannot serve both.
+ */
+const TabCount = ({ n }: { n: number }) =>
+  n ? (
+    <span className="ml-0.5 shrink-0 rounded-full bg-white/10 px-1.5 py-px text-[11px] font-black leading-normal text-slate-300 group-data-[state=active]:bg-slate-900/10 group-data-[state=active]:text-slate-700">
+      {n}
+    </span>
+  ) : null;
+
 /** One figure in a page's results strip. Dimmed at zero so a busy page reads first. */
 const Stat = ({ label, value, tone }: { label: string; value: React.ReactNode; tone?: string }) => (
   <div className="min-w-0">
@@ -1616,19 +1631,19 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
 
       <Tabs defaultValue="coupons" className="w-full">
         <TabsList className="grid w-full grid-cols-2 gap-1 rounded-2xl bg-[#0B0F19] p-1.5 h-auto ring-1 ring-white/10 shadow-lg sm:flex sm:w-auto sm:flex-wrap">
-          <TabsTrigger value="coupons" className="rounded-xl text-xs font-bold gap-1 sm:gap-1.5 px-1.5 sm:px-4 py-1.5 sm:py-2 text-slate-400 hover:text-slate-200 data-[state=active]:text-slate-900">
-            <Ticket className="w-3 h-3 sm:w-3.5 sm:h-3.5 shrink-0" /> Coupons
+          <TabsTrigger value="coupons" className="group rounded-xl text-xs font-bold gap-1 sm:gap-1.5 px-1.5 sm:px-4 py-1.5 sm:py-2 text-slate-400 hover:text-slate-200 data-[state=active]:text-slate-900">
+            <Ticket className="w-3 h-3 sm:w-3.5 sm:h-3.5 shrink-0" /> Coupons <TabCount n={coupons.length} />
           </TabsTrigger>
-          <TabsTrigger value="redemptions" className="rounded-xl text-xs font-bold gap-1 sm:gap-1.5 px-1.5 sm:px-4 py-1.5 sm:py-2 text-slate-400 hover:text-slate-200 data-[state=active]:text-slate-900">
-            <CheckCircle2 className="w-3 h-3 sm:w-3.5 sm:h-3.5 shrink-0" /> <span className="truncate">Redemptions</span>
+          <TabsTrigger value="redemptions" className="group rounded-xl text-xs font-bold gap-1 sm:gap-1.5 px-1.5 sm:px-4 py-1.5 sm:py-2 text-slate-400 hover:text-slate-200 data-[state=active]:text-slate-900">
+            <CheckCircle2 className="w-3 h-3 sm:w-3.5 sm:h-3.5 shrink-0" /> <span className="truncate">Redemptions</span> <TabCount n={redemptions.length} />
           </TabsTrigger>
-          <TabsTrigger value="slash" className="rounded-xl text-xs font-bold gap-1 sm:gap-1.5 px-1.5 sm:px-4 py-1.5 sm:py-2 text-slate-400 hover:text-slate-200 data-[state=active]:text-slate-900">
-            <Gamepad2 className="w-3 h-3 sm:w-3.5 sm:h-3.5 shrink-0" /> <span className="truncate">Price Slash</span>
+          <TabsTrigger value="slash" className="group rounded-xl text-xs font-bold gap-1 sm:gap-1.5 px-1.5 sm:px-4 py-1.5 sm:py-2 text-slate-400 hover:text-slate-200 data-[state=active]:text-slate-900">
+            <Gamepad2 className="w-3 h-3 sm:w-3.5 sm:h-3.5 shrink-0" /> <span className="truncate">Price Slash</span> <TabCount n={campaigns.length} />
           </TabsTrigger>
-          <TabsTrigger value="pages" className="rounded-xl text-xs font-bold gap-1 sm:gap-1.5 px-1.5 sm:px-4 py-1.5 sm:py-2 text-slate-400 hover:text-slate-200 data-[state=active]:text-slate-900">
-            <FileCode className="w-3 h-3 sm:w-3.5 sm:h-3.5 shrink-0" /> <span className="truncate">Landing Pages</span>
+          <TabsTrigger value="pages" className="group rounded-xl text-xs font-bold gap-1 sm:gap-1.5 px-1.5 sm:px-4 py-1.5 sm:py-2 text-slate-400 hover:text-slate-200 data-[state=active]:text-slate-900">
+            <FileCode className="w-3 h-3 sm:w-3.5 sm:h-3.5 shrink-0" /> <span className="truncate">Landing Pages</span> <TabCount n={pages.length} />
           </TabsTrigger>
-          <TabsTrigger value="analytics" className="rounded-xl text-xs font-bold gap-1 sm:gap-1.5 px-1.5 sm:px-4 py-1.5 sm:py-2 text-slate-400 hover:text-slate-200 data-[state=active]:text-slate-900">
+          <TabsTrigger value="analytics" className="group rounded-xl text-xs font-bold gap-1 sm:gap-1.5 px-1.5 sm:px-4 py-1.5 sm:py-2 text-slate-400 hover:text-slate-200 data-[state=active]:text-slate-900">
             <BarChart3 className="w-3 h-3 sm:w-3.5 sm:h-3.5 shrink-0" /> Statistics
           </TabsTrigger>
         </TabsList>
