@@ -1068,7 +1068,11 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
     show_wizard: true,
     show_header: true,
     show_footer: true,
-    is_published: false,
+    // Live from the first save. A page was previously born a draft, which
+    // meant every one had to be published by hand afterwards, and a link sent
+    // out before that step landed the visitor on the homepage instead. The
+    // Live badge on the card still toggles it back at any time.
+    is_published: true,
     slash_campaign_id: null,
   });
 
