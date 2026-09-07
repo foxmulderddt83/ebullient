@@ -27,7 +27,7 @@ import {
   Loader2, Plus, Trash2, Copy, Ticket, Link2, FileCode, BarChart3, RefreshCw,
   Save, Eye, ExternalLink, Globe, MousePointerClick, ScrollText, ClipboardList,
   X, Percent, CheckCircle2, XCircle, Users, QrCode, MessageCircle, Code, Lock,
-  Gamepad2, Timer, Trophy, Zap,
+  Gamepad2, Timer, Trophy, Zap, RotateCcw,
 } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
@@ -461,6 +461,8 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
   const [analyticsScope, setAnalyticsScope] = useState<string>('all');
   const [analyticsRange, setAnalyticsRange] = useState<AnalyticsRange>('all');
   const [confirmClear, setConfirmClear] = useState<ClearOption | null>(null);
+  const [confirmReset, setConfirmReset] = useState<SlashCampaign | null>(null);
+  const [resetting, setResetting] = useState(false);
   const [clearing, setClearing] = useState(false);
 
   // How many protected blocks the page being edited carries.
@@ -691,6 +693,50 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
     is_active: true,
   });
 
+
+  /**
+   * Put a challenge back to how it started: nobody has played, no reward has
+   * been unlocked, and the countdown runs again from now.
+   *
+   * The ledger goes first. If deleting the rows fails the counters are left
+   * alone, so the campaign still agrees with the plays behind it - whereas
+   * zeroing the counters first and then failing would show a fresh challenge
+   * that every previous player is still locked out of, since slash_play
+   * checks the ledger for their device.
+   */
+  const resetCampaign = async (c: SlashCampaign) => {
+    if (!supabase) return;
+    setResetting(true);
+    try {
+      const { error: ledgerError } = await supabase
+        .from('slash_participants').delete().eq('campaign_id', c.id);
+      if (ledgerError) throw ledgerError;
+
+      const startedAt = new Date();
+      const hours = Math.max(1, Number(c.duration_hours || 24));
+      const patch = {
+        player_count: 0,
+        tiers_unlocked: 0,
+        current_reward: 0,
+        starts_at: startedAt.toISOString(),
+        expires_at: new Date(startedAt.getTime() + hours * 3600_000).toISOString(),
+        updated_at: startedAt.toISOString(),
+      };
+
+      const { error } = await supabase.from('slash_campaigns').update(patch).eq('id', c.id);
+      if (error) throw error;
+
+      setCampaigns(prev => prev.map(x => (x.id === c.id ? { ...x, ...patch } as SlashCampaign : x)));
+      logActivity(supabase, 'reset', 'slash_campaigns', c.id, { title: c.title });
+      toast.success(`"${c.title}" is back to the start`);
+      setConfirmReset(null);
+    } catch (e: any) {
+      console.error('[AgentPortal] reset campaign failed', e);
+      toast.error(e?.message || 'Failed to reset the challenge');
+    } finally {
+      setResetting(false);
+    }
+  };
 
   const saveCampaign = async () => {
     if (!editingCampaign || !supabase) return;
@@ -980,6 +1026,62 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
 
     setSaving(true);
     try {
+      const wasNew = !p.id;
+
+      /**
+       * A new page gets its own copy of the challenge it was built with.
+       *
+       * A campaign carries live progress - player_count, tiers_unlocked and
+       * the reward those add up to - so two pages pointed at one campaign
+       * share a scoreboard, and each page's visitors move a bar the other
+       * page's visitors filled. Copying gives the new page a run of its own.
+       *
+       * Only on create. Saving an existing page is an edit, and an edit that
+       * quietly spawned a second challenge would leave the agent collecting
+       * duplicates every time they fixed a typo.
+       */
+      let campaignId = p.slash_campaign_id || null;
+      let clonedCampaign: SlashCampaign | null = null;
+
+      if (wasNew && campaignId) {
+        const source = campaigns.find(c => c.id === campaignId);
+        if (source) {
+          const startedAt = new Date();
+          const hours = Math.max(1, Number(source.duration_hours || 24));
+          const { data, error } = await supabase
+            .from('slash_campaigns')
+            .insert({
+              title: `${source.title} · ${p.title.trim()}`,
+              goal_text: source.goal_text,
+              game_type: source.game_type,
+              // Challenges price the package directly; they carry no code.
+              coupon_id: null,
+              package_id: source.package_id,
+              base_price: source.base_price,
+              reward_type: source.reward_type,
+              players_per_tier: source.players_per_tier,
+              reward_per_tier: source.reward_per_tier,
+              reward_per_player: source.reward_per_player,
+              hits_target: source.hits_target,
+              max_reward: source.max_reward,
+              duration_hours: hours,
+              strict_device_lock: source.strict_device_lock,
+              max_plays_per_ip: source.max_plays_per_ip,
+              // The clock starts with the page and the scoreboard at nothing:
+              // the copy is a fresh run, not a continuation of the original.
+              starts_at: startedAt.toISOString(),
+              expires_at: new Date(startedAt.getTime() + hours * 3600_000).toISOString(),
+              is_active: source.is_active,
+              created_by: userId,
+            })
+            .select('*')
+            .single();
+          if (error) throw error;
+          clonedCampaign = data as SlashCampaign;
+          campaignId = clonedCampaign.id;
+        }
+      }
+
       const payload = {
         slug,
         title: p.title.trim(),
@@ -996,13 +1098,12 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
         show_header: p.show_header ?? true,
         show_footer: p.show_footer ?? true,
         is_published: p.is_published ?? false,
-        slash_campaign_id: p.slash_campaign_id || null,
+        slash_campaign_id: campaignId,
         // Digits only - the public page builds a wa.me link straight from this.
         created_by: userId,
         updated_at: new Date().toISOString(),
       };
 
-      const wasNew = !p.id;
       let savedId = p.id;
 
       if (p.id) {
@@ -1024,6 +1125,7 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
         savedId = (data as { id: string }).id;
       }
 
+      if (clonedCampaign) setCampaigns(prev => [...prev, clonedCampaign as SlashCampaign]);
       logActivity(supabase, wasNew ? 'create' : 'update', 'agent_landing_pages', savedId || slug, { slug });
       toast.success(wasNew ? 'Page created' : 'Page updated');
       setPageBaselineHtml(payload.html_content);
@@ -1750,6 +1852,13 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
 
                       {canEdit && (
                         <div className="mt-3 flex items-center gap-1">
+                          <Button
+                            variant="outline" size="sm"
+                            className="h-8 flex-1 gap-1.5 rounded-lg border-amber-200 text-[11px] text-amber-700 hover:bg-amber-50 hover:text-amber-800"
+                            onClick={() => setConfirmReset(c)}
+                          >
+                            <RotateCcw className="h-3 w-3" /> Reset
+                          </Button>
                           <Button
                             variant="outline" size="sm"
                             className="h-8 flex-1 gap-1.5 rounded-lg text-[11px]"
@@ -3602,6 +3711,42 @@ export default function AgentPortal({ canEdit = true }: { canEdit?: boolean }) {
       </Dialog>
 
       {/* ========================== DELETE CONFIRM ========================== */}
+      {/* A reset is visible to whoever is mid-game: the price they had
+          unlocked goes back up, so the confirm says so plainly. */}
+      <AlertDialog open={!!confirmReset} onOpenChange={(o) => !o && setConfirmReset(null)}>
+        <AlertDialogContent className="w-[calc(100vw-2rem)] max-w-md rounded-2xl sm:rounded-3xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Reset “{confirmReset?.title}”?</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2">
+                <p>
+                  Puts the challenge back to its starting state: no players, no
+                  tiers unlocked, no discount, and the countdown running again
+                  from now. Everyone who has played may play again.
+                </p>
+                <p className="text-xs text-slate-500">
+                  {confirmReset?.player_count ?? 0} player
+                  {confirmReset?.player_count === 1 ? '' : 's'} and RM{' '}
+                  {Number(confirmReset?.current_reward ?? 0).toFixed(2)} of unlocked discount
+                  will be discarded. Anyone on the page will see the price go back up.
+                  This cannot be undone.
+                </p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="gap-2">
+            <AlertDialogCancel className="rounded-xl mt-0" disabled={resetting}>Leave it running</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={resetting}
+              onClick={(e) => { e.preventDefault(); if (confirmReset) resetCampaign(confirmReset); }}
+              className="rounded-xl bg-amber-600 hover:bg-amber-700"
+            >
+              {resetting ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Reset'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       {/* Captures hold customer names, emails and phone numbers, so the
           confirm says what goes and from where before anything is deleted. */}
       <AlertDialog open={!!confirmClear} onOpenChange={(o) => !o && setConfirmClear(null)}>
